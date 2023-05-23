@@ -17,37 +17,31 @@
 package androidx.appactions.interaction.service
 
 import androidx.appactions.interaction.capabilities.core.Capability
-import androidx.appactions.interaction.capabilities.core.impl.CapabilitySession
 import androidx.appactions.interaction.capabilities.core.impl.CallbackInternal
+import androidx.appactions.interaction.capabilities.core.impl.CapabilitySession
+import androidx.appactions.interaction.proto.AppActionsContext
 import androidx.appactions.interaction.proto.AppActionsContext.AppAction
 import androidx.appactions.interaction.proto.AppActionsContext.AppDialogState
+import androidx.appactions.interaction.proto.CurrentValue
 import androidx.appactions.interaction.proto.FulfillmentRequest
 import androidx.appactions.interaction.proto.FulfillmentRequest.Fulfillment
 import androidx.appactions.interaction.proto.FulfillmentResponse
 import androidx.appactions.interaction.proto.FulfillmentResponse.StructuredOutput
 import androidx.appactions.interaction.proto.FulfillmentResponse.StructuredOutput.OutputValue
+import androidx.appactions.interaction.proto.ParamValue
 import androidx.appactions.interaction.service.AppInteractionServiceGrpcImpl.Companion.ERROR_NO_ACTION_CAPABILITY
 import androidx.appactions.interaction.service.AppInteractionServiceGrpcImpl.Companion.ERROR_NO_FULFILLMENT_REQUEST
 import androidx.appactions.interaction.service.AppInteractionServiceGrpcImpl.Companion.ERROR_NO_SESSION
 import androidx.appactions.interaction.service.AppInteractionServiceGrpcImpl.Companion.ERROR_SESSION_ENDED
-import androidx.appactions.interaction.service.testing.internal.FakeAppInteractionService
 import androidx.appactions.interaction.service.proto.AppInteractionServiceGrpc
 import androidx.appactions.interaction.service.proto.AppInteractionServiceGrpc.AppInteractionServiceStub
 import androidx.appactions.interaction.service.proto.AppInteractionServiceProto.Request
 import androidx.appactions.interaction.service.proto.AppInteractionServiceProto.StartSessionRequest
 import androidx.appactions.interaction.service.proto.AppInteractionServiceProto.StartSessionResponse
+import androidx.appactions.interaction.service.testing.internal.FakeAppInteractionService
 import androidx.concurrent.futures.await
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.truth.Truth.assertThat
-import org.mockito.kotlin.any
-import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.doAnswer
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.never
-import org.mockito.kotlin.times
-import org.mockito.kotlin.verify
-import org.mockito.kotlin.whenever
-import org.robolectric.Robolectric
 import io.grpc.BindableService
 import io.grpc.ManagedChannel
 import io.grpc.Server
@@ -67,6 +61,15 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doAnswer
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
+import org.robolectric.Robolectric
 
 // TODO(b/271929200) Implement tests for the 2 UI related RPCs
 @RunWith(AndroidJUnit4::class)
@@ -98,6 +101,16 @@ class AppInteractionServiceGrpcImplTest {
                     .addOutputValues(OutputValue.newBuilder().setName("bio_arg1")),
             )
             .build()
+    private val testAppDialogState = AppDialogState.newBuilder().setFulfillmentIdentifier("id")
+        .addParams(
+            AppActionsContext.DialogParameter.newBuilder()
+                .setName("Sample dialog")
+                .addCurrentValue(
+                    CurrentValue.newBuilder().setValue(
+                        ParamValue.newBuilder().setStringValue("Sample Test").build()
+                    )
+                )
+        ).build()
     private lateinit var capability1: Capability
     private lateinit var appInteractionService: FakeAppInteractionService
 
@@ -212,6 +225,8 @@ class AppInteractionServiceGrpcImplTest {
         val response = responseFuture.await()
         assertThat(response).isNotNull()
         assertThat(response.fulfillmentResponse).isEqualTo(testFulfillmentResponse)
+
+        assertThat(response.appActionsContext.dialogStatesList).containsExactly(testAppDialogState)
         server.shutdownNow()
     }
 
@@ -396,7 +411,7 @@ class AppInteractionServiceGrpcImplTest {
             (invocation.arguments[1] as CallbackInternal).onSuccess(testFulfillmentResponse)
         }
         whenever(mockSession.sessionId).thenReturn(sessionId)
-        whenever(mockSession.state).thenReturn(AppDialogState.getDefaultInstance())
+        whenever(mockSession.state).thenReturn(testAppDialogState)
         whenever(mockSession.isActive).thenReturn(true)
         whenever(mockSession.uiHandle).thenReturn(Any())
         return mockSession

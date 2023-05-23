@@ -23,6 +23,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.bluetooth.integration.testapp.R
+import androidx.recyclerview.widget.DividerItemDecoration
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 
 class DeviceServicesAdapter(var services: List<BluetoothGattService>) :
@@ -43,13 +45,21 @@ class DeviceServicesAdapter(var services: List<BluetoothGattService>) :
         holder.bind(service)
     }
 
-    inner class ViewHolder(itemView: View) :
-        RecyclerView.ViewHolder(itemView) {
+    inner class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
 
         private val textViewUuid: TextView = itemView.findViewById(R.id.text_view_uuid)
 
+        private val recyclerViewServiceCharacteristic: RecyclerView =
+            itemView.findViewById(R.id.recycler_view_service_characteristic)
+
         fun bind(service: BluetoothGattService) {
             textViewUuid.text = service.uuid.toString()
+
+            recyclerViewServiceCharacteristic.adapter =
+                DeviceServiceCharacteristicsAdapter(service.characteristics)
+            recyclerViewServiceCharacteristic.addItemDecoration(
+                DividerItemDecoration(itemView.context, LinearLayoutManager.VERTICAL)
+            )
         }
     }
 }

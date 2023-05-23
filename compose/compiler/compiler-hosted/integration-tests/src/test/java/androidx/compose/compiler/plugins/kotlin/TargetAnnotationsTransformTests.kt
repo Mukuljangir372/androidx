@@ -17,9 +17,12 @@
 package androidx.compose.compiler.plugins.kotlin
 
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
 
+@RunWith(JUnit4::class)
 @Suppress("SpellCheckingInspection") // Expected strings can have partial words
-class TargetAnnotationsTransformTests : AbstractIrTransformTest() {
+class TargetAnnotationsTransformTests : AbstractIrTransformTest(useFir = false) {
     @Test
     fun testInferUIFromCall() = verify(
         """
@@ -1059,7 +1062,7 @@ class TargetAnnotationsTransformTests : AbstractIrTransformTest() {
             }
             BasicText(AnnotatedString(
               text = "Some text"
-            ), null, null, null, <unsafe-coerce>(0), false, 0, 0, null, %composer, 0b0110, 0b000111111110)
+            ), null, null, null, <unsafe-coerce>(0), false, 0, 0, null, null, %composer, 0b0110, 0b001111111110)
             if (isTraceInProgress()) {
               traceEventEnd()
             }

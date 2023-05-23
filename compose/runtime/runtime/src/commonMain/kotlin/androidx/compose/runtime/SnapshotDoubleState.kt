@@ -19,9 +19,11 @@
 package androidx.compose.runtime
 
 import androidx.compose.runtime.internal.JvmDefaultWithCompatibility
+import androidx.compose.runtime.internal.equalsWithNanFix
 import androidx.compose.runtime.snapshots.AutoboxingStateValueProperty
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.snapshots.SnapshotMutableState
+import androidx.compose.runtime.snapshots.StateFactoryMarker
 import androidx.compose.runtime.snapshots.StateObject
 import androidx.compose.runtime.snapshots.StateRecord
 import androidx.compose.runtime.snapshots.overwritable
@@ -41,8 +43,13 @@ import kotlin.reflect.KProperty
  *
  * @see DoubleState
  * @see MutableDoubleState
+ * @see mutableStateOf
+ * @see mutableIntStateOf
+ * @see mutableLongStateOf
+ * @see mutableFloatStateOf
  */
-fun mutableStateOf(
+@StateFactoryMarker
+fun mutableDoubleStateOf(
     value: Double
 ): MutableDoubleState = createSnapshotMutableDoubleState(value)
 
@@ -51,7 +58,7 @@ fun mutableStateOf(
  * function cause the current [RecomposeScope] to subscribe to changes of that value.
  *
  * @see MutableDoubleState
- * @see mutableStateOf
+ * @see mutableDoubleStateOf
  */
 @Stable
 @JvmDefaultWithCompatibility
@@ -80,7 +87,7 @@ inline operator fun DoubleState.getValue(
  * scheduled.
  *
  * @see [DoubleState]
- * @see [mutableStateOf]
+ * @see [mutableDoubleStateOf]
  */
 @Stable
 @JvmDefaultWithCompatibility
@@ -116,7 +123,7 @@ internal expect fun createSnapshotMutableDoubleState(
  *
  * @param value the wrapped value
  *
- * @see [mutableStateOf]
+ * @see [mutableDoubleStateOf]
  */
 internal open class SnapshotMutableDoubleStateImpl(
     value: Double
@@ -130,7 +137,7 @@ internal open class SnapshotMutableDoubleStateImpl(
     override var doubleValue: Double
         get() = next.readable(this).value
         set(value) = next.withCurrent {
-            if (it.value != value) {
+            if (!it.value.equalsWithNanFix(value)) {
                 next.overwritable(this, it) { this.value = value }
             }
         }
@@ -155,7 +162,7 @@ internal open class SnapshotMutableDoubleStateImpl(
     ): StateRecord? {
         val currentRecord = current as DoubleStateStateRecord
         val appliedRecord = applied as DoubleStateStateRecord
-        return if (currentRecord.value == appliedRecord.value) {
+        return if (currentRecord.value.equalsWithNanFix(appliedRecord.value)) {
             current
         } else {
             null

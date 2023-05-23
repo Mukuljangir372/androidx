@@ -16,10 +16,6 @@
 
 package androidx.window.layout.adapter.extensions
 
-import androidx.window.extensions.core.util.function.Consumer as OEMConsumer
-import androidx.window.extensions.layout.FoldingFeature as OEMFoldingFeature
-import androidx.window.extensions.layout.WindowLayoutInfo as OEMWindowLayoutInfo
-import java.util.function.Consumer as JavaConsumer
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
@@ -37,19 +33,15 @@ import androidx.window.WindowTestUtils.Companion.assumeBeforeVendorApiLevel
 import androidx.window.core.ConsumerAdapter
 import androidx.window.core.ExtensionsUtil
 import androidx.window.extensions.WindowExtensions
+import androidx.window.extensions.core.util.function.Consumer as OEMConsumer
+import androidx.window.extensions.layout.FoldingFeature as OEMFoldingFeature
 import androidx.window.extensions.layout.FoldingFeature.STATE_FLAT
 import androidx.window.extensions.layout.FoldingFeature.TYPE_HINGE
-import androidx.window.extensions.layout.WindowLayoutComponent
+import androidx.window.extensions.layout.WindowLayoutInfo as OEMWindowLayoutInfo
 import androidx.window.layout.WindowLayoutInfo
 import androidx.window.layout.WindowMetricsCalculatorCompat
 import androidx.window.layout.adapter.extensions.ExtensionsWindowLayoutInfoAdapter.translate
-import org.mockito.kotlin.any
-import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.eq
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.times
-import org.mockito.kotlin.verify
-import org.mockito.kotlin.whenever
+import java.util.function.Consumer as JavaConsumer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -58,6 +50,13 @@ import org.junit.Before
 import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
+import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.eq
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 
 class ExtensionWindowLayoutInfoBackendTest {
 
@@ -119,7 +118,7 @@ class ExtensionWindowLayoutInfoBackendTest {
     @Test
     public fun testExtensionWindowBackend_registerAtMostOnce() {
         assumeBeforeVendorApiLevel(2)
-        val component = mock<WindowLayoutComponent>()
+        val component = mock<WindowLayoutComponentWrapper>()
 
         val backend = ExtensionWindowLayoutInfoBackend(component, consumerAdapter)
 
@@ -140,7 +139,7 @@ class ExtensionWindowLayoutInfoBackendTest {
         }
         assumeAtLeastVendorApiLevel(2)
 
-        val component = mock<WindowLayoutComponent>()
+        val component = mock<WindowLayoutComponentWrapper>()
 
         val backend = ExtensionWindowLayoutInfoBackend(component, consumerAdapter)
 
@@ -173,7 +172,7 @@ class ExtensionWindowLayoutInfoBackendTest {
     public fun testExtensionWindowBackend_translateValues() {
         assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
 
-        val component = mock<WindowLayoutComponent>()
+        val component = mock<WindowLayoutComponentWrapper>()
         whenever(component.addWindowLayoutInfoListener(
             any(),
             any<JavaConsumer<OEMWindowLayoutInfo>>())
@@ -228,7 +227,7 @@ class ExtensionWindowLayoutInfoBackendTest {
         assumeBeforeVendorApiLevel(2)
         assumeTrue(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
 
-        val component = mock<WindowLayoutComponent>()
+        val component = mock<WindowLayoutComponentWrapper>()
         whenever(component.addWindowLayoutInfoListener(
             any(),
             any<JavaConsumer<OEMWindowLayoutInfo>>())
@@ -254,7 +253,7 @@ class ExtensionWindowLayoutInfoBackendTest {
         }
         assumeAtLeastVendorApiLevel(2)
 
-        val component = mock<WindowLayoutComponent>()
+        val component = mock<WindowLayoutComponentWrapper>()
         whenever(component.addWindowLayoutInfoListener(
             any(),
             any<OEMConsumer<OEMWindowLayoutInfo>>())
@@ -290,7 +289,7 @@ class ExtensionWindowLayoutInfoBackendTest {
     @Test
     fun testExtensionWindowBackend_removeMatchingCallback() {
         assumeBeforeVendorApiLevel(2)
-        val component = mock<WindowLayoutComponent>()
+        val component = mock<WindowLayoutComponentWrapper>()
 
         val backend = ExtensionWindowLayoutInfoBackend(component, consumerAdapter)
 
@@ -310,7 +309,7 @@ class ExtensionWindowLayoutInfoBackendTest {
     @Test
     fun testExtensionWindowBackend_removesMultipleCallback() {
         assumeBeforeVendorApiLevel(2)
-        val component = mock<WindowLayoutComponent>()
+        val component = mock<WindowLayoutComponentWrapper>()
 
         val backend = ExtensionWindowLayoutInfoBackend(component, consumerAdapter)
 
@@ -344,7 +343,7 @@ class ExtensionWindowLayoutInfoBackendTest {
         }
         assumeAtLeastVendorApiLevel(2)
 
-        val component = mock<WindowLayoutComponent>()
+        val component = mock<WindowLayoutComponentWrapper>()
 
         val backend = ExtensionWindowLayoutInfoBackend(component, consumerAdapter)
 
@@ -388,7 +387,7 @@ class ExtensionWindowLayoutInfoBackendTest {
         }
         assumeAtLeastVendorApiLevel(2)
 
-        val component = mock<WindowLayoutComponent>()
+        val component = mock<WindowLayoutComponentWrapper>()
 
         val backend = ExtensionWindowLayoutInfoBackend(component, consumerAdapter)
 
@@ -439,7 +438,7 @@ class ExtensionWindowLayoutInfoBackendTest {
     @Test
     fun testExtensionWindowBackend_reRegisterCallback() {
         assumeBeforeVendorApiLevel(2)
-        val component = mock<WindowLayoutComponent>()
+        val component = mock<WindowLayoutComponentWrapper>()
 
         val backend = ExtensionWindowLayoutInfoBackend(component, consumerAdapter)
 
@@ -470,7 +469,7 @@ class ExtensionWindowLayoutInfoBackendTest {
         }
         assumeAtLeastVendorApiLevel(2)
 
-        val component = mock<WindowLayoutComponent>()
+        val component = mock<WindowLayoutComponentWrapper>()
 
         val backend = ExtensionWindowLayoutInfoBackend(component, consumerAdapter)
 
@@ -695,7 +694,7 @@ class ExtensionWindowLayoutInfoBackendTest {
         }
     }
 
-    private class RequestTrackingWindowComponent : WindowLayoutComponent {
+    private class RequestTrackingWindowComponent : WindowLayoutComponentWrapper {
 
         val records = mutableListOf<AddCall>()
 
@@ -716,6 +715,9 @@ class ExtensionWindowLayoutInfoBackendTest {
         override fun removeWindowLayoutInfoListener(consumer: JavaConsumer<OEMWindowLayoutInfo>) {
         }
 
+        override fun removeWindowLayoutInfoListener(consumer: OEMConsumer<OEMWindowLayoutInfo>) {
+        }
+
         class AddCall(val context: Context)
 
         fun hasAddCall(context: Context): Boolean {
@@ -723,7 +725,7 @@ class ExtensionWindowLayoutInfoBackendTest {
         }
     }
 
-    private class FakeWindowComponent : WindowLayoutComponent {
+    private class FakeWindowComponent : WindowLayoutComponentWrapper {
 
         val consumers = mutableListOf<JavaConsumer<OEMWindowLayoutInfo>>()
         val oemConsumers = mutableListOf<OEMConsumer<OEMWindowLayoutInfo>>()

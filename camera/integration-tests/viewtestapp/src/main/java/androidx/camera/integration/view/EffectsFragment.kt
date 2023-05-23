@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package androidx.camera.integration.view
 
 import android.annotation.SuppressLint
@@ -28,12 +27,13 @@ import android.widget.Button
 import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.Toast
-import androidx.annotation.OptIn
 import androidx.annotation.VisibleForTesting
 import androidx.camera.core.CameraEffect
 import androidx.camera.core.CameraEffect.IMAGE_CAPTURE
 import androidx.camera.core.CameraEffect.PREVIEW
 import androidx.camera.core.CameraEffect.VIDEO_CAPTURE
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.CameraSelector.LENS_FACING_BACK
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCapture.OutputFileOptions
 import androidx.camera.core.ImageCaptureException
@@ -41,30 +41,32 @@ import androidx.camera.core.impl.utils.executor.CameraXExecutors.directExecutor
 import androidx.camera.video.MediaStoreOutputOptions
 import androidx.camera.video.Recording
 import androidx.camera.video.VideoRecordEvent
+import androidx.camera.video.VideoRecordEvent.Finalize.ERROR_DURATION_LIMIT_REACHED
+import androidx.camera.video.VideoRecordEvent.Finalize.ERROR_FILE_SIZE_LIMIT_REACHED
+import androidx.camera.video.VideoRecordEvent.Finalize.ERROR_INSUFFICIENT_STORAGE
+import androidx.camera.video.VideoRecordEvent.Finalize.ERROR_SOURCE_INACTIVE
 import androidx.camera.view.CameraController
 import androidx.camera.view.LifecycleCameraController
 import androidx.camera.view.PreviewView
 import androidx.camera.view.video.AudioConfig
-import androidx.camera.view.video.ExperimentalVideo
 import androidx.fragment.app.Fragment
 
 /**
  * Fragment for testing effects integration.
  */
-@OptIn(markerClass = [ExperimentalVideo::class])
 class EffectsFragment : Fragment() {
 
     private lateinit var cameraController: LifecycleCameraController
-    lateinit var previewView: PreviewView
+    private lateinit var previewView: PreviewView
     private lateinit var surfaceEffectForPreviewVideo: RadioButton
-    lateinit var surfaceEffectForImageCapture: RadioButton
+    private lateinit var surfaceEffectForImageCapture: RadioButton
     private lateinit var imageEffectForImageCapture: RadioButton
     private lateinit var previewVideoGroup: RadioGroup
     private lateinit var imageGroup: RadioGroup
     private lateinit var capture: Button
     private lateinit var record: Button
+    private lateinit var flip: Button
     private var recording: Recording? = null
-
     private lateinit var surfaceProcessor: ToneMappingSurfaceProcessor
     private var imageEffect: ToneMappingImageEffect? = null
 
@@ -83,7 +85,7 @@ class EffectsFragment : Fragment() {
         imageGroup = view.findViewById(R.id.image_effect_group)
         capture = view.findViewById(R.id.capture)
         record = view.findViewById(R.id.record)
-
+        flip = view.findViewById(R.id.flip)
         // Set up  UI events.
         // previewView.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
         previewVideoGroup.setOnCheckedChangeListener { _, _ -> updateEffects() }
@@ -96,10 +98,15 @@ class EffectsFragment : Fragment() {
                 stopRecording()
             }
         }
-
+        flip.setOnClickListener {
+            if (cameraController.cameraSelector.lensFacing == LENS_FACING_BACK) {
+                cameraController.cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
+            } else {
+                cameraController.cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+            }
+        }
         // Set up the surface processor.
         surfaceProcessor = ToneMappingSurfaceProcessor()
-
         // Set up the camera controller.
         cameraController = LifecycleCameraController(requireContext())
         cameraController.setEnabledUseCases(
@@ -108,48 +115,42 @@ class EffectsFragment : Fragment() {
         previewView.controller = cameraController
         updateEffects()
         cameraController.bindToLifecycle(viewLifecycleOwner)
-
         return view
     }
 
     private fun updateEffects() {
-        val effects = mutableSetOf<CameraEffect>()
-        if (surfaceEffectForPreviewVideo.isChecked && surfaceEffectForImageCapture.isChecked) {
-            // Sharing surface effect to all 3 use cases
-            effects.add(
-                ToneMappingSurfaceEffect(
-                    PREVIEW or IMAGE_CAPTURE or VIDEO_CAPTURE,
-                    surfaceProcessor
+        try {
+            val effects = mutableSetOf<CameraEffect>()
+            var surfaceEffectTarget = 0
+            if (surfaceEffectForPreviewVideo.isChecked) {
+                surfaceEffectTarget = surfaceEffectTarget or PREVIEW or VIDEO_CAPTURE
+            }
+            if (surfaceEffectForImageCapture.isChecked) {
+                surfaceEffectTarget = surfaceEffectTarget or IMAGE_CAPTURE
+            }
+            if (surfaceEffectTarget != 0) {
+                effects.add(
+                    ToneMappingSurfaceEffect(
+                        surfaceEffectTarget,
+                        surfaceProcessor
+                    )
                 )
-            )
-        } else if (surfaceEffectForPreviewVideo.isChecked) {
-            // Sharing surface effect to preview and video
-            effects.add(
-                ToneMappingSurfaceEffect(
-                    PREVIEW or VIDEO_CAPTURE,
-                    surfaceProcessor
-                )
-            )
-        } else if (
-            !surfaceEffectForPreviewVideo.isChecked && surfaceEffectForImageCapture.isChecked) {
-            toast(
-                "Cannot apply SurfaceProcessor to ImageCapture " +
-                    "without applying it to Preview and VideoCapture."
-            )
+            }
+            if (imageEffectForImageCapture.isChecked) {
+                // Use ImageEffect for image capture
+                imageEffect = ToneMappingImageEffect()
+                effects.add(imageEffect!!)
+            } else {
+                imageEffect = null
+            }
+            cameraController.setEffects(effects)
+        } catch (e: RuntimeException) {
+            toast("Failed to set effects: $e")
         }
-
-        if (imageEffectForImageCapture.isChecked) {
-            // Use ImageEffect for image capture
-            imageEffect = ToneMappingImageEffect()
-            effects.add(imageEffect!!)
-        } else {
-            imageEffect = null
-        }
-        cameraController.setEffects(effects)
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
+    override fun onDestroyView() {
+        super.onDestroyView()
         surfaceProcessor.release()
     }
 
@@ -173,7 +174,7 @@ class EffectsFragment : Fragment() {
         )
     }
 
-    fun takePicture(onImageSavedCallback: ImageCapture.OnImageSavedCallback) {
+    private fun takePicture(onImageSavedCallback: ImageCapture.OnImageSavedCallback) {
         createDefaultPictureFolderIfNotExist()
         val contentValues = ContentValues()
         contentValues.put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
@@ -190,7 +191,7 @@ class EffectsFragment : Fragment() {
     }
 
     @SuppressLint("MissingPermission")
-    fun startRecording() {
+    private fun startRecording() {
         record.text = "Stop recording"
         val outputOptions: MediaStoreOutputOptions = getNewVideoOutputMediaStoreOptions()
         val audioConfig = AudioConfig.create(true)
@@ -200,10 +201,14 @@ class EffectsFragment : Fragment() {
         ) {
             if (it is VideoRecordEvent.Finalize) {
                 val uri = it.outputResults.outputUri
-                if (it.error == VideoRecordEvent.Finalize.ERROR_NONE) {
-                    toast("Video saved to: $uri")
-                } else {
-                    toast("Failed to save video: uri $uri with code (${it.error})")
+                when (it.error) {
+                    VideoRecordEvent.Finalize.ERROR_NONE,
+                    ERROR_FILE_SIZE_LIMIT_REACHED,
+                    ERROR_DURATION_LIMIT_REACHED,
+                    ERROR_INSUFFICIENT_STORAGE,
+                    ERROR_SOURCE_INACTIVE -> toast("Video saved to: $uri")
+
+                    else -> toast("Failed to save video: uri $uri with code (${it.error})")
                 }
             }
         }

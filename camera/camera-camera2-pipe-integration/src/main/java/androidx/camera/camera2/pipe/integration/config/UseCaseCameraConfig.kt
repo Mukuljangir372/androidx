@@ -32,7 +32,9 @@ import androidx.camera.camera2.pipe.integration.adapter.CameraStateAdapter
 import androidx.camera.camera2.pipe.integration.adapter.SessionConfigAdapter
 import androidx.camera.camera2.pipe.integration.adapter.SessionConfigAdapter.Companion.toCamera2ImplConfig
 import androidx.camera.camera2.pipe.integration.compat.quirk.CameraQuirks
+import androidx.camera.camera2.pipe.integration.compat.quirk.CloseCaptureSessionOnDisconnectQuirk
 import androidx.camera.camera2.pipe.integration.compat.quirk.CloseCaptureSessionOnVideoQuirk
+import androidx.camera.camera2.pipe.integration.compat.quirk.DeviceQuirks
 import androidx.camera.camera2.pipe.integration.compat.workaround.CapturePipelineTorchCorrection
 import androidx.camera.camera2.pipe.integration.impl.CameraCallbackMap
 import androidx.camera.camera2.pipe.integration.impl.CameraInteropStateCallbackRepository
@@ -152,17 +154,19 @@ class UseCaseCameraConfig(
                 // need to explicitly close the capture session.
                 false
             } else {
-                cameraQuirks.quirks.contains(CloseCaptureSessionOnVideoQuirk::class.java) &&
+                if (cameraQuirks.quirks.contains(CloseCaptureSessionOnVideoQuirk::class.java) &&
                     containsVideo
+                ) {
+                    true
+                } else {
+                    DeviceQuirks[CloseCaptureSessionOnDisconnectQuirk::class.java] != null
+                }
             }
         val combinedFlags = cameraGraphFlags.copy(
             quirkCloseCaptureSessionOnDisconnect = shouldCloseCaptureSessionOnDisconnect,
         )
 
         // Build up a config (using TEMPLATE_PREVIEW by default)
-        // TODO(b/277310425): Turn off CameraGraph.Flags.quirkFinalizeSessionOnCloseBehavior when
-        //  it's not needed. This should be needed only when all use cases are detached (with
-        //  VideoCapture) on devices where Surfaces cannot be released immediately.
         val graph = cameraPipe.create(
             CameraGraph.Config(
                 camera = cameraConfig.cameraId,

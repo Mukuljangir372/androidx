@@ -21,10 +21,8 @@ import android.graphics.ImageFormat
 import android.graphics.Rect
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraDevice.TEMPLATE_PREVIEW
-import android.os.Build
 import android.util.Size
 import android.view.Surface
-import androidx.annotation.RequiresApi
 import androidx.camera.core.CameraEffect
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.ImageReaderProxys
@@ -38,6 +36,7 @@ import androidx.camera.testing.CameraUtil
 import androidx.camera.testing.HandlerUtil
 import androidx.camera.testing.TestImageUtil.createBitmap
 import androidx.camera.testing.TestImageUtil.getAverageDiff
+import androidx.camera.testing.TestImageUtil.rotateBitmap
 import androidx.camera.testing.fakes.FakeCamera
 import androidx.concurrent.futures.await
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -137,14 +136,13 @@ class DefaultSurfaceProcessorTest {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.M)
     @Test
     fun snapshotAndRelease_futureReceivesException(): Unit = runBlocking {
         // Arrange: create DefaultSurfaceProcessor and setup input/output Surface.
         createSurfaceProcessor()
 
         // Act: take a snapshot and then release the processor.
-        val snapshotFuture = surfaceProcessor.snapshot(JPEG_QUALITY)
+        val snapshotFuture = surfaceProcessor.snapshot(JPEG_QUALITY, 0)
         surfaceProcessor.release()
 
         // Assert: the snapshot future should receive an exception.
@@ -159,7 +157,7 @@ class DefaultSurfaceProcessorTest {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.M)
+    @SdkSuppress(minSdkVersion = 23)
     @Test
     fun snapshot_JpegWrittenToSurface(): Unit = runBlocking {
         // Arrange: create DefaultSurfaceProcessor and setup input/output Surface.
@@ -175,9 +173,10 @@ class DefaultSurfaceProcessorTest {
             format = ImageFormat.JPEG
         )
         surfaceProcessor.onOutputSurface(surfaceOutput)
+        val rotationDegrees = 90
 
-        // Act: take a snapshot and draw a Bitmap to the input Surface
-        surfaceProcessor.snapshot(JPEG_QUALITY)
+        // Act: draw a Bitmap to the input Surface and take a snapshot with 90 degrees rotation.
+        surfaceProcessor.snapshot(JPEG_QUALITY, rotationDegrees)
         val inputImage = createBitmap(WIDTH, HEIGHT)
         val inputSurface = surfaceRequest.deferrableSurface.surface.get()
         val canvas = inputSurface.lockHardwareCanvas()
@@ -190,7 +189,8 @@ class DefaultSurfaceProcessorTest {
         val bytes = ByteArray(byteBuffer.remaining())
         byteBuffer.get(bytes)
         val outputImage = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-        assertThat(getAverageDiff(outputImage, inputImage)).isEqualTo(0)
+        val expectedImage = rotateBitmap(inputImage, rotationDegrees)
+        assertThat(getAverageDiff(outputImage, expectedImage)).isEqualTo(0)
 
         // Cleanup.
         surfaceRequest.deferrableSurface.close()

@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composer
 import androidx.compose.runtime.Composition
 import androidx.compose.runtime.MonotonicFrameClock
 import androidx.compose.runtime.Recomposer
+import java.net.URLClassLoader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -31,11 +32,13 @@ import org.intellij.lang.annotations.Language
 import org.jetbrains.kotlin.cli.common.arguments.K2JVMCompilerArguments
 import org.jetbrains.kotlin.cli.common.setupLanguageVersionSettings
 import org.jetbrains.kotlin.config.CompilerConfiguration
-import org.junit.Test
-import java.net.URLClassLoader
 import org.junit.Assert.assertEquals
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
 
-class RunComposableTests : AbstractCodegenTest() {
+@RunWith(JUnit4::class)
+class RunComposableTests : AbstractCodegenTest(useFir = false) {
     override fun CompilerConfiguration.updateConfiguration() {
         setupLanguageVersionSettings(K2JVMCompilerArguments().apply {
             // enabling multiPlatform to use expect/actual declarations

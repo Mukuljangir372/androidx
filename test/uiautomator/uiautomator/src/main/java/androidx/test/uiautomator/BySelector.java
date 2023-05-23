@@ -16,8 +16,11 @@
 
 package androidx.test.uiautomator;
 
+import static java.util.Objects.requireNonNull;
+
 import androidx.annotation.IntRange;
 import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -35,6 +38,7 @@ public class BySelector {
     Pattern mPkg;
     Pattern mRes;
     Pattern mText;
+    Pattern mHint;
 
     // Boolean criteria
     Boolean mChecked;
@@ -73,6 +77,7 @@ public class BySelector {
         mPkg   = original.mPkg;
         mRes   = original.mRes;
         mText  = original.mText;
+        mHint  = original.mHint;
 
         mChecked       = original.mChecked;
         mCheckable     = original.mCheckable;
@@ -106,8 +111,7 @@ public class BySelector {
      * @return A reference to this {@link BySelector}.
      */
     public @NonNull BySelector clazz(@NonNull String className) {
-        checkNotNull(className, "className cannot be null");
-
+        requireNonNull(className, "className cannot be null");
         // If className starts with a period, assume the package is 'android.widget'
         if (className.charAt(0) == '.') {
             return clazz("android.widget", className.substring(1));
@@ -126,9 +130,8 @@ public class BySelector {
      * @return A reference to this {@link BySelector}.
      */
     public @NonNull BySelector clazz(@NonNull String packageName, @NonNull String className) {
-        checkNotNull(packageName, "packageName cannot be null");
-        checkNotNull(className, "className cannot be null");
-
+        requireNonNull(packageName, "packageName cannot be null");
+        requireNonNull(className, "className cannot be null");
         return clazz(Pattern.compile(Pattern.quote(
                 String.format("%s.%s", packageName, className))));
     }
@@ -141,8 +144,7 @@ public class BySelector {
      * @return A reference to this {@link BySelector}
      */
     public @NonNull BySelector clazz(@NonNull Class clazz) {
-        checkNotNull(clazz, "clazz cannot be null");
-
+        requireNonNull(clazz, "clazz cannot be null");
         return clazz(Pattern.compile(Pattern.quote(clazz.getName())));
     }
 
@@ -155,8 +157,7 @@ public class BySelector {
      * @return A reference to this {@link BySelector}.
      */
     public @NonNull BySelector clazz(@NonNull Pattern className) {
-        checkNotNull(className, "className cannot be null");
-
+        requireNonNull(className, "className cannot be null");
         if (mClazz != null) {
             throw new IllegalStateException("Class selector is already defined");
         }
@@ -173,8 +174,7 @@ public class BySelector {
      * @return A reference to this {@link BySelector}.
      */
     public @NonNull BySelector desc(@NonNull String contentDescription) {
-        checkNotNull(contentDescription, "contentDescription cannot be null");
-
+        requireNonNull(contentDescription, "contentDescription cannot be null");
         return desc(Pattern.compile(Pattern.quote(contentDescription)));
     }
 
@@ -187,37 +187,34 @@ public class BySelector {
      * @return A reference to this {@link BySelector}.
      */
     public @NonNull BySelector descContains(@NonNull String substring) {
-        checkNotNull(substring, "substring cannot be null");
-
+        requireNonNull(substring, "substring cannot be null");
         return desc(RegexHelper.getPatternContains(substring));
     }
 
     /**
      * Sets the content description criteria for matching. A UI element will be considered a match
-     * if its content description starts with the {@code substring} parameter and all other criteria
+     * if its content description starts with the {@code prefix} parameter and all other criteria
      * for this selector are met.
      *
-     * @param substring The substring to match (case-sensitive).
+     * @param prefix The prefix to match (case-sensitive).
      * @return A reference to this {@link BySelector}.
      */
-    public @NonNull BySelector descStartsWith(@NonNull String substring) {
-        checkNotNull(substring, "substring cannot be null");
-
-        return desc(RegexHelper.getPatternStartsWith(substring));
+    public @NonNull BySelector descStartsWith(@NonNull String prefix) {
+        requireNonNull(prefix, "prefix cannot be null");
+        return desc(RegexHelper.getPatternStartsWith(prefix));
     }
 
     /**
      * Sets the content description criteria for matching. A UI element will be considered a match
-     * if its content description ends with the {@code substring} parameter and all other criteria
+     * if its content description ends with the {@code suffix} parameter and all other criteria
      * for this selector are met.
      *
-     * @param substring The substring to match (case-sensitive).
+     * @param suffix The suffix to match (case-sensitive).
      * @return A reference to this {@link BySelector}.
      */
-    public @NonNull BySelector descEndsWith(@NonNull String substring) {
-        checkNotNull(substring, "substring cannot be null");
-
-        return desc(RegexHelper.getPatternEndsWith(substring));
+    public @NonNull BySelector descEndsWith(@NonNull String suffix) {
+        requireNonNull(suffix, "suffix cannot be null");
+        return desc(RegexHelper.getPatternEndsWith(suffix));
     }
 
     /**
@@ -229,8 +226,7 @@ public class BySelector {
      * @return A reference to this {@link BySelector}.
      */
     public @NonNull BySelector desc(@NonNull Pattern contentDescription) {
-        checkNotNull(contentDescription, "contentDescription cannot be null");
-
+        requireNonNull(contentDescription, "contentDescription cannot be null");
         if (mDesc != null) {
             throw new IllegalStateException("Description selector is already defined");
         }
@@ -247,8 +243,7 @@ public class BySelector {
      * @return A reference to this {@link BySelector}.
      */
     public @NonNull BySelector pkg(@NonNull String applicationPackage) {
-        checkNotNull(applicationPackage, "applicationPackage cannot be null");
-
+        requireNonNull(applicationPackage, "applicationPackage cannot be null");
         return pkg(Pattern.compile(Pattern.quote(applicationPackage)));
     }
 
@@ -261,8 +256,7 @@ public class BySelector {
      * @return A reference to this {@link BySelector}.
      */
     public @NonNull BySelector pkg(@NonNull Pattern applicationPackage) {
-        checkNotNull(applicationPackage, "applicationPackage cannot be null");
-
+        requireNonNull(applicationPackage, "applicationPackage cannot be null");
         if (mPkg != null) {
             throw new IllegalStateException("Package selector is already defined");
         }
@@ -279,8 +273,7 @@ public class BySelector {
      * @return A reference to this {@link BySelector}.
      */
     public @NonNull BySelector res(@NonNull String resourceName) {
-        checkNotNull(resourceName, "resourceName cannot be null");
-
+        requireNonNull(resourceName, "resourceName cannot be null");
         return res(Pattern.compile(Pattern.quote(resourceName)));
     }
 
@@ -294,9 +287,8 @@ public class BySelector {
      * @return A reference to this {@link BySelector}.
      */
     public @NonNull BySelector res(@NonNull String resourcePackage, @NonNull String resourceId) {
-        checkNotNull(resourcePackage, "resourcePackage cannot be null");
-        checkNotNull(resourceId, "resourceId cannot be null");
-
+        requireNonNull(resourcePackage, "resourcePackage cannot be null");
+        requireNonNull(resourceId, "resourceId cannot be null");
         return res(Pattern.compile(Pattern.quote(
                 String.format("%s:id/%s", resourcePackage, resourceId))));
     }
@@ -310,8 +302,7 @@ public class BySelector {
      * @return A reference to this {@link BySelector}.
      */
     public @NonNull BySelector res(@NonNull Pattern resourceName) {
-        checkNotNull(resourceName, "resourceName cannot be null");
-
+        requireNonNull(resourceName, "resourceName cannot be null");
         if (mRes != null) {
             throw new IllegalStateException("Resource name selector is already defined");
         }
@@ -328,8 +319,7 @@ public class BySelector {
      * @return A reference to this {@link BySelector}.
      */
     public @NonNull BySelector text(@NonNull String textValue) {
-        checkNotNull(textValue, "textValue cannot be null");
-
+        requireNonNull(textValue, "textValue cannot be null");
         return text(Pattern.compile(Pattern.quote(textValue)));
     }
 
@@ -342,37 +332,34 @@ public class BySelector {
      * @return A reference to this {@link BySelector}.
      */
     public @NonNull BySelector textContains(@NonNull String substring) {
-        checkNotNull(substring, "substring cannot be null");
-
+        requireNonNull(substring, "substring cannot be null");
         return text(RegexHelper.getPatternContains(substring));
     }
 
     /**
      * Sets the text value criteria for matching. A UI element will be considered a match if its
-     * text value starts with the {@code substring} parameter and all other criteria for this
+     * text value starts with the {@code prefix} parameter and all other criteria for this
      * selector are met.
      *
-     * @param substring The substring to match (case-sensitive).
+     * @param prefix The prefix to match (case-sensitive).
      * @return A reference to this {@link BySelector}.
      */
-    public @NonNull BySelector textStartsWith(@NonNull String substring) {
-        checkNotNull(substring, "substring cannot be null");
-
-        return text(RegexHelper.getPatternStartsWith(substring));
+    public @NonNull BySelector textStartsWith(@NonNull String prefix) {
+        requireNonNull(prefix, "prefix cannot be null");
+        return text(RegexHelper.getPatternStartsWith(prefix));
     }
 
     /**
      * Sets the text value criteria for matching. A UI element will be considered a match if its
-     * text value ends with the {@code substring} parameter and all other criteria for this selector
+     * text value ends with the {@code suffix} parameter and all other criteria for this selector
      * are met.
      *
-     * @param substring The substring to match (case-sensitive).
+     * @param suffix The suffix to match (case-sensitive).
      * @return A reference to this {@link BySelector}.
      */
-    public @NonNull BySelector textEndsWith(@NonNull String substring) {
-        checkNotNull(substring, "substring cannot be null");
-
-        return text(RegexHelper.getPatternEndsWith(substring));
+    public @NonNull BySelector textEndsWith(@NonNull String suffix) {
+        requireNonNull(suffix, "suffix cannot be null");
+        return text(RegexHelper.getPatternEndsWith(suffix));
     }
 
     /** Sets the text value criteria for matching. A UI element will be considered a match if its
@@ -383,12 +370,90 @@ public class BySelector {
      * @return A reference to this {@link BySelector}.
      */
     public @NonNull BySelector text(@NonNull Pattern textValue) {
-        checkNotNull(textValue, "textValue cannot be null");
-
+        requireNonNull(textValue, "textValue cannot be null");
         if (mText != null) {
             throw new IllegalStateException("Text selector is already defined");
         }
         mText = textValue;
+        return this;
+    }
+
+    /**
+     * Sets the hint value criteria for matching. A UI element will be considered a match if its
+     * hint value exactly matches the {@code hintValue} parameter and all other criteria for this
+     * selector are met.
+     * <p>Hint text is displayed when there's no user input text.
+     *
+     * @param hintValue The exact value to match (case-sensitive).
+     * @return A reference to this {@link BySelector}.
+     */
+    @RequiresApi(26)
+    public @NonNull BySelector hint(@NonNull String hintValue) {
+        requireNonNull(hintValue, "hintValue cannot be null");
+        return hint(Pattern.compile(Pattern.quote(hintValue)));
+    }
+
+    /**
+     * Sets the hint value criteria for matching. A UI element will be considered a match if its
+     * hint value contains the {@code substring} parameter and all other criteria for this selector
+     * are met.
+     * <p>Hint text is displayed when there's no user input text.
+     *
+     * @param substring The substring to match (case-sensitive).
+     * @return A reference to this {@link BySelector}.
+     */
+    @RequiresApi(26)
+    public @NonNull BySelector hintContains(@NonNull String substring) {
+        requireNonNull(substring, "substring cannot be null");
+        return hint(RegexHelper.getPatternContains(substring));
+    }
+
+    /**
+     * Sets the hint value criteria for matching. A UI element will be considered a match if its
+     * hint value starts with the {@code prefix} parameter and all other criteria for this
+     * selector are met.
+     * <p>Hint text is displayed when there's no user input text.
+     *
+     * @param prefix The prefix to match (case-sensitive).
+     * @return A reference to this {@link BySelector}.
+     */
+    @RequiresApi(26)
+    public @NonNull BySelector hintStartsWith(@NonNull String prefix) {
+        requireNonNull(prefix, "prefix cannot be null");
+        return hint(RegexHelper.getPatternStartsWith(prefix));
+    }
+
+    /**
+     * Sets the hint value criteria for matching. A UI element will be considered a match if its
+     * hint value ends with the {@code suffix} parameter and all other criteria for this selector
+     * are met.
+     * <p>Hint text is displayed when there's no user input text.
+     *
+     * @param suffix The suffix to match (case-sensitive).
+     * @return A reference to this {@link BySelector}.
+     */
+    @RequiresApi(26)
+    public @NonNull BySelector hintEndsWith(@NonNull String suffix) {
+        requireNonNull(suffix, "suffix cannot be null");
+        return hint(RegexHelper.getPatternEndsWith(suffix));
+    }
+
+    /**
+     * Sets the hint value criteria for matching. A UI element will be considered a match if its
+     * hint value matches the {@code hintValue} {@link Pattern} and all other criteria for this
+     * selector are met.
+     * <p>Hint text is displayed when there's no user input text.
+     *
+     * @param hintValue The {@link Pattern} to be used for matching.
+     * @return A reference to this {@link BySelector}.
+     */
+    @RequiresApi(26)
+    public @NonNull BySelector hint(@NonNull Pattern hintValue) {
+        requireNonNull(hintValue, "hintValue cannot be null");
+        if (mHint != null) {
+            throw new IllegalStateException("Hint selector is already defined");
+        }
+        mHint = hintValue;
         return this;
     }
 
@@ -581,7 +646,7 @@ public class BySelector {
      * @return A reference to this {@link BySelector}.
      */
     public @NonNull BySelector hasParent(@NonNull BySelector parentSelector) {
-        checkNotNull(parentSelector, "parentSelector cannot be null");
+        requireNonNull(parentSelector, "parentSelector cannot be null");
         return hasAncestor(parentSelector, 1);
     }
 
@@ -594,7 +659,7 @@ public class BySelector {
      * @return A reference to this {@link BySelector}.
      */
     public @NonNull BySelector hasAncestor(@NonNull BySelector ancestorSelector) {
-        checkNotNull(ancestorSelector, "ancestorSelector cannot be null");
+        requireNonNull(ancestorSelector, "ancestorSelector cannot be null");
         if (mAncestorSelector != null) {
             throw new IllegalStateException("Parent/ancestor selector is already defined");
         }
@@ -631,7 +696,7 @@ public class BySelector {
      * @throws IllegalArgumentException if the selector has a parent/ancestor selector
      */
     public @NonNull BySelector hasChild(@NonNull BySelector childSelector) {
-        checkNotNull(childSelector, "childSelector cannot be null");
+        requireNonNull(childSelector, "childSelector cannot be null");
         return hasDescendant(childSelector, 1);
     }
 
@@ -646,7 +711,7 @@ public class BySelector {
      * @throws IllegalArgumentException if the selector has a parent/ancestor selector
      */
     public @NonNull BySelector hasDescendant(@NonNull BySelector descendantSelector) {
-        checkNotNull(descendantSelector, "descendantSelector cannot be null");
+        requireNonNull(descendantSelector, "descendantSelector cannot be null");
         if (descendantSelector.mAncestorSelector != null) {
             // Search root is ambiguous with nested parent selectors.
             throw new IllegalArgumentException(
@@ -696,6 +761,9 @@ public class BySelector {
         if (mText != null) {
             builder.append("TEXT='").append(mText).append("', ");
         }
+        if (mHint != null) {
+            builder.append("HINT='").append(mHint).append("', ");
+        }
         if (mChecked != null) {
             builder.append("CHECKED='").append(mChecked).append("', ");
         }
@@ -734,12 +802,5 @@ public class BySelector {
         builder.setLength(builder.length() - 2);
         builder.append("]");
         return builder.toString();
-    }
-
-    private static <T> T checkNotNull(T value, @NonNull String message) {
-        if (value == null) {
-            throw new NullPointerException(message);
-        }
-        return value;
     }
 }

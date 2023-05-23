@@ -170,9 +170,14 @@ class ProfileVerificationTestWithProfileInstallerInitializer {
             start(ACTIVITY_NAME)
             evaluateUI {
 
-                // Taimen Api 28 and Cuttlefish Api 29 behave differently.
+                // Taimen Api 28 and Cuttlefish Api 29 behave differently and sometimes return
+                // profile non matching making this test flaky. Here we allow one of those 2
+                // results for these devices.
                 if ((isApi29 && isCuttlefish) || (isApi28 && !isCuttlefish)) {
-                    profileInstalled(RESULT_CODE_COMPILED_WITH_PROFILE_NON_MATCHING)
+                    profileInstalled(
+                        RESULT_CODE_COMPILED_WITH_PROFILE,
+                        RESULT_CODE_COMPILED_WITH_PROFILE_NON_MATCHING
+                    )
                 } else {
                     profileInstalled(RESULT_CODE_COMPILED_WITH_PROFILE)
                 }
@@ -232,9 +237,14 @@ class ProfileVerificationTestWithProfileInstallerInitializer {
             start(ACTIVITY_NAME)
             evaluateUI {
 
-                // Taimen Api 28 and Cuttlefish Api 29 behave differently.
+                // Taimen Api 28 and Cuttlefish Api 29 behave differently and sometimes return
+                // profile non matching making this test flaky. Here we allow one of those 2
+                // results for these devices.
                 if ((isApi29 && isCuttlefish) || (isApi28 && !isCuttlefish)) {
-                    profileInstalled(RESULT_CODE_COMPILED_WITH_PROFILE_NON_MATCHING)
+                    profileInstalled(
+                        RESULT_CODE_COMPILED_WITH_PROFILE,
+                        RESULT_CODE_COMPILED_WITH_PROFILE_NON_MATCHING
+                    )
                 } else {
                     profileInstalled(RESULT_CODE_COMPILED_WITH_PROFILE)
                 }

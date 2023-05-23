@@ -20,7 +20,9 @@ import static com.google.common.truth.Truth.assertThat;
 
 import android.content.ComponentName;
 
-import androidx.wear.protolayout.expression.StateEntryBuilders;
+import androidx.wear.protolayout.expression.AppDataKey;
+import androidx.wear.protolayout.expression.DynamicBuilders;
+import androidx.wear.protolayout.expression.DynamicDataBuilders;
 import androidx.wear.protolayout.proto.ActionProto;
 
 import org.junit.Test;
@@ -33,19 +35,6 @@ import java.util.Map;
 public class ActionBuildersTest {
     private static final ComponentName LAUNCH_COMPONENT = new ComponentName("com.package",
             "launchClass");
-
-    @Test
-    public void setStateAction() {
-        String key = "key";
-        StateEntryBuilders.StateEntryValue value = StateEntryBuilders.StateEntryValue.fromString(
-                "value");
-        ActionBuilders.SetStateAction setStateAction = new ActionBuilders.SetStateAction.Builder()
-                .setTargetKey(key).setValue(value).build();
-
-        assertThat(setStateAction.getTargetKey()).isEqualTo(key);
-        assertThat(setStateAction.getValue().toStateEntryValueProto()).isEqualTo(
-                value.toStateEntryValueProto());
-    }
 
     @Test
     public void launchAction() {

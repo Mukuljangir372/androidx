@@ -70,10 +70,13 @@ class AndroidXIssueRegistry : IssueRegistry() {
                 NullabilityAnnotationsDetector.ISSUE,
                 IgnoreClassLevelDetector.ISSUE,
                 ExperimentalPropertyAnnotationDetector.ISSUE,
-                // Temporarily disable AIDL lint check due to b/278871118.
+                BanRestrictToTestsScope.ISSUE,
+                // AIDL check is temporarily disabled due to race conditions (b/280346978).
                 // UnstableAidlAnnotationDetector.ISSUE,
                 // MissingJvmDefaultWithCompatibilityDetector is intentionally left out of the
                 // registry, see comments on the class for more details.
+                BanVisibleForTestingParams.ISSUE,
+                PrereleaseSdkCoreDependencyDetector.ISSUE
             )
         }
     }

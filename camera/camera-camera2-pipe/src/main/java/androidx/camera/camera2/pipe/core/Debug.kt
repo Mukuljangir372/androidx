@@ -106,6 +106,8 @@ object Debug {
             when (graphConfig.sessionMode) {
                 CameraGraph.OperatingMode.HIGH_SPEED -> "High Speed"
                 CameraGraph.OperatingMode.NORMAL -> "Normal"
+                CameraGraph.OperatingMode.EXTENSION -> "Extension"
+                else -> "Unknown"
             }
 
         val capabilities = metadata[REQUEST_AVAILABLE_CAPABILITIES]

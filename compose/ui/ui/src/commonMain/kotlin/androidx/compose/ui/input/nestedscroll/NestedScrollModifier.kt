@@ -20,7 +20,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.internal.JvmDefaultWithCompatibility
-import androidx.compose.ui.modifier.ModifierLocalNode
+import androidx.compose.ui.modifier.ModifierLocalModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.unit.Velocity
@@ -114,7 +114,7 @@ interface NestedScrollConnection {
  */
 class NestedScrollDispatcher {
 
-    internal var modifierLocalNode: ModifierLocalNode? = null
+    internal var modifierLocalNode: ModifierLocalModifierNode? = null
 
     // lambda to calculate the most outer nested scroll scope for this dispatcher on demand
     internal var calculateNestedScrollScope: () -> CoroutineScope? = { scope }
@@ -236,7 +236,7 @@ value class NestedScrollSource internal constructor(
             Fling -> "Fling"
             @OptIn(ExperimentalComposeUiApi::class)
             Relocate -> "Relocate"
-
+            Wheel -> "Wheel"
             else -> "Invalid"
         }
     }
@@ -255,9 +255,16 @@ value class NestedScrollSource internal constructor(
         /**
          * Relocating when a component asks parents to scroll to bring it into view.
          */
+        @Suppress("OPT_IN_MARKER_ON_WRONG_TARGET")
+        @get:ExperimentalComposeUiApi
         @ExperimentalComposeUiApi
         @Deprecated("Do not use. Will be removed in the future.")
         val Relocate: NestedScrollSource = NestedScrollSource(3)
+
+        /**
+         * Scrolling via mouse wheel.
+         */
+        val Wheel: NestedScrollSource = NestedScrollSource(4)
     }
 }
 
@@ -342,10 +349,8 @@ private class NestedScrollElement(
         return NestedScrollNode(connection, dispatcher)
     }
 
-    override fun update(node: NestedScrollNode): NestedScrollNode {
-        node.connection = connection
-        node.updateDispatcher(dispatcher)
-        return node
+    override fun update(node: NestedScrollNode) {
+        node.updateNode(connection, dispatcher)
     }
 
     override fun hashCode(): Int {

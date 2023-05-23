@@ -31,19 +31,19 @@ import androidx.camera.core.impl.utils.executor.CameraXExecutors.mainThreadExecu
  * A image effect that applies the same tone mapping as [ToneMappingSurfaceProcessor].
  */
 class ToneMappingImageEffect : CameraEffect(
-    IMAGE_CAPTURE, mainThreadExecutor(), ToneMappingImageProcessor()
+    IMAGE_CAPTURE, mainThreadExecutor(), ToneMappingImageProcessor(), {}
 ) {
 
     fun isInvoked(): Boolean {
-        return (imageProcessor as ToneMappingImageProcessor).processed
+        return (imageProcessor as ToneMappingImageProcessor).processoed
     }
 
     private class ToneMappingImageProcessor : ImageProcessor {
 
-        var processed = false
+        var processoed = false
 
         override fun process(request: ImageProcessor.Request): Response {
-            processed = true
+            processoed = true
             val inputImage = request.inputImage as RgbaImageProxy
             val bitmap = inputImage.createBitmap()
             applyToneMapping(bitmap)

@@ -23,9 +23,9 @@ import android.content.ServiceConnection
 import android.os.IBinder
 import android.os.RemoteException
 import android.util.Log
-import androidx.core.util.Consumer
 import androidx.annotation.Px
 import androidx.annotation.RestrictTo
+import androidx.core.util.Consumer
 import androidx.wear.watchface.Renderer
 import androidx.wear.watchface.complications.DefaultComplicationDataSourcePolicy
 import androidx.wear.watchface.complications.data.ComplicationData
@@ -44,6 +44,7 @@ import androidx.wear.watchface.style.UserStyleData
 import androidx.wear.watchface.style.data.UserStyleWireFormat
 import androidx.wear.watchface.utility.AsyncTraceEvent
 import androidx.wear.watchface.utility.TraceEvent
+import androidx.wear.watchface.utility.aidlMethod
 import java.util.concurrent.Executor
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -502,31 +503,34 @@ internal constructor(
                         null
                     ),
                     object : IPendingInteractiveWatchFace.Stub() {
-                        override fun getApiVersion() = API_VERSION
+                        override fun getApiVersion() =
+                            aidlMethod(TAG, "getApiVersion") { API_VERSION }
 
                         override fun onInteractiveWatchFaceCreated(
                             iInteractiveWatchFace: IInteractiveWatchFace
-                        ) {
-                            safeUnlinkToDeath(serviceBinder, deathObserver)
-                            traceEvent.close()
-                            continuation.resume(
-                                InteractiveWatchFaceClientImpl(
-                                    iInteractiveWatchFace,
-                                    previewImageUpdateRequestedExecutor,
-                                    previewImageUpdateRequestedListener
+                        ) =
+                            aidlMethod(TAG, "onInteractiveWatchFaceCreated") {
+                                safeUnlinkToDeath(serviceBinder, deathObserver)
+                                traceEvent.close()
+                                continuation.resume(
+                                    InteractiveWatchFaceClientImpl(
+                                        iInteractiveWatchFace,
+                                        previewImageUpdateRequestedExecutor,
+                                        previewImageUpdateRequestedListener
+                                    )
                                 )
-                            )
-                        }
+                            }
 
-                        override fun onInteractiveWatchFaceCrashed(exception: CrashInfoParcel) {
-                            safeUnlinkToDeath(serviceBinder, deathObserver)
-                            traceEvent.close()
-                            continuation.resumeWithException(
-                                WatchFaceControlClient.ServiceStartFailureException(
-                                    "Watchface crashed during init: $exception"
+                        override fun onInteractiveWatchFaceCrashed(exception: CrashInfoParcel) =
+                            aidlMethod(TAG, "onInteractiveWatchFaceCrashed") {
+                                safeUnlinkToDeath(serviceBinder, deathObserver)
+                                traceEvent.close()
+                                continuation.resumeWithException(
+                                    WatchFaceControlClient.ServiceStartFailureException(
+                                        "Watchface crashed during init: $exception"
+                                    )
                                 )
-                            )
-                        }
+                            }
                     }
                 )
                 ?.let {

@@ -42,7 +42,6 @@ import androidx.annotation.DoNotInline
 import androidx.annotation.IntRange
 import androidx.annotation.RequiresApi
 import androidx.annotation.VisibleForTesting
-import androidx.annotation.VisibleForTesting.Companion.PRIVATE
 import androidx.collection.ArrayMap
 import androidx.collection.ArraySet
 import androidx.collection.SparseArrayCompat
@@ -75,7 +74,6 @@ import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsOwner
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.SemanticsPropertiesAndroid
-import androidx.compose.ui.semantics.collapsedSemantics
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.AnnotatedString
@@ -98,8 +96,11 @@ import androidx.core.view.accessibility.AccessibilityEventCompat
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat
 import androidx.core.view.accessibility.AccessibilityNodeProviderCompat
+import androidx.core.view.children
 import androidx.core.view.contentcapture.ContentCaptureSessionCompat
+import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -192,7 +193,8 @@ private fun LayoutNode.findClosestParentNode(selector: (LayoutNode) -> Boolean):
 
 @OptIn(InternalTextApi::class)
 internal class AndroidComposeViewAccessibilityDelegateCompat(val view: AndroidComposeView) :
-    AccessibilityDelegateCompat() {
+    AccessibilityDelegateCompat(),
+    DefaultLifecycleObserver {
     companion object {
         /** Virtual node identifier value for invalid nodes. */
         const val InvalidId = Integer.MIN_VALUE
@@ -388,11 +390,12 @@ internal class AndroidComposeViewAccessibilityDelegateCompat(val view: AndroidCo
             return field
         }
     private var paneDisplayed = ArraySet<Int>()
-    private var idToBeforeMap = HashMap<Int, Int>()
-    private var idToAfterMap = HashMap<Int, Int>()
-    private val EXTRA_DATA_TEST_TRAVERSALBEFORE_VAL =
+
+    internal var idToBeforeMap = HashMap<Int, Int>()
+    internal var idToAfterMap = HashMap<Int, Int>()
+    internal val EXTRA_DATA_TEST_TRAVERSALBEFORE_VAL =
         "android.view.accessibility.extra.EXTRA_DATA_TEST_TRAVERSALBEFORE_VAL"
-    private val EXTRA_DATA_TEST_TRAVERSALAFTER_VAL =
+    internal val EXTRA_DATA_TEST_TRAVERSALAFTER_VAL =
         "android.view.accessibility.extra.EXTRA_DATA_TEST_TRAVERSALAFTER_VAL"
 
     private val urlSpanCache = URLSpanCache()
@@ -453,6 +456,14 @@ internal class AndroidComposeViewAccessibilityDelegateCompat(val view: AndroidCo
         })
     }
 
+    override fun onStart(owner: LifecycleOwner) {
+        initContentCaptureSemanticsStructureChangeEvents(onStart = true)
+    }
+
+    override fun onStop(owner: LifecycleOwner) {
+        initContentCaptureSemanticsStructureChangeEvents(onStart = false)
+    }
+
     /**
      * Returns true if there is any semantics node in the tree that can scroll in the given
      * [orientation][vertical] and [direction] at the given [position] in the view associated with
@@ -468,7 +479,7 @@ internal class AndroidComposeViewAccessibilityDelegateCompat(val view: AndroidCo
         position: Offset
     ): Boolean = canScroll(currentSemanticsNodes.values, vertical, direction, position)
 
-    @VisibleForTesting(otherwise = PRIVATE)
+    @VisibleForTesting
     internal fun canScroll(
         currentSemanticsNodes: Collection<SemanticsNodeWithAdjustedBounds>,
         vertical: Boolean,
@@ -651,11 +662,27 @@ internal class AndroidComposeViewAccessibilityDelegateCompat(val view: AndroidCo
         rowGroupings.fastForEach { row ->
             // Sort each individual row's parent nodes
             row.second.sortWith(semanticComparator(layoutIsRtl))
-            row.second.fastForEach { node ->
-                // If a parent node is a container, then add its children
-                // Otherwise, simply add the parent node
-                returnList.addAll(containerChildrenMapping[node.id] ?: mutableListOf(node))
+            returnList.addAll(row.second)
+        }
+
+        // Kotlin `sortWith` should just pull out the highest traversal indices, but keep everything
+        // else in place
+        returnList.sortWith(compareBy { it.getTraversalIndex })
+
+        var i = 0
+        // Afterwards, go in and add the containers' children.
+        while (i <= returnList.lastIndex) {
+            val currNodeId = returnList[i].id
+            // If a parent node is a container, then add its children.
+            // Add all container's children after the container itself.
+            // Because we've already recursed on the containers children, the children should
+            // also be sorted by their traversal index
+            containerChildrenMapping[currNodeId]?.let {
+                returnList.removeAt(i) // Container is removed
+                returnList.addAll(i, it) // and its children are added
             }
+            // Move pointer to end of children if they exist, otherwise, += 1
+            i += containerChildrenMapping[currNodeId]?.size ?: 1
         }
 
         return returnList
@@ -678,9 +705,13 @@ internal class AndroidComposeViewAccessibilityDelegateCompat(val view: AndroidCo
         val geometryList = mutableListOf<SemanticsNode>()
 
         fun depthFirstSearch(currNode: SemanticsNode) {
-            // Add this node to the list we will eventually sort
-            geometryList.add(currNode)
-            if (currNode.semanticsNodeIsStructurallySignificant) {
+            // We only want to add children that are either traversalGroups or are
+            // screen reader focusable. The child must also be in the current pruned semantics tree.
+            if ((currNode.isTraversalGroup == true || isScreenReaderFocusable(currNode)) &&
+                currNode.id in currentSemanticsNodes.keys) {
+                geometryList.add(currNode)
+            }
+            if (currNode.isTraversalGroup == true) {
                 // Recurse and record the container's children, sorted
                 containerMapToChildren[currNode.id] = subtreeSortedByGeometryGrouping(
                     layoutIsRtl, currNode.children.toMutableList()
@@ -711,7 +742,7 @@ internal class AndroidComposeViewAccessibilityDelegateCompat(val view: AndroidCo
         val layoutIsRtl = hostSemanticsNode.isRtl
 
         val semanticsOrderList = subtreeSortedByGeometryGrouping(
-            layoutIsRtl, hostSemanticsNode.children.toMutableList()
+            layoutIsRtl, mutableListOf(hostSemanticsNode)
         )
 
         // Iterate through our ordered list, and creating a mapping of current node to next node ID
@@ -1209,15 +1240,31 @@ internal class AndroidComposeViewAccessibilityDelegateCompat(val view: AndroidCo
 
         info.isScreenReaderFocusable = isScreenReaderFocusable(semanticsNode)
 
-        if (idToBeforeMap[virtualViewId] != null) {
-            idToBeforeMap[virtualViewId]?.let { info.setTraversalBefore(view, it) }
+        // `beforeId` refers to the semanticsId that should be read before this `virtualViewId`.
+        val beforeId = idToBeforeMap[virtualViewId]
+        beforeId?.let {
+            val beforeView = view.androidViewsHandler.semanticsIdToView(beforeId)
+            if (beforeView != null) {
+                // If the node that should come before this one is a view, we want to pass in the
+                // "before" view itself, which is retrieved from our `idToViewMap`.
+                info.setTraversalBefore(beforeView)
+            } else {
+                // Otherwise, we'll set the "before" value by passing in the semanticsId.
+                info.setTraversalBefore(view, beforeId)
+            }
             addExtraDataToAccessibilityNodeInfoHelper(
                 virtualViewId, info.unwrap(), EXTRA_DATA_TEST_TRAVERSALBEFORE_VAL, null
             )
         }
 
-        if (idToAfterMap[virtualViewId] != null) {
-            idToAfterMap[virtualViewId]?.let { info.setTraversalAfter(view, it) }
+        val afterId = idToAfterMap[virtualViewId]
+        afterId?.let {
+            val afterView = view.androidViewsHandler.semanticsIdToView(afterId)
+            if (afterView != null) {
+                info.setTraversalAfter(afterView)
+            } else {
+                info.setTraversalAfter(view, afterId)
+            }
             addExtraDataToAccessibilityNodeInfoHelper(
                 virtualViewId, info.unwrap(), EXTRA_DATA_TEST_TRAVERSALAFTER_VAL, null
             )
@@ -2769,7 +2816,7 @@ internal class AndroidComposeViewAccessibilityDelegateCompat(val view: AndroidCo
             structure.setClassName(it)
         }
 
-        with(boundsInWindow) {
+        with(boundsInParent) {
             structure.setDimens(
                 left.toInt(), top.toInt(), 0, 0, width.toInt(), height.toInt()
             )
@@ -2824,9 +2871,22 @@ internal class AndroidComposeViewAccessibilityDelegateCompat(val view: AndroidCo
         }
     }
 
-    private fun notifySubtreeAppeared(node: SemanticsNode) {
+    private fun updateContentCaptureBuffersOnAppeared(node: SemanticsNode) {
+        if (!isEnabledForContentCapture) {
+            return
+        }
         bufferContentCaptureViewAppeared(node.id, node.toViewStructure())
-        node.replacedChildren.fastForEach { child -> notifySubtreeAppeared(child) }
+        node.replacedChildren.fastForEach { child -> updateContentCaptureBuffersOnAppeared(child) }
+    }
+
+    private fun updateContentCaptureBuffersOnDisappeared(node: SemanticsNode) {
+        if (!isEnabledForContentCapture) {
+            return
+        }
+        bufferContentCaptureViewDisappeared(node.id)
+        node.replacedChildren.fastForEach {
+                child -> updateContentCaptureBuffersOnDisappeared(child)
+        }
     }
 
     private fun sendAccessibilitySemanticsStructureChangeEvents(
@@ -2862,7 +2922,20 @@ internal class AndroidComposeViewAccessibilityDelegateCompat(val view: AndroidCo
         }
     }
 
-    @VisibleForTesting(otherwise = PRIVATE)
+    internal fun initContentCaptureSemanticsStructureChangeEvents(onStart: Boolean) {
+        if (!isEnabledForContentCapture) {
+            return
+        }
+
+        if (onStart) {
+            updateContentCaptureBuffersOnAppeared(view.semanticsOwner.unmergedRootSemanticsNode)
+        } else {
+            updateContentCaptureBuffersOnDisappeared(view.semanticsOwner.unmergedRootSemanticsNode)
+        }
+        notifyContentCaptureChanges()
+    }
+
+    @VisibleForTesting
     internal fun sendContentCaptureSemanticsStructureChangeEvents(
         newNode: SemanticsNode,
         oldNode: SemanticsNodeCopy
@@ -2871,7 +2944,7 @@ internal class AndroidComposeViewAccessibilityDelegateCompat(val view: AndroidCo
         newNode.replacedChildren.fastForEach { child ->
             if (currentSemanticsNodes.contains(child.id) &&
                 !oldNode.children.contains(child.id)) {
-                notifySubtreeAppeared(child)
+                updateContentCaptureBuffersOnAppeared(child)
             }
         }
         // Notify content capture disappear
@@ -3256,26 +3329,16 @@ private fun SemanticsNode.hasPaneTitle() = config.contains(SemanticsProperties.P
 private val SemanticsNode.isPassword: Boolean get() = config.contains(SemanticsProperties.Password)
 private val SemanticsNode.isTextField get() = this.unmergedConfig.contains(SemanticsActions.SetText)
 private val SemanticsNode.isRtl get() = layoutInfo.layoutDirection == LayoutDirection.Rtl
-private val SemanticsNode.isContainer get() = config.getOrNull(SemanticsProperties.IsContainer)
-private val SemanticsNode.hasCollectionInfo
-    get() =
-        config.contains(SemanticsProperties.CollectionInfo)
-private val SemanticsNode.isScrollable get() = config.contains(SemanticsActions.ScrollBy)
-
-private val SemanticsNode.semanticsNodeIsStructurallySignificant: Boolean
+private val SemanticsNode.isTraversalGroup get() =
+    config.getOrNull(SemanticsProperties.IsTraversalGroup)
+private val SemanticsNode.getTraversalIndex: Float
     get() {
-        // We check if `isContainer == false` first to ensure if this flag is set, the node is not
-        // considered structural, even if it is a collection or a scrollable.
-        if (this.isContainer == false) {
-            return false
-        } else if (this.isContainer == true ||
-            this.hasCollectionInfo || this.isScrollable
-        ) {
-            return true
+        if (this.config.contains(SemanticsProperties.TraversalIndex)) {
+            return config[SemanticsProperties.TraversalIndex]
         }
-        return false
+        // If the traversal index has not been set, default to zero
+        return 0f
     }
-
 private val SemanticsNode.infoContentDescriptionOrNull get() = this.unmergedConfig.getOrNull(
     SemanticsProperties.ContentDescription)?.firstOrNull()
 
@@ -3451,3 +3514,9 @@ private fun Role.toLegacyClassName(): String? =
         Role.DropdownList -> "android.widget.Spinner"
         else -> null
     }
+
+/**
+ * This function retrieves the View corresponding to a semanticsId, if it exists.
+ */
+internal fun AndroidViewsHandler.semanticsIdToView(id: Int): View? =
+    layoutNodeToHolder.entries.firstOrNull { it.key.semanticsId == id }?.value

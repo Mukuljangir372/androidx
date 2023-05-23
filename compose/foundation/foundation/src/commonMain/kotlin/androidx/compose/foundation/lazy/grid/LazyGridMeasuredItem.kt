@@ -28,7 +28,7 @@ import androidx.compose.ui.util.fastForEach
  * if the user emit multiple layout nodes in the item callback.
  */
 internal class LazyGridMeasuredItem(
-    val index: ItemIndex,
+    val index: Int,
     val key: Any,
     private val isVertical: Boolean,
     /**
@@ -46,7 +46,8 @@ internal class LazyGridMeasuredItem(
      * The offset which shouldn't affect any calculations but needs to be applied for the final
      * value passed into the place() call.
      */
-    private val visualOffset: IntOffset
+    private val visualOffset: IntOffset,
+    private val contentType: Any?
 ) {
     /**
      * Main axis size of the item - the max main axis size of the placeables.
@@ -100,7 +101,7 @@ internal class LazyGridMeasuredItem(
             } else {
                 IntOffset(mainAxisOffset, crossAxisOffset)
             },
-            index = index.value,
+            index = index,
             key = key,
             row = row,
             column = column,
@@ -115,7 +116,8 @@ internal class LazyGridMeasuredItem(
             placeables = placeables,
             visualOffset = visualOffset,
             mainAxisLayoutSize = mainAxisLayoutSize,
-            reverseLayout = reverseLayout
+            reverseLayout = reverseLayout,
+            contentType = contentType
         )
     }
 }
@@ -133,7 +135,8 @@ internal class LazyGridPositionedItem(
     private val placeables: List<Placeable>,
     private val visualOffset: IntOffset,
     private val mainAxisLayoutSize: Int,
-    private val reverseLayout: Boolean
+    private val reverseLayout: Boolean,
+    override val contentType: Any?
 ) : LazyGridItemInfo {
     val placeablesCount: Int get() = placeables.size
 

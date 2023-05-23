@@ -21,13 +21,12 @@ import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
 import androidx.compose.ui.layout.MeasureScope
-import androidx.compose.ui.semantics.SemanticsConfiguration
+import androidx.compose.ui.semantics.SemanticsPropertyReceiver
 import androidx.compose.ui.unit.Constraints
+import com.google.common.truth.Truth.assertThat
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-
-import com.google.common.truth.Truth.assertThat
 
 @RunWith(JUnit4::class)
 class DelegatingNodeTest {
@@ -789,7 +788,7 @@ private fun unattachedLayout(vararg modifiers: Modifier.Node): LayoutNode {
 
 internal data class NodeElement(val node: Modifier.Node) : ModifierNodeElement<Modifier.Node>() {
     override fun create(): Modifier.Node = node
-    override fun update(node: Modifier.Node): Modifier.Node = node
+    override fun update(node: Modifier.Node) {}
 }
 
 class Recorder : (Any) -> Unit {
@@ -830,8 +829,7 @@ class DrawMod(val id: String = "") : DrawModifierNode, Modifier.Node() {
 }
 
 class SemanticsMod(val id: String = "") : SemanticsModifierNode, Modifier.Node() {
-    override val semanticsConfiguration: SemanticsConfiguration
-        get() = SemanticsConfiguration()
+    override fun SemanticsPropertyReceiver.applySemantics() { }
     override fun toString(): String {
         return "SemanticsMod($id)"
     }

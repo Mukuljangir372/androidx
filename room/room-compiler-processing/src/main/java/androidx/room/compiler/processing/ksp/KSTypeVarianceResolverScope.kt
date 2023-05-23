@@ -27,16 +27,27 @@ import com.google.devtools.ksp.symbol.Origin
  * Provides KSType resolution scope for a type.
  */
 internal sealed class KSTypeVarianceResolverScope(
-    private val annotated: KSAnnotated,
-    private val container: KSDeclaration?
+    val annotated: KSAnnotated,
+    private val container: KSDeclaration?,
+    private val asMemberOf: KspType?
 ) {
     /**
      * Checks whether we need wildcard resolution at all. It is only necessary if either the method
      * parameter is in kotlin or the containing class, which inherited the method, is in kotlin.
      */
     val needsWildcardResolution: Boolean by lazy {
-        (annotated.isInKotlinCode() || container?.isInKotlinCode() == true) &&
-            !annotated.hasSuppressWildcardsAnnotationInHierarchy()
+        annotated.isInKotlinCode() || container?.isInKotlinCode() == true
+    }
+
+    val hasSuppressWildcards: Boolean by lazy {
+        val nodeForSuppressionCheck = when (this) {
+            // For property setter and getter methods skip to the enclosing class to check for
+            // suppression annotations to match KAPT.
+            is PropertySetterParameterType,
+            is PropertyGetterMethodReturnType -> annotated.parent?.parent as? KSAnnotated
+            else -> annotated
+        }
+        nodeForSuppressionCheck?.hasSuppressWildcardsAnnotationInHierarchy() == true
     }
 
     private fun KSAnnotated.isInKotlinCode(): Boolean {
@@ -58,12 +69,18 @@ internal sealed class KSTypeVarianceResolverScope(
     /** Returns `true` if this scope represents a val property or a return type. */
     abstract fun isValOrReturnType(): Boolean
 
+    /** Returns the scope of the `asMemberOf` container type. */
+    fun asMemberOfScopeOrSelf(): KSTypeVarianceResolverScope {
+        return asMemberOf?.scope ?: this
+    }
+
     internal class MethodParameter(
         private val kspExecutableElement: KspExecutableElement,
         private val parameterIndex: Int,
         annotated: KSAnnotated,
         container: KSDeclaration?,
-    ) : KSTypeVarianceResolverScope(annotated, container) {
+        asMemberOf: KspType?,
+    ) : KSTypeVarianceResolverScope(annotated, container, asMemberOf) {
         override fun declarationType() =
             (kspExecutableElement.parameters[parameterIndex].type as KspType).ksType
 
@@ -71,10 +88,12 @@ internal sealed class KSTypeVarianceResolverScope(
     }
 
     internal class PropertySetterParameterType(
-        private val setterMethod: KspSyntheticPropertyMethodElement.Setter
+        private val setterMethod: KspSyntheticPropertyMethodElement.Setter,
+        asMemberOf: KspType?,
     ) : KSTypeVarianceResolverScope(
         annotated = setterMethod.accessor,
-        container = setterMethod.field.enclosingElement.declaration
+        container = setterMethod.field.enclosingElement.declaration,
+        asMemberOf = asMemberOf,
     ) {
         override fun declarationType(): KSType {
             // We return the declaration from the setter, not the field because the setter parameter
@@ -86,10 +105,12 @@ internal sealed class KSTypeVarianceResolverScope(
     }
 
     internal class PropertyGetterMethodReturnType(
-        private val getterMethod: KspSyntheticPropertyMethodElement.Getter
+        private val getterMethod: KspSyntheticPropertyMethodElement.Getter,
+        asMemberOf: KspType?,
     ) : KSTypeVarianceResolverScope(
         annotated = getterMethod.accessor,
-        container = getterMethod.field.enclosingElement.declaration
+        container = getterMethod.field.enclosingElement.declaration,
+        asMemberOf = asMemberOf,
     ) {
         override fun declarationType(): KSType {
             // We return the declaration from the getter, not the field because the getter return
@@ -100,18 +121,26 @@ internal sealed class KSTypeVarianceResolverScope(
         override fun isValOrReturnType() = true
     }
 
-    internal class PropertyType(val field: KspFieldElement) : KSTypeVarianceResolverScope(
+    internal class PropertyType(
+        val field: KspFieldElement,
+        asMemberOf: KspType?,
+    ) : KSTypeVarianceResolverScope(
         annotated = field.declaration,
-        container = field.enclosingElement.declaration
+        container = field.enclosingElement.declaration,
+        asMemberOf = asMemberOf,
     ) {
         override fun declarationType() = field.type.ksType
 
         override fun isValOrReturnType() = field.isFinal()
     }
 
-    internal class MethodReturnType(val method: KspMethodElement) : KSTypeVarianceResolverScope(
+    internal class MethodReturnType(
+        val method: KspMethodElement,
+        asMemberOf: KspType?,
+    ) : KSTypeVarianceResolverScope(
         annotated = method.declaration,
-        container = method.enclosingElement.declaration
+        container = method.enclosingElement.declaration,
+        asMemberOf = asMemberOf,
     ) {
         override fun declarationType() = method.returnType.ksType
 

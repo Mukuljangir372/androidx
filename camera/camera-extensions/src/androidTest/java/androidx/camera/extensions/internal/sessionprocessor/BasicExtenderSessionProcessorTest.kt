@@ -154,7 +154,7 @@ class BasicExtenderSessionProcessorTest(
         fakePreviewExtenderImpl = FakePreviewExtenderImpl(previewProcessorType)
         fakeCaptureExtenderImpl = FakeImageCaptureExtenderImpl(hasCaptureProcessor)
         basicExtenderSessionProcessor = BasicExtenderSessionProcessor(
-            fakePreviewExtenderImpl, fakeCaptureExtenderImpl, context
+            fakePreviewExtenderImpl, fakeCaptureExtenderImpl, emptyList(), context
         )
     }
 
@@ -179,6 +179,10 @@ class BasicExtenderSessionProcessorTest(
             withContext(Dispatchers.Main) {
                 cameraProvider.shutdown()[10, TimeUnit.SECONDS]
             }
+        }
+
+        if (::basicExtenderSessionProcessor.isInitialized) {
+            basicExtenderSessionProcessor.deInitSession()
         }
     }
 
@@ -205,7 +209,7 @@ class BasicExtenderSessionProcessorTest(
             hasCaptureProcessor, throwErrorOnProcess = true
         )
         basicExtenderSessionProcessor = BasicExtenderSessionProcessor(
-            fakePreviewExtenderImpl, fakeCaptureExtenderImpl, context
+            fakePreviewExtenderImpl, fakeCaptureExtenderImpl, emptyList(), context
         )
         val preview = Preview.Builder().build()
         val imageCapture = ImageCapture.Builder().build()

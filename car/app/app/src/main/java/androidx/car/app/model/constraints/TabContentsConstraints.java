@@ -18,7 +18,6 @@ package androidx.car.app.model.constraints;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.RestrictTo;
-import androidx.car.app.annotations.ExperimentalCarApi;
 import androidx.car.app.annotations.RequiresCarApi;
 import androidx.car.app.model.CarText;
 import androidx.car.app.model.GridTemplate;
@@ -35,9 +34,7 @@ import java.util.List;
 /**
  * Encapsulates the constraints to apply when creating {@link TabContents}.
  *
- * @hide
  */
-@ExperimentalCarApi
 @RequiresCarApi(6)
 @RestrictTo(RestrictTo.Scope.LIBRARY)
 public class TabContentsConstraints {

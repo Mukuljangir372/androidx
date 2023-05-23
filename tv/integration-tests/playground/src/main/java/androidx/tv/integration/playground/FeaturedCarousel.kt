@@ -16,9 +16,18 @@
 
 package androidx.tv.integration.playground
 
+import android.content.Context
+import android.view.accessibility.AccessibilityManager
 import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,11 +48,18 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.CollectionItemInfo
+import androidx.compose.ui.semantics.collectionItemInfo
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.tv.foundation.ExperimentalTvFoundationApi
 import androidx.tv.material3.Carousel
 import androidx.tv.material3.CarouselDefaults
 import androidx.tv.material3.CarouselState
@@ -88,9 +104,7 @@ fun FeaturedCarouselContent() {
     }
 }
 
-@OptIn(ExperimentalTvMaterial3Api::class, ExperimentalAnimationApi::class,
-    ExperimentalTvFoundationApi::class
-)
+@OptIn(ExperimentalTvMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
 internal fun FeaturedCarousel(modifier: Modifier = Modifier) {
     val backgrounds = listOf(
@@ -105,56 +119,97 @@ internal fun FeaturedCarousel(modifier: Modifier = Modifier) {
     )
 
     val carouselState = remember { CarouselState() }
-    FocusGroup {
-        Carousel(
-            itemCount = backgrounds.size,
-            carouselState = carouselState,
-            modifier = modifier
-                .height(300.dp)
-                .fillMaxWidth(),
-            carouselIndicator = {
-                CarouselDefaults.IndicatorRow(
-                    itemCount = backgrounds.size,
-                    activeItemIndex = carouselState.activeItemIndex,
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(16.dp),
-                )
-            }
-        ) { itemIndex ->
-            CarouselItem(
-                background = {
-                    Box(
-                        modifier = Modifier
-                            .background(backgrounds[itemIndex])
-                            .fillMaxSize()
+    Carousel(
+        itemCount = backgrounds.size,
+        carouselState = carouselState,
+        modifier = modifier
+            .height(300.dp)
+            .fillMaxWidth(),
+        carouselIndicator = {
+            CarouselDefaults.IndicatorRow(
+                itemCount = backgrounds.size,
+                activeItemIndex = carouselState.activeItemIndex,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp),
+            )
+        },
+        contentTransformStartToEnd =
+            fadeIn(tween(1000)).togetherWith(fadeOut(tween(1000))),
+        contentTransformEndToStart =
+            fadeIn(tween(1000)).togetherWith(fadeOut(tween(1000)))
+    ) { itemIndex ->
+        Box(
+            modifier = Modifier
+                .background(backgrounds[itemIndex])
+                .fillMaxSize()
+                .carouselItemSemantics(itemIndex, contentDescription = "Featured Content")
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(start = 50.dp, top = 100.dp)
+                    .animateEnterExit(
+                        enter = slideInVertically(animationSpec = tween(1000)),
+                        exit = slideOutHorizontally(animationSpec = tween(1000))
                     )
-                },
-                modifier =
-                if (itemIndex == 0)
-                    Modifier.initiallyFocused()
-                else
-                    Modifier.restorableFocus()
             ) {
-                Box(modifier = Modifier) {
-                    OverlayButton(
-                        modifier = Modifier
-                    )
+                Text(text = "This is sample text content.", color = Color.Yellow)
+                Text(text = "Sample description of slide ${itemIndex + 1}.", color = Color.Yellow)
+                Row {
+                    OverlayButton(text = "Play")
+                    OverlayButton(text = "Add to Watchlist")
                 }
             }
         }
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
+@Suppress("ComposableModifierFactory")
 @Composable
-private fun OverlayButton(modifier: Modifier = Modifier) {
+internal fun Modifier.carouselItemSemantics(
+    itemIndex: Int,
+    contentDescription: String?
+): Modifier {
+    val focusManager = LocalFocusManager.current
+    val context = LocalContext.current
+    val accessibilityManager = remember {
+        context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+    }
+
+    return this
+        .semantics(mergeDescendants = true) {
+            contentDescription?.let {
+                this.contentDescription = it
+            }
+            collectionItemInfo =
+                CollectionItemInfo(
+                    rowIndex = 0,
+                    rowSpan = 1,
+                    columnIndex = itemIndex,
+                    columnSpan = 1
+                )
+        }
+        .then(
+            if (accessibilityManager.isEnabled) {
+                Modifier.clickable {
+                    focusManager.moveFocus(FocusDirection.Enter)
+                }
+            } else Modifier
+        )
+}
+
+@Composable
+private fun OverlayButton(modifier: Modifier = Modifier, text: String = "Play") {
     var isFocused by remember { mutableStateOf(false) }
 
     Button(
         onClick = { },
         modifier = modifier
-            .onFocusChanged { isFocused = it.isFocused }
-            .padding(40.dp)
+            .onFocusChanged {
+                isFocused = it.isFocused
+            }
+            .padding(20.dp)
             .border(
                 width = 2.dp,
                 color = if (isFocused) Color.Red else Color.Transparent,
@@ -162,6 +217,6 @@ private fun OverlayButton(modifier: Modifier = Modifier) {
             )
             .padding(vertical = 2.dp, horizontal = 5.dp)
     ) {
-        Text(text = "Play")
+        Text(text = text)
     }
 }

@@ -45,6 +45,13 @@ interface CameraGraph : AutoCloseable {
     val graphState: StateFlow<GraphState>
 
     /**
+     * This is a hint an app can give to a camera graph to indicate whether the camera is being used
+     * in a foreground setting, for example whether the user could see the app itself. This would
+     * inform the underlying implementation to open cameras more actively (e.g., longer timeout).
+     */
+    var isForeground: Boolean
+
+    /**
      * This will cause the [CameraGraph] to start opening the [CameraDevice] and configuring a
      * [CameraCaptureSession]. While the CameraGraph is alive it will attempt to keep the camera
      * open, active, and in a configured running state.
@@ -206,9 +213,22 @@ interface CameraGraph : AutoCloseable {
         }
     }
 
-    enum class OperatingMode {
-        NORMAL,
-        HIGH_SPEED,
+    /**
+     * Operating mode defines the major categories of how a CameraGraph instance will operate when
+     * not operating a [NORMAL] camera graph.
+     *
+     * @property NORMAL represents standard camera operation and behavior.
+     * @property HIGH_SPEED represents a camera operating at high frame rate, usually used to
+     *   produce slow motion videos.
+     * @property EXTENSION represents device-specific modes that may operate differently or have
+     *   significant limitations in order to produce specific kinds of camera results.
+     */
+    class OperatingMode private constructor() {
+        companion object {
+            val NORMAL = OperatingMode()
+            val HIGH_SPEED = OperatingMode()
+            val EXTENSION = OperatingMode()
+        }
     }
 
     @RequiresApi(21) // TODO(b/200306659): Remove and replace with annotation on package-info.java

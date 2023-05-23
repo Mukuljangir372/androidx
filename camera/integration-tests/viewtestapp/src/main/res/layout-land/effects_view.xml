@@ -13,14 +13,14 @@
   See the License for the specific language governing permissions and
   limitations under the License.
   -->
-
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
     <RelativeLayout
-        android:layout_width="0dp"
+        android:layout_width="match_parent"
         android:layout_weight="1"
-        android:layout_height="match_parent">
+        android:layout_height="0dp">
         <androidx.camera.view.PreviewView
             android:id="@+id/preview_view"
             android:layout_width="match_parent"
@@ -30,6 +30,12 @@
             android:layout_height="wrap_content"
             android:layout_alignParentBottom="true"
             android:gravity="center_horizontal">
+            <Button
+                android:id="@+id/flip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/flip"
+                android:layout_margin="15dp"/>
             <Button
                 android:id="@+id/capture"
                 android:layout_width="wrap_content"
@@ -45,60 +51,70 @@
         </LinearLayout>
     </RelativeLayout>
     <LinearLayout
-        android:orientation="vertical"
-        android:layout_width="wrap_content"
-        android:layout_height="match_parent"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
         android:layout_margin="20dp">
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textStyle="bold"
-            android:text="@string/preview_and_video"/>
-        <RadioGroup
-            android:id="@+id/preview_and_video_effect_group"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content">
-            <RadioButton
-                android:id="@+id/surface_effect_for_preview_video"
+        <LinearLayout
+            android:orientation="vertical"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent">
+            <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:checked="true"
-                android:text="@string/surface_effect"/>
-            <RadioButton
-                android:id="@+id/no_effect_for_preview_video"
+                android:textStyle="bold"
+                android:text="@string/preview_and_video"/>
+            <RadioGroup
+                android:id="@+id/preview_and_video_effect_group"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content">
+                <RadioButton
+                    android:id="@+id/surface_effect_for_preview_video"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checked="true"
+                    android:text="@string/surface_effect"/>
+                <RadioButton
+                    android:id="@+id/no_effect_for_preview_video"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checked="false"
+                    android:text="@string/no_effect"/>
+            </RadioGroup>
+        </LinearLayout>
+        <LinearLayout
+            android:orientation="vertical"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="match_parent">
+            <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:checked="false"
-                android:text="@string/no_effect"/>
-        </RadioGroup>
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textStyle="bold"
-            android:layout_marginTop="20dp"
-            android:text="@string/image_capture"/>
-        <RadioGroup
-            android:id="@+id/image_effect_group"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content">
-            <RadioButton
-                android:id="@+id/surface_effect_for_image_capture"
+                android:textStyle="bold"
+                android:text="@string/image_capture"/>
+            <RadioGroup
+                android:id="@+id/image_effect_group"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:checked="false"
-                android:text="@string/surface_effect"/>
-            <RadioButton
-                android:id="@+id/image_effect_for_image_capture"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:checked="true"
-                android:text="@string/image_effect"/>
-            <RadioButton
-                android:id="@+id/no_effect_for_image_capture"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:checked="false"
-                android:text="@string/no_effect"/>
-        </RadioGroup>
+                android:layout_height="wrap_content">
+                <RadioButton
+                    android:id="@+id/surface_effect_for_image_capture"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checked="false"
+                    android:text="@string/surface_effect"/>
+                <RadioButton
+                    android:id="@+id/image_effect_for_image_capture"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checked="true"
+                    android:text="@string/image_effect"/>
+                <RadioButton
+                    android:id="@+id/no_effect_for_image_capture"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:checked="false"
+                    android:text="@string/no_effect"/>
+            </RadioGroup>
+        </LinearLayout>
     </LinearLayout>
 </LinearLayout>

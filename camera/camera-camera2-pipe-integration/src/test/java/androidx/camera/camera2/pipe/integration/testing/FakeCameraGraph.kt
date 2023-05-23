@@ -21,6 +21,7 @@ import androidx.camera.camera2.pipe.CameraGraph
 import androidx.camera.camera2.pipe.GraphState
 import androidx.camera.camera2.pipe.StreamGraph
 import androidx.camera.camera2.pipe.StreamId
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.StateFlow
 
 class FakeCameraGraph(
@@ -28,23 +29,26 @@ class FakeCameraGraph(
 ) : CameraGraph {
 
     val setSurfaceResults = mutableMapOf<StreamId, Surface?>()
+    private var isClosed = false
 
     override val streams: StreamGraph
         get() = throw NotImplementedError("Not used in testing")
 
     override val graphState: StateFlow<GraphState>
         get() = throw NotImplementedError("Not used in testing")
+    override var isForeground = false
 
     override suspend fun acquireSession(): CameraGraph.Session {
+        if (isClosed) {
+            throw CancellationException()
+        }
         return fakeCameraGraphSession
     }
 
-    override fun acquireSessionOrNull(): CameraGraph.Session {
-        return fakeCameraGraphSession
-    }
+    override fun acquireSessionOrNull() = if (isClosed) null else fakeCameraGraphSession
 
     override fun close() {
-        throw NotImplementedError("Not used in testing")
+        isClosed = true
     }
 
     override fun setSurface(stream: StreamId, surface: Surface?) {

@@ -31,17 +31,20 @@ import androidx.wear.protolayout.proto.TriggerProto;
 public final class TriggerBuilders {
   private TriggerBuilders() {}
 
-  /** Shortcut for building an {@link OnLoadTrigger}. */
+  /** Creates a {@link Trigger} that fires immediately when the layout is loaded / reloaded.. */
   @NonNull
-  public static OnLoadTrigger createOnLoadTrigger() {
+  public static Trigger createOnLoadTrigger() {
     return new OnLoadTrigger.Builder().build();
   }
 
-  /** Shortcut for building an {@link OnConditionMetTrigger}. */
+  /**
+   * Creates a {@link Trigger} that fires *every time* the condition switches from false to true.
+   * If the condition is true initially, that will fire the trigger on load.
+   */
   @NonNull
-  public static OnConditionMetTrigger createOnConditionMetTrigger(
+  public static Trigger createOnConditionMetTrigger(
           @NonNull DynamicBool dynamicBool) {
-    return new OnConditionMetTrigger.Builder().setTrigger(dynamicBool).build();
+    return new OnConditionMetTrigger.Builder().setCondition(dynamicBool).build();
   }
 
   /**
@@ -49,7 +52,7 @@ public final class TriggerBuilders {
    *
    * @since 1.2
    */
-  public static final class OnLoadTrigger implements Trigger {
+  static final class OnLoadTrigger implements Trigger {
     private final TriggerProto.OnLoadTrigger mImpl;
     @Nullable private final Fingerprint mFingerprint;
 
@@ -65,11 +68,21 @@ public final class TriggerBuilders {
       return mFingerprint;
     }
 
+    /** Creates a new wrapper instance from the proto. */
+    @RestrictTo(Scope.LIBRARY_GROUP)
     @NonNull
-    static OnLoadTrigger fromProto(@NonNull TriggerProto.OnLoadTrigger proto) {
-      return new OnLoadTrigger(proto, null);
+    public static OnLoadTrigger fromProto(
+        @NonNull TriggerProto.OnLoadTrigger proto, @Nullable Fingerprint fingerprint) {
+      return new OnLoadTrigger(proto, fingerprint);
     }
 
+    @NonNull
+    static OnLoadTrigger fromProto(@NonNull TriggerProto.OnLoadTrigger proto) {
+      return fromProto(proto, null);
+    }
+
+    /** Returns the internal proto instance. */
+    @RestrictTo(Scope.LIBRARY_GROUP)
     @NonNull
     TriggerProto.OnLoadTrigger toProto() {
       return mImpl;
@@ -80,6 +93,12 @@ public final class TriggerBuilders {
     @NonNull
       public TriggerProto.Trigger toTriggerProto() {
       return TriggerProto.Trigger.newBuilder().setOnLoadTrigger(mImpl).build();
+    }
+
+    @Override
+    @NonNull
+    public String toString() {
+      return "OnLoadTrigger";
     }
 
     /** Builder for {@link OnLoadTrigger}. */
@@ -104,7 +123,7 @@ public final class TriggerBuilders {
    *
    * @since 1.2
    */
-  public static final class OnConditionMetTrigger implements Trigger {
+  static final class OnConditionMetTrigger implements Trigger {
     private final TriggerProto.OnConditionMetTrigger mImpl;
     @Nullable private final Fingerprint mFingerprint;
 
@@ -119,9 +138,9 @@ public final class TriggerBuilders {
      * @since 1.2
      */
     @Nullable
-    public DynamicBool getTrigger() {
-      if (mImpl.hasTrigger()) {
-        return DynamicBuilders.dynamicBoolFromProto(mImpl.getTrigger());
+    public DynamicBool getCondition() {
+      if (mImpl.hasCondition()) {
+        return DynamicBuilders.dynamicBoolFromProto(mImpl.getCondition());
       } else {
         return null;
       }
@@ -134,11 +153,22 @@ public final class TriggerBuilders {
       return mFingerprint;
     }
 
+    /** Creates a new wrapper instance from the proto. */
+    @RestrictTo(Scope.LIBRARY_GROUP)
     @NonNull
-    static OnConditionMetTrigger fromProto(@NonNull TriggerProto.OnConditionMetTrigger proto) {
-      return new OnConditionMetTrigger(proto, null);
+    public static OnConditionMetTrigger fromProto(
+        @NonNull TriggerProto.OnConditionMetTrigger proto,
+        @Nullable Fingerprint fingerprint) {
+      return new OnConditionMetTrigger(proto, fingerprint);
     }
 
+    @NonNull
+    static OnConditionMetTrigger fromProto(@NonNull TriggerProto.OnConditionMetTrigger proto) {
+      return fromProto(proto, null);
+    }
+
+    /** Returns the internal proto instance. */
+    @RestrictTo(Scope.LIBRARY_GROUP)
     @NonNull
     TriggerProto.OnConditionMetTrigger toProto() {
       return mImpl;
@@ -149,6 +179,12 @@ public final class TriggerBuilders {
     @NonNull
       public TriggerProto.Trigger toTriggerProto() {
       return TriggerProto.Trigger.newBuilder().setOnConditionMetTrigger(mImpl).build();
+    }
+
+    @Override
+    @NonNull
+    public String toString() {
+      return "OnConditionMetTrigger{" + "condition=" + getCondition() + "}";
     }
 
     /** Builder for {@link OnConditionMetTrigger}. */
@@ -165,8 +201,8 @@ public final class TriggerBuilders {
        * @since 1.2
        */
       @NonNull
-      public Builder setTrigger(@NonNull DynamicBool dynamicBool) {
-        mImpl.setTrigger(dynamicBool.toDynamicBoolProto());
+      public Builder setCondition(@NonNull DynamicBool dynamicBool) {
+        mImpl.setCondition(dynamicBool.toDynamicBoolProto());
         mFingerprint.recordPropertyUpdate(
             1, checkNotNull(dynamicBool.getFingerprint()).aggregateValueAsInt());
         return this;
@@ -215,14 +251,22 @@ public final class TriggerBuilders {
     }
   }
 
+  /** Creates a new wrapper instance from the proto. */
+  @RestrictTo(Scope.LIBRARY_GROUP)
   @NonNull
-  static Trigger triggerFromProto(@NonNull TriggerProto.Trigger proto) {
+  public static Trigger triggerFromProto(
+    @NonNull TriggerProto.Trigger proto, @Nullable Fingerprint fingerprint) {
     if (proto.hasOnLoadTrigger()) {
-      return OnLoadTrigger.fromProto(proto.getOnLoadTrigger());
+      return OnLoadTrigger.fromProto(proto.getOnLoadTrigger(), fingerprint);
     }
     if (proto.hasOnConditionMetTrigger()) {
-      return OnConditionMetTrigger.fromProto(proto.getOnConditionMetTrigger());
+      return OnConditionMetTrigger.fromProto(proto.getOnConditionMetTrigger(), fingerprint);
     }
     throw new IllegalStateException("Proto was not a recognised instance of Trigger");
+  }
+
+  @NonNull
+  static Trigger triggerFromProto(@NonNull TriggerProto.Trigger proto) {
+    return triggerFromProto(proto, null);
   }
 }

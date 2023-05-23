@@ -27,7 +27,12 @@ import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.CameraXConfig
 import androidx.camera.core.DynamicRange
+import androidx.camera.core.DynamicRange.BIT_DEPTH_10_BIT
+import androidx.camera.core.DynamicRange.HDR_UNSPECIFIED_10_BIT
+import androidx.camera.core.DynamicRange.HLG_10_BIT
+import androidx.camera.core.Preview
 import androidx.camera.core.SurfaceRequest
+import androidx.camera.core.impl.CameraInfoInternal
 import androidx.camera.core.impl.MutableStateObservable
 import androidx.camera.core.impl.Observable
 import androidx.camera.core.internal.CameraUseCaseAdapter
@@ -127,7 +132,7 @@ class VideoCaptureDeviceTest(
     )
 
     private lateinit var cameraUseCaseAdapter: CameraUseCaseAdapter
-    private lateinit var cameraInfo: CameraInfo
+    private lateinit var cameraInfo: CameraInfoInternal
 
     @Before
     fun setUp() {
@@ -137,7 +142,7 @@ class VideoCaptureDeviceTest(
         ).get()
 
         cameraUseCaseAdapter = CameraUtil.createCameraUseCaseAdapter(context, cameraSelector)
-        cameraInfo = cameraUseCaseAdapter.cameraInfo
+        cameraInfo = cameraUseCaseAdapter.cameraInfo as CameraInfoInternal
     }
 
     @After
@@ -222,6 +227,8 @@ class VideoCaptureDeviceTest(
 
     @Test
     fun addUseCases_setSupportedQuality_getCorrectResolution() = runBlocking {
+        assumeExtraCroppingQuirk(implName)
+
         val videoCapabilities = createFakeVideoCapabilities(supportedResolutionMap)
         assumeTrue(videoCapabilities.getSupportedQualities(dynamicRange).isNotEmpty())
         // Cuttlefish API 29 has inconsistent resolution issue. See b/184015059.
@@ -372,6 +379,137 @@ class VideoCaptureDeviceTest(
         withTimeoutOrNull(timeout) {
             assertThat(finalSourceState.await()).isEqualTo(SourceState.INACTIVE)
         } ?: fail("Timed out waiting for INACTIVE state. Waited $timeout.")
+    }
+
+    @Test
+    fun defaultDynamicRange_isSdr(): Unit = runBlocking {
+        testDynamicRangeSelection { selectedDynamicRange ->
+            assertThat(selectedDynamicRange).isEqualTo(DynamicRange.SDR)
+        }
+    }
+
+    @SdkSuppress(minSdkVersion = 33) // HLG10 only supported on API 33+
+    @Test
+    fun dynamicRangeHlg_selectsHlg(): Unit = runBlocking {
+        assumeTrue(
+            "Device does not support HLG10",
+            cameraInfo.supportedDynamicRanges.contains(HLG_10_BIT)
+        )
+
+        testDynamicRangeSelection(
+            requestedDynamicRange = HLG_10_BIT
+        ) { selectedDynamicRange ->
+            assertThat(selectedDynamicRange).isEqualTo(HLG_10_BIT)
+        }
+    }
+    @SdkSuppress(minSdkVersion = 33) // HLG10 only supported on API 33+
+    @Test
+    fun dynamicRange_isSetInSessionConfig(): Unit = runBlocking {
+        // TODO(b/275632219): Disabled on camera-pipe until automatic dynamic range
+        //  selection is supported
+        assumeTrue(implName != CameraPipeConfig::class.simpleName)
+        assumeTrue(
+            "Device does not support HLG10",
+            cameraInfo.supportedDynamicRanges.contains(HLG_10_BIT)
+        )
+
+        // Arrange.
+        val videoOutput = createTestVideoOutput()
+        val videoCapture = VideoCapture.Builder(videoOutput)
+            .setDynamicRange(HLG_10_BIT)
+            .build()
+
+        // Act.
+        withContext(Dispatchers.Main) {
+            cameraUseCaseAdapter.addUseCases(listOf(videoCapture))
+        }
+
+        // Assert.
+        // Wait for surface request to ensure session config was attached
+        videoOutput.nextSurfaceRequest(5, TimeUnit.SECONDS)
+        val outputConfig = videoCapture.sessionConfig.outputConfigs.first()
+        assertThat(outputConfig.dynamicRange).isEqualTo(HLG_10_BIT)
+    }
+
+    @SdkSuppress(minSdkVersion = 33) // 10-bit HDR only supported on API 33+
+    @Test
+    fun dynamicRangeHdrUnspecified10Bit_selectsHdr10Bit(): Unit = runBlocking {
+        val supported10BitDynamicRanges = cameraInfo.supportedDynamicRanges.filter {
+            it.bitDepth == BIT_DEPTH_10_BIT
+        }
+        assumeFalse(
+            "Device does not support any 10-bit dynamic ranges",
+            supported10BitDynamicRanges.isEmpty()
+        )
+
+        testDynamicRangeSelection(
+            requestedDynamicRange = HDR_UNSPECIFIED_10_BIT
+        ) { selectedDynamicRange ->
+            assertThat(selectedDynamicRange).isIn(supported10BitDynamicRanges)
+        }
+    }
+
+    @SdkSuppress(minSdkVersion = 33) // 10-bit HDR only supported on API 33+
+    @Test
+    fun dynamicRangeHlg_selectsAndAppliesHlgForConcurrentPreview(): Unit = runBlocking {
+        // TODO(b/275632219): Disabled on camera-pipe until automatic dynamic range
+        //  selection is supported
+        assumeTrue(implName != CameraPipeConfig::class.simpleName)
+        assumeTrue(
+            "Device does not support HLG10",
+            cameraInfo.supportedDynamicRanges.contains(HLG_10_BIT)
+        )
+
+        // Arrange.
+        val videoOutput = createTestVideoOutput()
+        val videoCapture = VideoCapture.Builder(videoOutput)
+            .setDynamicRange(HLG_10_BIT)
+            .build()
+        // Preview will derive dynamic range from VideoCapture since it uses
+        // DynamicRange.UNSPECIFIED by default.
+        val preview = Preview.Builder().build()
+
+        // Act.
+        val deferredSurfaceRequest = CompletableDeferred<SurfaceRequest>()
+        withContext(Dispatchers.Main) {
+            // SurfaceProvider will run on main thread
+            preview.setSurfaceProvider {
+                deferredSurfaceRequest.complete(it)
+            }
+            cameraUseCaseAdapter.addUseCases(listOf(videoCapture, preview))
+        }
+
+        // Assert.
+        val timeout = 5.seconds
+        val previewSurfaceRequest = withTimeoutOrNull(timeout) {
+             deferredSurfaceRequest.await()
+        } ?: fail("Timed out waiting for Preview SurfaceRequest. Waited $timeout.")
+        val previewOutputConfig = preview.sessionConfig.outputConfigs.first()
+        assertThat(previewSurfaceRequest.dynamicRange).isEqualTo(HLG_10_BIT)
+        assertThat(previewOutputConfig.dynamicRange).isEqualTo(HLG_10_BIT)
+    }
+
+    private suspend fun testDynamicRangeSelection(
+        requestedDynamicRange: DynamicRange? = null,
+        assertBlock: (selectedDynamicRange: DynamicRange) -> Unit
+    ) {
+        // TODO(b/275632219): Disabled on camera-pipe until automatic dynamic range
+        //  selection is supported
+        assumeTrue(implName != CameraPipeConfig::class.simpleName)
+        // Arrange.
+        val videoOutput = createTestVideoOutput()
+        val videoCapture = VideoCapture.Builder(videoOutput).apply {
+            requestedDynamicRange?.let { setDynamicRange(requestedDynamicRange) }
+        }.build()
+
+        // Act.
+        withContext(Dispatchers.Main) {
+            cameraUseCaseAdapter.addUseCases(listOf(videoCapture))
+        }
+
+        // Assert.
+        val surfaceRequest = videoOutput.nextSurfaceRequest(5, TimeUnit.SECONDS)
+        assertBlock(surfaceRequest.dynamicRange)
     }
 
     private fun createTestVideoOutput(

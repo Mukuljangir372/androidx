@@ -25,9 +25,11 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.ScrollScope
 import androidx.compose.foundation.gestures.ScrollableState
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.snapping.SnapPositionInLayout
+import androidx.compose.foundation.gestures.snapping.calculateDistanceToDesiredSnapPosition
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.lazy.AwaitFirstLayoutModifier
+import androidx.compose.foundation.lazy.layout.AwaitFirstLayoutModifier
 import androidx.compose.foundation.lazy.layout.LazyLayoutBeyondBoundsInfo
 import androidx.compose.foundation.lazy.layout.LazyLayoutPinnedItemList
 import androidx.compose.foundation.lazy.layout.LazyLayoutPrefetchState
@@ -35,6 +37,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
@@ -103,7 +107,7 @@ fun rememberPagerState(
             ){
                 // provide pageCount
             }"""
-    )
+    ), level = DeprecationLevel.ERROR
 )
 @ExperimentalFoundationApi
 @Composable
@@ -181,7 +185,7 @@ abstract class PagerState(
      * Difference between the last up and last down events of a scroll event.
      */
     internal var upDownDifference: Offset by mutableStateOf(Offset.Zero)
-    internal var snapRemainingScrollOffset by mutableStateOf(0f)
+    internal var snapRemainingScrollOffset by mutableFloatStateOf(0f)
 
     private val scrollPosition = PagerScrollPosition(initialPage, 0)
 
@@ -257,9 +261,13 @@ abstract class PagerState(
     private val distanceToSnapPosition: Float
         get() = layoutInfo.closestPageToSnapPosition?.let {
             density.calculateDistanceToDesiredSnapPosition(
-                layoutInfo,
-                it,
-                SnapAlignmentStartToStart
+                mainAxisViewPortSize = layoutInfo.mainAxisViewportSize,
+                beforeContentPadding = layoutInfo.beforeContentPadding,
+                afterContentPadding = layoutInfo.afterContentPadding,
+                itemSize = layoutInfo.pageSize,
+                itemOffset = it.offset,
+                itemIndex = it.index,
+                snapPositionInLayout = SnapAlignmentStartToStart
             )
         } ?: 0f
 
@@ -283,9 +291,9 @@ abstract class PagerState(
      */
     val currentPage: Int get() = scrollPosition.currentPage
 
-    private var animationTargetPage by mutableStateOf(-1)
+    private var animationTargetPage by mutableIntStateOf(-1)
 
-    private var settledPageState by mutableStateOf(initialPage)
+    private var settledPageState by mutableIntStateOf(initialPage)
 
     /**
      * The page that is currently "settled". This is an animation/gesture unaware page in the sense
@@ -439,7 +447,9 @@ abstract class PagerState(
         pageOffsetFraction: Float = 0f,
         animationSpec: AnimationSpec<Float> = spring(stiffness = Spring.StiffnessMediumLow)
     ) {
-        if (page == currentPage && currentPageOffsetFraction == pageOffsetFraction) return
+        if (page == currentPage && currentPageOffsetFraction == pageOffsetFraction ||
+            pageCount == 0
+        ) return
         awaitScrollDependencies()
         require(pageOffsetFraction in -0.5..0.5) {
             "pageOffsetFraction $pageOffsetFraction is not within the range -0.5 to 0.5"
@@ -663,8 +673,8 @@ private val UnitDensity = object : Density {
     override val fontScale: Float = 1f
 }
 
-internal val SnapAlignmentStartToStart: Density.(layoutSize: Float, itemSize: Float) -> Float =
-    { _, _ -> 0f }
+@OptIn(ExperimentalFoundationApi::class)
+internal val SnapAlignmentStartToStart = SnapPositionInLayout { _, _, _ -> 0 }
 
 private const val DEBUG = false
 private inline fun debugLog(generateMsg: () -> String) {

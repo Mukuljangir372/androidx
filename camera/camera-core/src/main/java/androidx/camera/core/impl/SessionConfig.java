@@ -113,7 +113,7 @@ public final class SessionConfig {
         /**
          * Returns the dynamic range for this output configuration.
          *
-         * <p>The dynamic range will determine the dynamic range format and profile of pixels in
+         * <p>The dynamic range will determine the dynamic range encoding and profile for pixels in
          * the surfaces associated with this output configuration.
          *
          * <p>If not set, this defaults to {@link DynamicRange#SDR}.
@@ -172,8 +172,8 @@ public final class SessionConfig {
             /**
              * Returns the dynamic range for this output configuration.
              *
-             * <p>The dynamic range will determine the dynamic range format and profile of pixels in
-             * the surfaces associated with this output configuration.
+             * <p>The dynamic range will determine the dynamic range encoding and profile for
+             * pixels in the surfaces associated with this output configuration.
              */
             @NonNull
             public abstract Builder setDynamicRange(@NonNull DynamicRange dynamicRange);
@@ -694,10 +694,10 @@ public final class SessionConfig {
         public SessionConfig build() {
             return new SessionConfig(
                     new ArrayList<>(mOutputConfigs),
-                    mDeviceStateCallbacks,
-                    mSessionStateCallbacks,
-                    mSingleCameraCaptureCallbacks,
-                    mErrorListeners,
+                    new ArrayList<>(mDeviceStateCallbacks),
+                    new ArrayList<>(mSessionStateCallbacks),
+                    new ArrayList<>(mSingleCameraCaptureCallbacks),
+                    new ArrayList<>(mErrorListeners),
                     mCaptureConfigBuilder.build(),
                     mInputConfiguration);
         }
@@ -847,10 +847,10 @@ public final class SessionConfig {
 
             return new SessionConfig(
                     outputConfigs,
-                    mDeviceStateCallbacks,
-                    mSessionStateCallbacks,
-                    mSingleCameraCaptureCallbacks,
-                    mErrorListeners,
+                    new ArrayList<>(mDeviceStateCallbacks),
+                    new ArrayList<>(mSessionStateCallbacks),
+                    new ArrayList<>(mSingleCameraCaptureCallbacks),
+                    new ArrayList<>(mErrorListeners),
                     mCaptureConfigBuilder.build(),
                     mInputConfiguration);
         }

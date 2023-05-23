@@ -18,9 +18,13 @@ package androidx.appactions.interaction.capabilities.core.impl.converters;
 
 import androidx.annotation.NonNull;
 import androidx.appactions.builtintypes.experimental.properties.Attendee;
+import androidx.appactions.builtintypes.experimental.properties.EndDate;
 import androidx.appactions.builtintypes.experimental.properties.ItemListElement;
+import androidx.appactions.builtintypes.experimental.properties.Name;
 import androidx.appactions.builtintypes.experimental.properties.Participant;
 import androidx.appactions.builtintypes.experimental.properties.Recipient;
+import androidx.appactions.builtintypes.experimental.properties.StartDate;
+import androidx.appactions.builtintypes.experimental.properties.Text;
 import androidx.appactions.builtintypes.experimental.types.Alarm;
 import androidx.appactions.builtintypes.experimental.types.CalendarEvent;
 import androidx.appactions.builtintypes.experimental.types.Call;
@@ -30,10 +34,9 @@ import androidx.appactions.builtintypes.experimental.types.Message;
 import androidx.appactions.builtintypes.experimental.types.Person;
 import androidx.appactions.builtintypes.experimental.types.SafetyCheck;
 import androidx.appactions.builtintypes.experimental.types.Timer;
+import androidx.appactions.interaction.capabilities.core.SearchAction;
 import androidx.appactions.interaction.capabilities.core.impl.exceptions.StructConversionException;
 import androidx.appactions.interaction.capabilities.core.properties.StringValue;
-import androidx.appactions.interaction.capabilities.core.values.EntityValue;
-import androidx.appactions.interaction.capabilities.core.values.SearchAction;
 import androidx.appactions.interaction.proto.Entity;
 import androidx.appactions.interaction.proto.ParamValue;
 
@@ -74,20 +77,17 @@ public final class TypeConverters {
                     .build();
 
     public static final TypeSpec<Person> PERSON_TYPE_SPEC =
-            TypeSpecBuilder.newBuilderForThing(
-                            "Person",
-                            Person::Builder,
-                            Person.Builder::build)
-                    .bindStringField("email",
-                            person -> Optional.ofNullable(person.getEmail()),
-                            Person.Builder::setEmail)
+            TypeSpecBuilder.newBuilderForThing("Person", Person::Builder, Person.Builder::build)
+                    .bindStringField("email", Person::getEmail, Person.Builder::setEmail)
                     .bindStringField(
-                            "telephone",
-                            person -> Optional.ofNullable(person.getTelephone()),
-                            Person.Builder::setTelephone)
-                    .bindStringField("name",
-                            person -> Optional.ofNullable(person.getName())
-                                    .flatMap(name -> Optional.ofNullable(name.asText())),
+                            "telephone", Person::getTelephone, Person.Builder::setTelephone)
+                    .bindStringField(
+                            "name",
+                            person ->
+                                    Optional.ofNullable(person)
+                                            .map(Person::getName)
+                                            .map(Name::asText)
+                                            .orElse(null),
                             Person.Builder::setName)
                     .build();
     public static final TypeSpec<Alarm> ALARM_TYPE_SPEC =
@@ -110,13 +110,19 @@ public final class TypeConverters {
                             CalendarEvent.Builder::build)
                     .bindZonedDateTimeField(
                             "startDate",
-                            calendarEvent -> Optional.ofNullable(
-                                    calendarEvent.getStartDate().asZonedDateTime()),
+                            calendarEvent ->
+                                    Optional.ofNullable(calendarEvent)
+                                            .map(CalendarEvent::getStartDate)
+                                            .map(StartDate::asZonedDateTime)
+                                            .orElse(null),
                             CalendarEvent.Builder::setStartDate)
                     .bindZonedDateTimeField(
                             "endDate",
-                            calendarEvent -> Optional.ofNullable(
-                                    calendarEvent.getEndDate().asZonedDateTime()),
+                            calendarEvent ->
+                                    Optional.ofNullable(calendarEvent)
+                                            .map(CalendarEvent::getEndDate)
+                                            .map(EndDate::asZonedDateTime)
+                                            .orElse(null),
                             CalendarEvent.Builder::setEndDate)
                     .bindRepeatedSpecField(
                             "attendee",
@@ -131,11 +137,11 @@ public final class TypeConverters {
                             SafetyCheck.Builder::build)
                     .bindDurationField(
                             "duration",
-                            safetyCheck -> Optional.ofNullable(safetyCheck.getDuration()),
+                            SafetyCheck::getDuration,
                             SafetyCheck.Builder::setDuration)
                     .bindZonedDateTimeField(
                             "checkInTime",
-                            safetyCheck -> Optional.ofNullable(safetyCheck.getCheckInTime()),
+                            SafetyCheck::getCheckInTime,
                             SafetyCheck.Builder::setCheckInTime)
                     .build();
     public static final TypeSpec<Recipient> RECIPIENT_TYPE_SPEC =
@@ -153,11 +159,8 @@ public final class TypeConverters {
                             PERSON_TYPE_SPEC)
                     .build();
     public static final TypeSpec<Message> MESSAGE_TYPE_SPEC =
-            TypeSpecBuilder.newBuilderForThing(
-                            "Message",
-                            Message::Builder,
-                            Message.Builder::build)
-                    .bindIdentifier(message -> Optional.ofNullable(message.getIdentifier()))
+            TypeSpecBuilder.newBuilderForThing("Message", Message::Builder, Message.Builder::build)
+                    .bindIdentifier(Message::getIdentifier)
                     .bindRepeatedSpecField(
                             "recipient",
                             Message::getRecipientList,
@@ -165,7 +168,11 @@ public final class TypeConverters {
                             RECIPIENT_TYPE_SPEC)
                     .bindStringField(
                             "text",
-                            message -> Optional.of(message.getText().asText()),
+                            message ->
+                                    Optional.ofNullable(message)
+                                            .map(Message::getText)
+                                            .map(Text::asText)
+                                            .orElse(null),
                             Message.Builder::setText)
                     .build();
     public static final TypeSpec<Call> CALL_TYPE_SPEC =
@@ -173,7 +180,7 @@ public final class TypeConverters {
                             "Call",
                             Call::Builder,
                             Call.Builder::build)
-                    .bindIdentifier(call -> Optional.ofNullable(call.getIdentifier()))
+                    .bindIdentifier(Call::getIdentifier)
                     .bindRepeatedSpecField(
                             "participant",
                             Call::getParticipantList,
@@ -187,25 +194,6 @@ public final class TypeConverters {
     public static final ParamValueConverter<Boolean> BOOLEAN_PARAM_VALUE_CONVERTER =
             ParamValueConverter.of(TypeSpec.BOOL_TYPE_SPEC);
 
-    public static final ParamValueConverter<EntityValue> ENTITY_PARAM_VALUE_CONVERTER =
-            new ParamValueConverter<EntityValue>() {
-                @NonNull
-                @Override
-                public ParamValue toParamValue(EntityValue value) {
-                    throw new IllegalStateException(
-                            "EntityValue should never be sent back to " + "Assistant.");
-                }
-
-                @Override
-                public EntityValue fromParamValue(@NonNull ParamValue paramValue) {
-                    EntityValue.Builder value = EntityValue.newBuilder();
-                    if (paramValue.hasIdentifier()) {
-                        value.setId(paramValue.getIdentifier());
-                    }
-                    value.setValue(paramValue.getStringValue());
-                    return value.build();
-                }
-            };
     public static final ParamValueConverter<String> STRING_PARAM_VALUE_CONVERTER =
             ParamValueConverter.of(TypeSpec.STRING_TYPE_SPEC);
 
@@ -358,19 +346,6 @@ public final class TypeConverters {
                             String.format("Unknown enum format '%s'.", identifier));
                 }
             };
-    public static final EntityConverter<
-            androidx.appactions.interaction.capabilities.core.properties.Entity>
-            ENTITY_ENTITY_CONVERTER =
-                    (entity) -> {
-                        Entity.Builder builder =
-                                Entity.newBuilder()
-                                        .setName(entity.getName())
-                                        .addAllAlternateNames(entity.getAlternateNames());
-                        if (entity.getId() != null) {
-                            builder.setIdentifier(entity.getId());
-                        }
-                        return builder.build();
-                    };
     public static final EntityConverter<StringValue> STRING_VALUE_ENTITY_CONVERTER =
             (stringValue) ->
                     Entity.newBuilder()
@@ -392,23 +367,21 @@ public final class TypeConverters {
                     (callFormat) ->
                             Entity.newBuilder().setIdentifier(callFormat.getTextValue()).build();
 
-    private TypeConverters() {
-    }
-
-    /**
-     *
-     */
     @NonNull
     public static <T> TypeSpec<SearchAction<T>> createSearchActionTypeSpec(
             @NonNull TypeSpec<T> nestedTypeSpec) {
-        return TypeSpecBuilder.<SearchAction<T>, SearchAction.Builder<T>>newBuilder(
-                        "SearchAction", SearchAction::newBuilder)
+        return TypeSpecBuilder.newBuilder(
+                        "SearchAction",
+                        SearchAction.Builder<T>::new,
+                        SearchAction.Builder::build)
                 .bindStringField(
-                        "query", SearchAction<T>::getQuery, SearchAction.Builder<T>::setQuery)
+                        "query",
+                        SearchAction::getQuery,
+                        SearchAction.Builder::setQuery)
                 .bindSpecField(
-                        "object",
-                        SearchAction<T>::getObject,
-                        SearchAction.Builder<T>::setObject,
+                        "filter",
+                        SearchAction::getFilter,
+                        SearchAction.Builder::setFilter,
                         nestedTypeSpec)
                 .build();
     }
@@ -419,5 +392,8 @@ public final class TypeConverters {
             @NonNull TypeSpec<T> nestedTypeSpec) {
         final TypeSpec<SearchAction<T>> typeSpec = createSearchActionTypeSpec(nestedTypeSpec);
         return ParamValueConverter.Companion.of(typeSpec)::fromParamValue;
+    }
+
+    private TypeConverters() {
     }
 }

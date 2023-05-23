@@ -20,8 +20,8 @@ import androidx.appactions.builtintypes.experimental.properties.Participant
 import androidx.appactions.builtintypes.experimental.types.Call
 import androidx.appactions.builtintypes.experimental.types.GenericErrorStatus
 import androidx.appactions.builtintypes.experimental.types.SuccessStatus
-import androidx.appactions.interaction.capabilities.core.Capability
 import androidx.appactions.interaction.capabilities.core.BaseExecutionSession
+import androidx.appactions.interaction.capabilities.core.Capability
 import androidx.appactions.interaction.capabilities.core.CapabilityFactory
 import androidx.appactions.interaction.capabilities.core.impl.BuilderOf
 import androidx.appactions.interaction.capabilities.core.impl.converters.EntityConverter
@@ -34,101 +34,41 @@ import androidx.appactions.interaction.capabilities.core.properties.Property
 import androidx.appactions.interaction.proto.ParamValue
 import androidx.appactions.interaction.protobuf.Struct
 import androidx.appactions.interaction.protobuf.Value
-import java.util.Optional
 
 private const val CAPABILITY_NAME: String = "actions.intent.CREATE_CALL"
 
-private val ACTION_SPEC =
-    ActionSpecBuilder.ofCapabilityNamed(CAPABILITY_NAME)
-        .setDescriptor(CreateCall.Properties::class.java)
-        .setArguments(CreateCall.Arguments::class.java, CreateCall.Arguments::Builder)
-        .setOutput(CreateCall.Output::class.java)
-        .bindOptionalParameter(
-            "call.callFormat",
-            { property -> Optional.ofNullable(property.callFormat) },
-            CreateCall.Arguments.Builder::setCallFormat,
-            TypeConverters.CALL_FORMAT_PARAM_VALUE_CONVERTER,
-            TypeConverters.CALL_FORMAT_ENTITY_CONVERTER
-        )
-        .bindRepeatedParameter(
-            "call.participant",
-            { property -> Optional.ofNullable(property.participant) },
-            CreateCall.Arguments.Builder::setParticipantList,
-            ParticipantValue.PARAM_VALUE_CONVERTER,
-            EntityConverter.of(PARTICIPANT_TYPE_SPEC)
-        )
-        .bindOptionalOutput(
-            "call",
-            { output -> Optional.ofNullable(output.call) },
-            ParamValueConverter.of(CALL_TYPE_SPEC)::toParamValue
-        )
-        .bindOptionalOutput(
-            "executionStatus",
-            { output -> Optional.ofNullable(output.executionStatus) },
-            CreateCall.ExecutionStatus::toParamValue
-        )
-        .build()
-
+/** A capability corresponding to actions.intent.CREATE_CALL */
 @CapabilityFactory(name = CAPABILITY_NAME)
 class CreateCall private constructor() {
-    class CapabilityBuilder :
-        Capability.Builder<
-            CapabilityBuilder, Properties, Arguments, Output, Confirmation, ExecutionSession
-            >(ACTION_SPEC) {
-        override fun build(): Capability {
-            super.setProperty(Properties.Builder().build())
-            // TODO(b/268369632): No-op remove empty property builder after Property is removed.
-            super.setProperty(Properties.Builder().build())
-            return super.build()
-        }
+    internal enum class SlotMetadata(val path: String) {
+        CALL_FORMAT("call.callFormat"),
+        PARTICIPANT("call.participant")
     }
 
-    // TODO(b/268369632): Remove Property from public capability APIs.
-    class Properties
-    internal constructor(
-        val callFormat: Property<Call.CanonicalValue.CallFormat>?,
-        val participant: Property<Participant>?
-    ) {
-        override fun toString(): String {
-            return "Property(callFormat=$callFormat, participant=$participant)"
-        }
+    class CapabilityBuilder :
+        Capability.Builder<
+            CapabilityBuilder, Arguments, Output, Confirmation, ExecutionSession
+            >(ACTION_SPEC) {
 
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (javaClass != other?.javaClass) return false
+        fun setCallFormatProperty(
+            callFormat: Property<Call.CanonicalValue.CallFormat>
+        ): CapabilityBuilder =
+            setProperty(
+                SlotMetadata.CALL_FORMAT.path,
+                callFormat,
+                TypeConverters.CALL_FORMAT_ENTITY_CONVERTER)
 
-            other as Properties
-
-            if (callFormat != other.callFormat) return false
-            if (participant != other.participant) return false
-
-            return true
-        }
-
-        override fun hashCode(): Int {
-            var result = callFormat.hashCode()
-            result = 31 * result + participant.hashCode()
-            return result
-        }
-
-        class Builder {
-            private var callFormat: Property<Call.CanonicalValue.CallFormat>? = null
-
-            private var participant: Property<Participant>? = null
-
-            fun setCallFormat(callFormat: Property<Call.CanonicalValue.CallFormat>): Builder =
-                apply {
-                    this.callFormat = callFormat
-                }
-
-            fun build(): Properties = Properties(callFormat, participant)
-        }
+        fun setParticipantProperty(participant: Property<Participant>): CapabilityBuilder =
+            setProperty(
+            SlotMetadata.PARTICIPANT.path,
+            participant,
+            EntityConverter.of(PARTICIPANT_TYPE_SPEC))
     }
 
     class Arguments
     internal constructor(
         val callFormat: Call.CanonicalValue.CallFormat?,
-        val participantList: List<ParticipantValue>,
+        val participantList: List<ParticipantValue>
     ) {
         override fun toString(): String {
             return "Arguments(callFormat=$callFormat, participantList=$participantList)"
@@ -237,4 +177,32 @@ class CreateCall private constructor() {
     class Confirmation internal constructor()
 
     sealed interface ExecutionSession : BaseExecutionSession<Arguments, Output>
+
+    companion object {
+        private val ACTION_SPEC =
+            ActionSpecBuilder.ofCapabilityNamed(CAPABILITY_NAME)
+                .setArguments(Arguments::class.java, Arguments::Builder)
+                .setOutput(Output::class.java)
+                .bindParameter(
+                    SlotMetadata.CALL_FORMAT.path,
+                    Arguments.Builder::setCallFormat,
+                    TypeConverters.CALL_FORMAT_PARAM_VALUE_CONVERTER
+                )
+                .bindRepeatedParameter(
+                    SlotMetadata.PARTICIPANT.path,
+                    Arguments.Builder::setParticipantList,
+                    ParticipantValue.PARAM_VALUE_CONVERTER,
+                )
+                .bindOutput(
+                    "call",
+                    Output::call,
+                    ParamValueConverter.of(CALL_TYPE_SPEC)::toParamValue
+                )
+                .bindOutput(
+                    "executionStatus",
+                    Output::executionStatus,
+                    ExecutionStatus::toParamValue
+                )
+                .build()
+    }
 }

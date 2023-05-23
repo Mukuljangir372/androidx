@@ -40,6 +40,8 @@ import androidx.compose.runtime.RememberObserver
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.neverEqualPolicy
 import androidx.compose.runtime.remember
@@ -258,7 +260,7 @@ inline fun ConstraintLayout(
         var endConstraint by remember { mutableStateOf(constraintSet) }
         val progress = remember { Animatable(0.0f) }
         val channel = remember { Channel<ConstraintSet>(Channel.CONFLATED) }
-        val direction = remember { mutableStateOf(1) }
+        val direction = remember { mutableIntStateOf(1) }
 
         SideEffect {
             channel.trySend(constraintSet)
@@ -289,7 +291,7 @@ inline fun ConstraintLayout(
             content = { content() })
     } else {
         val needsUpdate = remember {
-            mutableStateOf(0L)
+            mutableLongStateOf(0L)
         }
 
         val contentTracker = remember { mutableStateOf(Unit, neverEqualPolicy()) }

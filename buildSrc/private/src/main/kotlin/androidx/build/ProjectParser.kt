@@ -16,12 +16,11 @@
 
 package androidx.build
 
+import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import org.gradle.api.Project
 import org.gradle.api.services.BuildService
 import org.gradle.api.services.BuildServiceParameters
-
-import java.io.File
 
 abstract class ProjectParser : BuildService<BuildServiceParameters.None> {
     @Transient
@@ -39,7 +38,7 @@ abstract class ProjectParser : BuildService<BuildServiceParameters.None> {
     private fun parseProject(fileLines: List<String>): ParsedProject {
         var libraryType: String? = null
         var publish: String? = null
-        var specifiesVersion: Boolean = false
+        var specifiesVersion = false
         fileLines.forEach { line ->
             if (libraryType == null)
                 libraryType = line.extractVariableValue(" type = LibraryType.")

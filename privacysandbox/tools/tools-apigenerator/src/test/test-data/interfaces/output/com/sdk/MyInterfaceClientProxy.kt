@@ -1,6 +1,8 @@
 package com.sdk
 
+import androidx.privacysandbox.ui.core.SdkActivityLauncher
 import com.sdk.PrivacySandboxThrowableParcelConverter.fromThrowableParcel
+import com.sdk.SdkActivityLauncherConverter.toBinder
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.suspendCancellableCoroutine
 
@@ -31,12 +33,18 @@ public class MyInterfaceClientProxy(
 
     public override fun doSomething(firstInterface: MyInterface,
             secondInterface: MySecondInterface): Unit {
-        remote.doSomething((firstInterface as MyInterfaceClientProxy).remote, (secondInterface as
-                MySecondInterfaceClientProxy).remote)
+        remote.doSomething((firstInterface as MyInterfaceClientProxy).remote,
+                IMySecondInterfaceCoreLibInfoAndBinderWrapperConverter.toParcelable((secondInterface
+                as MySecondInterfaceClientProxy).coreLibInfo, secondInterface.remote))
     }
 
     public override fun doSomethingWithNullableInterface(maybeInterface: MySecondInterface?): Unit {
-        remote.doSomethingWithNullableInterface(maybeInterface?.let { notNullValue -> (notNullValue
-                as MySecondInterfaceClientProxy).remote })
+        remote.doSomethingWithNullableInterface(maybeInterface?.let { notNullValue ->
+                IMySecondInterfaceCoreLibInfoAndBinderWrapperConverter.toParcelable((notNullValue as
+                MySecondInterfaceClientProxy).coreLibInfo, notNullValue.remote) })
+    }
+
+    public override fun doSomethingWithSdkActivityLauncher(launcher: SdkActivityLauncher): Unit {
+        remote.doSomethingWithSdkActivityLauncher(toBinder(launcher))
     }
 }

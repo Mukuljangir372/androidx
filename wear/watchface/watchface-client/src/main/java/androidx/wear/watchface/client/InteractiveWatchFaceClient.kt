@@ -56,6 +56,7 @@ import androidx.wear.watchface.style.UserStyleSchema
 import androidx.wear.watchface.style.UserStyleSetting.ComplicationSlotsUserStyleSetting
 import androidx.wear.watchface.toApiFormat
 import androidx.wear.watchface.utility.TraceEvent
+import androidx.wear.watchface.utility.aidlMethod
 import java.time.Instant
 import java.util.concurrent.Executor
 
@@ -88,10 +89,10 @@ public object DisconnectReasons {
 }
 
 /**
- * Intended for use by watch face editors, a RemoteWatchFaceViewHost allows the watch face to send
- * a [SurfaceControlViewHost.SurfacePackage] to the client, which the client can attach to a
- * [SurfaceView] with [SurfaceView.setChildSurfacePackage]. The client can request an updated
- * screen shot by calling [renderWatchFace].
+ * Intended for use by watch face editors, a RemoteWatchFaceViewHost allows the watch face to send a
+ * [SurfaceControlViewHost.SurfacePackage] to the client, which the client can attach to a
+ * [SurfaceView] with [SurfaceView.setChildSurfacePackage]. The client can request an updated screen
+ * shot by calling [renderWatchFace].
  */
 public interface RemoteWatchFaceViewHost : AutoCloseable {
     /**
@@ -161,8 +162,7 @@ public interface InteractiveWatchFaceClient : AutoCloseable {
 
     /** Whether or not the watch face supports [RemoteWatchFaceViewHost]. */
     public val isRemoteWatchFaceViewHostSupported: Boolean
-        @get:JvmName("isRemoteWatchFaceViewHostSupported")
-        get() = false
+        @get:JvmName("isRemoteWatchFaceViewHostSupported") get() = false
 
     /**
      * Constructs a [RemoteWatchFaceViewHost] whose [RemoteWatchFaceViewHost.surfacePackage] can be
@@ -180,7 +180,7 @@ public interface InteractiveWatchFaceClient : AutoCloseable {
      * @param width The width of the view in pixels
      * @param height The height of the view in pixels
      * @return The [RemoteWatchFaceViewHost] or null if the client has already been closed or if the
-     * watch face is not compatible.
+     *   watch face is not compatible.
      */
     @Throws(RemoteException::class)
     @RequiresApi(Build.VERSION_CODES.R)
@@ -217,9 +217,7 @@ public interface InteractiveWatchFaceClient : AutoCloseable {
     /**
      * Renames this instance to [newInstanceId] (must be unique, usually this would be different
      * from the old ID but that's not a requirement). Sets the current [UserStyle] represented as a
-     * [UserStyleData> and clears any complication data. Setting the new UserStyle may have a side
-     * effect of enabling or disabling complicationSlots, which will be visible via
-     * [ComplicationSlotState.isEnabled].
+     * [UserStyleData> and clears any complication data. Setting the new UserStyle may have a side effect of enabling or disabling complicationSlots, which will be visible via [ComplicationSlotState.isEnabled].
      */
     @Throws(RemoteException::class)
     public fun updateWatchFaceInstance(newInstanceId: String, userStyle: UserStyleData)
@@ -425,34 +423,39 @@ internal constructor(
 
     private val iWatchFaceListener =
         object : IWatchfaceListener.Stub() {
-            override fun getApiVersion() = IWatchfaceListener.API_VERSION
+            override fun getApiVersion() =
+                aidlMethod(TAG, "getApiVersion") { IWatchfaceListener.API_VERSION }
 
-            override fun onWatchfaceReady() {
-                this@InteractiveWatchFaceClientImpl.onWatchFaceReady()
-            }
-
-            override fun onWatchfaceColorsChanged(watchFaceColors: WatchFaceColorsWireFormat?) {
-                var listenerCopy: HashMap<Consumer<WatchFaceColors?>, Executor>
-
-                synchronized(lock) {
-                    listenerCopy = HashMap(watchFaceColorsChangeListeners)
-                    lastWatchFaceColors = watchFaceColors?.toApiFormat()
+            override fun onWatchfaceReady() =
+                aidlMethod(TAG, "onWatchfaceReady") {
+                    this@InteractiveWatchFaceClientImpl.onWatchFaceReady()
                 }
 
-                for ((listener, executor) in listenerCopy) {
-                    executor.execute { listener.accept(lastWatchFaceColors) }
-                }
-            }
+            override fun onWatchfaceColorsChanged(watchFaceColors: WatchFaceColorsWireFormat?) =
+                aidlMethod(TAG, "onWatchfaceColorsChanged") {
+                    var listenerCopy: HashMap<Consumer<WatchFaceColors?>, Executor>
 
-            override fun onPreviewImageUpdateRequested(watchFaceId: String) {
-                previewImageUpdateRequestedExecutor?.execute {
-                    previewImageUpdateRequestedListener!!.accept(watchFaceId)
-                }
-            }
+                    synchronized(lock) {
+                        listenerCopy = HashMap(watchFaceColorsChangeListeners)
+                        lastWatchFaceColors = watchFaceColors?.toApiFormat()
+                    }
 
-            override fun onEngineDetached() {
-                sendDisconnectNotification(DisconnectReasons.ENGINE_DETACHED)
-            }
+                    for ((listener, executor) in listenerCopy) {
+                        executor.execute { listener.accept(lastWatchFaceColors) }
+                    }
+                }
+
+            override fun onPreviewImageUpdateRequested(watchFaceId: String): Unit =
+                aidlMethod(TAG, "onPreviewImageUpdateRequested") {
+                    previewImageUpdateRequestedExecutor?.execute {
+                        previewImageUpdateRequestedListener!!.accept(watchFaceId)
+                    }
+                }
+
+            override fun onEngineDetached() =
+                aidlMethod(TAG, "onEngineDetached") {
+                    sendDisconnectNotification(DisconnectReasons.ENGINE_DETACHED)
+                }
         }
 
     init {
@@ -661,11 +664,13 @@ internal constructor(
             iInteractiveWatchFace.apiVersion >= 2 -> {
                 iInteractiveWatchFace.addWatchfaceReadyListener(
                     object : IWatchfaceReadyListener.Stub() {
-                        override fun getApiVersion(): Int = IWatchfaceReadyListener.API_VERSION
+                        override fun getApiVersion(): Int =
+                            aidlMethod(TAG, "getApiVersion") { IWatchfaceReadyListener.API_VERSION }
 
-                        override fun onWatchfaceReady() {
-                            this@InteractiveWatchFaceClientImpl.onWatchFaceReady()
-                        }
+                        override fun onWatchfaceReady() =
+                            aidlMethod(TAG, "onWatchfaceReady") {
+                                this@InteractiveWatchFaceClientImpl.onWatchFaceReady()
+                            }
                     }
                 )
             }
@@ -774,4 +779,8 @@ internal constructor(
         }
 
     override fun isComplicationDisplayPolicySupported() = iInteractiveWatchFace.apiVersion >= 8
+
+    companion object {
+        private const val TAG = "InteractiveWatchFaceClientImpl"
+    }
 }

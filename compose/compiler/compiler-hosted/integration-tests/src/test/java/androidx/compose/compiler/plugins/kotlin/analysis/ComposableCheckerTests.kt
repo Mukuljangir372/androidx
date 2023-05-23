@@ -496,7 +496,7 @@ class ComposableCheckerTests : AbstractComposeDiagnosticsTest() {
             @Composable
             fun foo() {
                 val myList = listOf(1,2,3,4,5)
-                myList.forEach @Composable { value: Int ->
+                myList.forEach <!REDUNDANT_COMPOSABLE_ANNOTATION!>@Composable<!> { value: Int ->
                     Leaf()
                     System.out.println(value)
                 }
@@ -1363,7 +1363,10 @@ class ComposableCheckerTests : AbstractComposeDiagnosticsTest() {
             }
 
             class Bar {
-                val foo by Foo()
+                val <!COMPOSABLE_EXPECTED!>foo<!> by Foo()
+
+                @get:Composable
+                val foo2 by Foo()
             }
             """
         )

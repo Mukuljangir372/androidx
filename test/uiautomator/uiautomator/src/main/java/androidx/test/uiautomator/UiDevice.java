@@ -76,7 +76,7 @@ public class UiDevice implements Searchable {
     // Use a short timeout after HOME or BACK key presses, as no events might be generated if
     // already on the home page or if there is nothing to go back to.
     private static final long KEY_PRESS_EVENT_TIMEOUT = 1_000; // ms
-    private static final long ROTATION_TIMEOUT = 1_000; // ms
+    private static final long ROTATION_TIMEOUT = 2_000; // ms
 
     // Singleton instance.
     private static UiDevice sInstance;
@@ -126,6 +126,7 @@ public class UiDevice implements Searchable {
     /** Returns whether there is a match for the given {@code selector} criteria. */
     @Override
     public boolean hasObject(@NonNull BySelector selector) {
+        Log.d(TAG, String.format("Searching for node with selector: %s.", selector));
         AccessibilityNodeInfo node = ByMatcher.findMatch(this, selector, getWindowRoots());
         if (node != null) {
             node.recycle();
@@ -141,23 +142,27 @@ public class UiDevice implements Searchable {
     @Override
     @SuppressLint("UnknownNullness") // Avoid unnecessary null checks from nullable testing APIs.
     public UiObject2 findObject(@NonNull BySelector selector) {
+        Log.d(TAG, String.format("Retrieving node with selector: %s.", selector));
         AccessibilityNodeInfo node = ByMatcher.findMatch(this, selector, getWindowRoots());
         if (node == null) {
             Log.d(TAG, String.format("Node not found with selector: %s.", selector));
             return null;
         }
-        return new UiObject2(this, selector, node);
+        return UiObject2.create(this, selector, node);
     }
 
     /** Returns all objects that match the {@code selector} criteria. */
     @Override
     @NonNull
     public List<UiObject2> findObjects(@NonNull BySelector selector) {
+        Log.d(TAG, String.format("Retrieving nodes with selector: %s.", selector));
         List<UiObject2> ret = new ArrayList<>();
         for (AccessibilityNodeInfo node : ByMatcher.findMatches(this, selector, getWindowRoots())) {
-            ret.add(new UiObject2(this, selector, node));
+            UiObject2 object = UiObject2.create(this, selector, node);
+            if (object != null) {
+                ret.add(object);
+            }
         }
-
         return ret;
     }
 
@@ -1082,7 +1087,7 @@ public class UiDevice implements Searchable {
      * @param cmd the command to run
      * @return the standard output of the command
      * @throws IOException
-     * @hide
+     * @hide legacy hidden method, kept for compatibility with existing tests.
      */
     @RequiresApi(21)
     @NonNull

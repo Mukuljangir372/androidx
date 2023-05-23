@@ -18,82 +18,41 @@ package androidx.appactions.interaction.capabilities.productivity
 
 import androidx.appactions.builtintypes.experimental.types.GenericErrorStatus
 import androidx.appactions.builtintypes.experimental.types.SuccessStatus
-import androidx.appactions.interaction.capabilities.core.Capability
+import androidx.appactions.builtintypes.experimental.types.Timer
 import androidx.appactions.interaction.capabilities.core.BaseExecutionSession
+import androidx.appactions.interaction.capabilities.core.Capability
+import androidx.appactions.interaction.capabilities.core.CapabilityFactory
 import androidx.appactions.interaction.capabilities.core.impl.BuilderOf
+import androidx.appactions.interaction.capabilities.core.impl.converters.EntityConverter
 import androidx.appactions.interaction.capabilities.core.impl.converters.TypeConverters
 import androidx.appactions.interaction.capabilities.core.impl.spec.ActionSpecBuilder
 import androidx.appactions.interaction.capabilities.core.properties.Property
 import androidx.appactions.interaction.proto.ParamValue
 import androidx.appactions.interaction.protobuf.Struct
 import androidx.appactions.interaction.protobuf.Value
-import java.util.Optional
 
-/** ResetTimer.kt in interaction-capabilities-productivity */
 private const val CAPABILITY_NAME = "actions.intent.RESET_TIMER"
 
-private val ACTION_SPEC =
-    ActionSpecBuilder.ofCapabilityNamed(CAPABILITY_NAME)
-        .setDescriptor(ResetTimer.Properties::class.java)
-        .setArguments(ResetTimer.Arguments::class.java, ResetTimer.Arguments::Builder)
-        .setOutput(ResetTimer.Output::class.java)
-        .bindRepeatedParameter(
-            "timer",
-            { property -> Optional.ofNullable(property.timerList) },
-            ResetTimer.Arguments.Builder::setTimerList,
-            TimerValue.PARAM_VALUE_CONVERTER,
-            TimerValue.ENTITY_CONVERTER
-        )
-        .bindOptionalOutput(
-            "executionStatus",
-            { output -> Optional.ofNullable(output.executionStatus) },
-            ResetTimer.ExecutionStatus::toParamValue
-        )
-        .build()
-
-// TODO(b/267806701): Add capability factory annotation once the testing library is fully migrated.
+/** A capability corresponding to actions.intent.RESET_TIMER */
+@CapabilityFactory(name = CAPABILITY_NAME)
 class ResetTimer private constructor() {
+    internal enum class SlotMetadata(val path: String) {
+        TIMER("timer")
+    }
 
     class CapabilityBuilder :
         Capability.Builder<
-            CapabilityBuilder, Properties, Arguments, Output, Confirmation, ExecutionSession
-        >(ACTION_SPEC) {
-        override fun build(): Capability {
-            super.setProperty(Properties.Builder().build())
-            return super.build()
-        }
-    }
-
-    // TODO(b/268369632): Remove Property from public capability APIs.
-    class Properties internal constructor(val timerList: Property<TimerValue>?) {
-        override fun toString(): String {
-            return "Property(timerList=$timerList}"
-        }
-
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (javaClass != other?.javaClass) return false
-
-            other as Properties
-
-            if (timerList != other.timerList) return false
-
-            return true
-        }
-
-        override fun hashCode(): Int {
-            return timerList.hashCode()
-        }
-
-        class Builder {
-            private var timerList: Property<TimerValue>? = null
-
-            fun setTimerList(timerList: Property<TimerValue>): Builder = apply {
-                this.timerList = timerList
-            }
-
-            fun build(): Properties = Properties(timerList)
-        }
+            CapabilityBuilder,
+            Arguments,
+            Output,
+            Confirmation,
+            ExecutionSession
+            >(ACTION_SPEC) {
+        fun setTimerProperty(timer: Property<Timer>): CapabilityBuilder = setProperty(
+            SlotMetadata.TIMER.path,
+            timer,
+            EntityConverter.of(TypeConverters.TIMER_TYPE_SPEC)
+        )
     }
 
     class Arguments internal constructor(val timerList: List<TimerValue>?) {
@@ -120,7 +79,7 @@ class ResetTimer private constructor() {
             private var timerList: List<TimerValue>? = null
 
             fun setTimerList(
-                timerList: List<TimerValue>,
+                timerList: List<TimerValue>
             ): Builder = apply { this.timerList = timerList }
 
             override fun build(): Arguments = Arguments(timerList)
@@ -181,7 +140,7 @@ class ResetTimer private constructor() {
             val value: Value = Value.newBuilder().setStringValue(status).build()
             return ParamValue.newBuilder()
                 .setStructValue(
-                    Struct.newBuilder().putFields(TypeConverters.FIELD_NAME_TYPE, value).build(),
+                    Struct.newBuilder().putFields(TypeConverters.FIELD_NAME_TYPE, value).build()
                 )
                 .build()
         }
@@ -190,4 +149,22 @@ class ResetTimer private constructor() {
     class Confirmation internal constructor()
 
     sealed interface ExecutionSession : BaseExecutionSession<Arguments, Output>
+
+    companion object {
+        private val ACTION_SPEC =
+            ActionSpecBuilder.ofCapabilityNamed(CAPABILITY_NAME)
+                .setArguments(Arguments::class.java, Arguments::Builder)
+                .setOutput(Output::class.java)
+                .bindRepeatedParameter(
+                    SlotMetadata.TIMER.path,
+                    Arguments.Builder::setTimerList,
+                    TimerValue.PARAM_VALUE_CONVERTER
+                )
+                .bindOutput(
+                    "executionStatus",
+                    Output::executionStatus,
+                    ExecutionStatus::toParamValue
+                )
+                .build()
+    }
 }

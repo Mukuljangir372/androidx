@@ -20,17 +20,17 @@ import androidx.paging.LoadType.PREPEND
 import androidx.paging.LoadType.REFRESH
 import androidx.paging.PageEvent.Drop
 import kotlin.coroutines.EmptyCoroutineContext
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.runTest
-import org.junit.Test
-import org.junit.runner.RunWith
-import org.junit.runners.JUnit4
-import org.junit.runners.Parameterized
+import kotlin.test.BeforeTest
+import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertSame
-import org.junit.Before
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
+import org.junit.runners.Parameterized
 
 internal fun <T : Any> adjacentInsertEvent(
     isPrepend: Boolean,
@@ -293,7 +293,7 @@ class PageEventTest {
         private val differ = TestPagingDataDiffer<String>(EmptyCoroutineContext)
         private lateinit var pagingData: PagingData<String>
 
-        @Before
+        @BeforeTest
         fun init() {
             pagingData = if (data.isNotEmpty()) {
                 PagingData.from(data)

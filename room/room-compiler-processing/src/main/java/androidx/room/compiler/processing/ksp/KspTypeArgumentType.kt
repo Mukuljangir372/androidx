@@ -16,11 +16,12 @@
 
 package androidx.room.compiler.processing.ksp
 
-import androidx.room.compiler.processing.XNullability
 import androidx.room.compiler.processing.XType
+import com.google.devtools.ksp.symbol.KSType
 import com.google.devtools.ksp.symbol.KSTypeArgument
 import com.google.devtools.ksp.symbol.KSTypeParameter
 import com.google.devtools.ksp.symbol.KSTypeReference
+import com.google.devtools.ksp.symbol.Variance
 import com.squareup.kotlinpoet.javapoet.JTypeName
 import com.squareup.kotlinpoet.javapoet.KTypeName
 
@@ -31,11 +32,13 @@ import com.squareup.kotlinpoet.javapoet.KTypeName
 internal class KspTypeArgumentType(
     env: KspProcessingEnv,
     val typeArg: KSTypeArgument,
-    scope: KSTypeVarianceResolverScope?
+    scope: KSTypeVarianceResolverScope? = null,
+    typeAlias: KSType? = null,
 ) : KspType(
     env = env,
     ksType = typeArg.requireType(),
-    scope = scope
+    scope = scope,
+    typeAlias = typeAlias,
 ) {
     /**
      * When KSP resolves classes, it always resolves to the upper bound. Hence, the ksType we
@@ -47,7 +50,8 @@ internal class KspTypeArgumentType(
             ksType = ksType,
             allowPrimitives = false
         )
-        if (this.ksType.declaration is KSTypeParameter && this == extendBound) {
+        if (typeArg.variance == Variance.STAR ||
+            (this.ksType.declaration is KSTypeParameter && this == extendBound)) {
             null
         } else {
             extendBound
@@ -70,24 +74,17 @@ internal class KspTypeArgumentType(
         return _extendsBound
     }
 
-    override fun copyWithNullability(nullability: XNullability): KspTypeArgumentType {
-        return KspTypeArgumentType(
-            env = env,
-            typeArg = DelegatingTypeArg(
-                original = typeArg,
-                type = ksType.withNullability(nullability).createTypeReference()
-            ),
-            scope = scope
-        )
-    }
-
-    override fun copyWithScope(scope: KSTypeVarianceResolverScope): KspType {
-        return KspTypeArgumentType(
-            env = env,
-            typeArg = typeArg,
-            scope = scope
-        )
-    }
+    override fun copy(
+        env: KspProcessingEnv,
+        ksType: KSType,
+        scope: KSTypeVarianceResolverScope?,
+        typeAlias: KSType?
+    ) = KspTypeArgumentType(
+        env = env,
+        typeArg = DelegatingTypeArg(typeArg, type = ksType.createTypeReference()),
+        scope = scope,
+        typeAlias = typeAlias
+    )
 
     private class DelegatingTypeArg(
         val original: KSTypeArgument,

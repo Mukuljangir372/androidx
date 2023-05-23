@@ -34,6 +34,7 @@ import androidx.health.connect.client.records.CervicalMucusRecord.Companion.SENS
 import androidx.health.connect.client.records.CyclingPedalingCadenceRecord
 import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.ElevationGainedRecord
+import androidx.health.connect.client.records.ExerciseRoute
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.FloorsClimbedRecord
 import androidx.health.connect.client.records.HeartRateRecord
@@ -417,7 +418,14 @@ fun toRecord(proto: DataProto.DataPoint): Record =
                     startZoneOffset = startZoneOffset,
                     endTime = endTime,
                     endZoneOffset = endZoneOffset,
-                    metadata = metadata
+                    metadata = metadata,
+                    segments = subTypeDataListsMap["segments"]?.toSegmentList() ?: emptyList(),
+                    laps = subTypeDataListsMap["laps"]?.toLapList() ?: emptyList(),
+                    route =
+                        subTypeDataListsMap["route"]?.let {
+                            ExerciseRoute(route = it.toLocationList())
+                        },
+                    hasRoute = valuesMap["hasRoute"]?.booleanVal ?: false,
                 )
             "Distance" ->
                 DistanceRecord(
@@ -520,6 +528,7 @@ fun toRecord(proto: DataProto.DataPoint): Record =
                     startZoneOffset = startZoneOffset,
                     endTime = endTime,
                     endZoneOffset = endZoneOffset,
+                    stages = subTypeDataListsMap["stages"]?.toStageList() ?: emptyList(),
                     metadata = metadata
                 )
             "SleepStage" ->
@@ -572,3 +581,20 @@ fun toRecord(proto: DataProto.DataPoint): Record =
             else -> throw RuntimeException("Unknown data type ${dataType.name}")
         }
     }
+
+fun toExerciseRoute(
+    protoWrapper: androidx.health.platform.client.exerciseroute.ExerciseRoute
+): ExerciseRoute {
+    return ExerciseRoute(
+        protoWrapper.proto.valuesList.map { value ->
+            ExerciseRoute.Location(
+                time = Instant.ofEpochMilli(value.startTimeMillis),
+                latitude = value.valuesMap["latitude"]!!.doubleVal,
+                longitude = value.valuesMap["longitude"]!!.doubleVal,
+                altitude = value.valuesMap["altitude"]?.doubleVal?.meters,
+                horizontalAccuracy = value.valuesMap["horizontal_accuracy"]?.doubleVal?.meters,
+                verticalAccuracy = value.valuesMap["vertical_accuracy"]?.doubleVal?.meters
+            )
+        }
+    )
+}

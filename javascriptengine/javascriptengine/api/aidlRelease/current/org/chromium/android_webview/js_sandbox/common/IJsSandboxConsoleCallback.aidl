@@ -36,9 +36,9 @@ package org.chromium.android_webview.js_sandbox.common;
 interface IJsSandboxConsoleCallback {
   void consoleMessage(int contextGroupId, int level, String message, String source, int line, int column, String trace) = 0;
   void consoleClear(int contextGroupId) = 1;
-  const int CONSOLE_MESSAGE_LEVEL_LOG = (1 << 0);
-  const int CONSOLE_MESSAGE_LEVEL_DEBUG = (1 << 1);
-  const int CONSOLE_MESSAGE_LEVEL_INFO = (1 << 2);
-  const int CONSOLE_MESSAGE_LEVEL_ERROR = (1 << 3);
-  const int CONSOLE_MESSAGE_LEVEL_WARNING = (1 << 4);
+  const int CONSOLE_MESSAGE_LEVEL_LOG = (1 << 0) /* 1 */;
+  const int CONSOLE_MESSAGE_LEVEL_DEBUG = (1 << 1) /* 2 */;
+  const int CONSOLE_MESSAGE_LEVEL_INFO = (1 << 2) /* 4 */;
+  const int CONSOLE_MESSAGE_LEVEL_ERROR = (1 << 3) /* 8 */;
+  const int CONSOLE_MESSAGE_LEVEL_WARNING = (1 << 4) /* 16 */;
 }

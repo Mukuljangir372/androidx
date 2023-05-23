@@ -18,9 +18,16 @@ package androidx.compose.foundation.text.modifiers
 
 import androidx.compose.foundation.text.DefaultMinLines
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorProducer
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
+import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.layout.AlignmentLine
 import androidx.compose.ui.layout.FirstBaseline
 import androidx.compose.ui.layout.IntrinsicMeasurable
@@ -34,17 +41,18 @@ import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.SemanticsModifierNode
 import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.invalidateLayer
-import androidx.compose.ui.node.invalidateMeasurements
+import androidx.compose.ui.node.invalidateMeasurement
 import androidx.compose.ui.node.invalidateSemantics
-import androidx.compose.ui.semantics.SemanticsConfiguration
+import androidx.compose.ui.semantics.SemanticsPropertyReceiver
 import androidx.compose.ui.semantics.getTextLayoutResult
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.TextLayoutInput
 import androidx.compose.ui.text.TextLayoutResult
-import androidx.compose.ui.text.TextPainter
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
@@ -64,7 +72,8 @@ internal class TextAnnotatedStringNode(
     private var minLines: Int = DefaultMinLines,
     private var placeholders: List<AnnotatedString.Range<Placeholder>>? = null,
     private var onPlaceholderLayout: ((List<Rect?>) -> Unit)? = null,
-    private var selectionController: SelectionController? = null
+    private var selectionController: SelectionController? = null,
+    private var overrideColor: ColorProducer? = null
 ) : Modifier.Node(), LayoutModifierNode, DrawModifierNode, SemanticsModifierNode {
     private var baselineCache: Map<AlignmentLine, Int>? = null
 
@@ -91,6 +100,19 @@ internal class TextAnnotatedStringNode(
     }
 
     /**
+     * Element has draw parameters to update
+     */
+    fun updateDraw(color: ColorProducer?, style: TextStyle): Boolean {
+        var changed = false
+        if (color != this.overrideColor) {
+            changed = true
+        }
+        overrideColor = color
+        changed = changed || !style.hasSameDrawAffectingAttributes(this.style)
+        return changed
+    }
+
+    /**
      * Element has text parameters to update
      */
     fun updateText(text: AnnotatedString): Boolean {
@@ -111,11 +133,11 @@ internal class TextAnnotatedStringNode(
         fontFamilyResolver: FontFamily.Resolver,
         overflow: TextOverflow
     ): Boolean {
-        var changed = false
-        if (this.style != style) {
-            this.style = style
-            changed = true
-        }
+        var changed: Boolean
+
+        changed = !this.style.hasSameLayoutAffectingAttributes(style)
+        this.style = style
+
         if (this.placeholders != placeholders) {
             this.placeholders = placeholders
             changed = true
@@ -180,12 +202,12 @@ internal class TextAnnotatedStringNode(
      * Do appropriate invalidate calls based on the results of update above.
      */
     fun doInvalidations(
+        drawChanged: Boolean,
         textChanged: Boolean,
         layoutChanged: Boolean,
         callbacksChanged: Boolean
     ) {
-        if (textChanged) {
-            _semanticsConfiguration = null
+        if (textChanged || (drawChanged && semanticsTextLayoutResult != null)) {
             invalidateSemantics()
         }
 
@@ -200,43 +222,46 @@ internal class TextAnnotatedStringNode(
                 minLines = minLines,
                 placeholders = placeholders
             )
-            invalidateMeasurements()
+            invalidateMeasurement()
+            invalidateDraw()
+        }
+        if (drawChanged) {
             invalidateDraw()
         }
     }
 
-    private var _semanticsConfiguration: SemanticsConfiguration? = null
-
     private var semanticsTextLayoutResult: ((MutableList<TextLayoutResult>) -> Boolean)? = null
 
-    private fun generateSemantics(text: AnnotatedString): SemanticsConfiguration {
+    override fun SemanticsPropertyReceiver.applySemantics() {
         var localSemanticsTextLayoutResult = semanticsTextLayoutResult
         if (localSemanticsTextLayoutResult == null) {
             localSemanticsTextLayoutResult = { textLayoutResult ->
                 val layout = layoutCache.layoutOrNull?.also {
+                    it.copy(
+                        layoutInput = TextLayoutInput(
+                            text = it.layoutInput.text,
+                            style = it.layoutInput.style.merge(
+                                color = overrideColor?.invoke() ?: Color.Unspecified
+                            ),
+                            placeholders = it.layoutInput.placeholders,
+                            maxLines = it.layoutInput.maxLines,
+                            softWrap = it.layoutInput.softWrap,
+                            overflow = it.layoutInput.overflow,
+                            density = it.layoutInput.density,
+                            layoutDirection = it.layoutInput.layoutDirection,
+                            fontFamilyResolver = it.layoutInput.fontFamilyResolver,
+                            constraints = it.layoutInput.constraints
+                        )
+                    )
                     textLayoutResult.add(it)
                 }
                 layout != null
             }
             semanticsTextLayoutResult = localSemanticsTextLayoutResult
         }
-        return SemanticsConfiguration().also {
-            it.isMergingSemanticsOfDescendants = false
-            it.isClearingSemantics = false
-            it.text = text
-            it.getTextLayoutResult(action = localSemanticsTextLayoutResult)
-        }
+        text = this@TextAnnotatedStringNode.text
+        getTextLayoutResult(action = localSemanticsTextLayoutResult)
     }
-
-    override val semanticsConfiguration: SemanticsConfiguration
-        get() {
-            var localSemantics = _semanticsConfiguration
-            if (localSemantics == null) {
-                localSemantics = generateSemantics(text)
-                _semanticsConfiguration = localSemantics
-            }
-            return localSemantics
-        }
 
     fun measureNonExtension(
         measureScope: MeasureScope,
@@ -347,11 +372,56 @@ internal class TextAnnotatedStringNode(
     ) {
         return contentDrawScope.draw()
     }
-
     override fun ContentDrawScope.draw() {
         selectionController?.draw(this)
         drawIntoCanvas { canvas ->
-            TextPainter.paint(canvas, requireNotNull(layoutCache.textLayoutResult))
+            val textLayoutResult = layoutCache.textLayoutResult
+            val localParagraph = textLayoutResult.multiParagraph
+            val willClip = textLayoutResult.hasVisualOverflow && overflow != TextOverflow.Visible
+            if (willClip) {
+                val width = textLayoutResult.size.width.toFloat()
+                val height = textLayoutResult.size.height.toFloat()
+                val bounds = Rect(Offset.Zero, Size(width, height))
+                canvas.save()
+                canvas.clipRect(bounds)
+            }
+            try {
+                val textDecoration = style.textDecoration ?: TextDecoration.None
+                val shadow = style.shadow ?: Shadow.None
+                val drawStyle = style.drawStyle ?: Fill
+                val brush = style.brush
+                if (brush != null) {
+                    val alpha = style.alpha
+                    localParagraph.paint(
+                        canvas = canvas,
+                        brush = brush,
+                        alpha = alpha,
+                        shadow = shadow,
+                        drawStyle = drawStyle,
+                        decoration = textDecoration
+                    )
+                } else {
+                    val overrideColorVal = overrideColor?.invoke() ?: Color.Unspecified
+                    val color = if (overrideColorVal.isSpecified) {
+                        overrideColorVal
+                    } else if (style.color.isSpecified) {
+                        style.color
+                    } else {
+                        Color.Black
+                    }
+                    localParagraph.paint(
+                        canvas = canvas,
+                        color = color,
+                        shadow = shadow,
+                        drawStyle = drawStyle,
+                        decoration = textDecoration
+                    )
+                }
+            } finally {
+                if (willClip) {
+                    canvas.restore()
+                }
+            }
         }
         if (!placeholders.isNullOrEmpty()) {
             drawContent()

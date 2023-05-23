@@ -24,6 +24,7 @@ import androidx.annotation.FloatRange;
 import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.OptIn;
 import androidx.annotation.RestrictTo;
 import androidx.annotation.RestrictTo.Scope;
 import androidx.wear.protolayout.ActionBuilders.Action;
@@ -388,6 +389,12 @@ public final class ModifiersBuilders {
             return mImpl;
         }
 
+        @Override
+        @NonNull
+        public String toString() {
+            return "Clickable{" + "id=" + getId() + ", onClick=" + getOnClick() + "}";
+        }
+
         /** Builder for {@link Clickable} */
         public static final class Builder {
             private final ModifiersProto.Clickable.Builder mImpl =
@@ -513,6 +520,19 @@ public final class ModifiersBuilders {
         @NonNull
         public ModifiersProto.Semantics toProto() {
             return mImpl;
+        }
+
+        @Override
+        @NonNull
+        public String toString() {
+            return "Semantics{"
+                    + "contentDescription="
+                    + getContentDescription()
+                    + ", role="
+                    + getRole()
+                    + ", stateDescription="
+                    + getStateDescription()
+                    + "}";
         }
 
         /** Builder for {@link Semantics} */
@@ -713,6 +733,23 @@ public final class ModifiersBuilders {
             return mImpl;
         }
 
+        @Override
+        @NonNull
+        public String toString() {
+            return "Padding{"
+                    + "end="
+                    + getEnd()
+                    + ", start="
+                    + getStart()
+                    + ", top="
+                    + getTop()
+                    + ", bottom="
+                    + getBottom()
+                    + ", rtlAware="
+                    + getRtlAware()
+                    + "}";
+        }
+
         /** Builder for {@link Padding} */
         public static final class Builder {
             private final ModifiersProto.Padding.Builder mImpl =
@@ -725,10 +762,15 @@ public final class ModifiersBuilders {
              * Sets the padding on the end of the content, depending on the layout direction, in DP
              * and the value of "rtl_aware".
              *
+             * <p>Note that this field only supports static values.
+             *
              * @since 1.0
              */
             @NonNull
             public Builder setEnd(@NonNull DpProp end) {
+                if (end.getDynamicValue() != null) {
+                    throw new IllegalArgumentException("setEnd doesn't support dynamic values.");
+                }
                 mImpl.setEnd(end.toProto());
                 mFingerprint.recordPropertyUpdate(
                         1, checkNotNull(end.getFingerprint()).aggregateValueAsInt());
@@ -739,10 +781,15 @@ public final class ModifiersBuilders {
              * Sets the padding on the start of the content, depending on the layout direction, in
              * DP and the value of "rtl_aware".
              *
+             * <p>Note that this field only supports static values.
+             *
              * @since 1.0
              */
             @NonNull
             public Builder setStart(@NonNull DpProp start) {
+                if (start.getDynamicValue() != null) {
+                    throw new IllegalArgumentException("setStart doesn't support dynamic values.");
+                }
                 mImpl.setStart(start.toProto());
                 mFingerprint.recordPropertyUpdate(
                         2, checkNotNull(start.getFingerprint()).aggregateValueAsInt());
@@ -752,10 +799,15 @@ public final class ModifiersBuilders {
             /**
              * Sets the padding at the top, in DP.
              *
+             * <p>Note that this field only supports static values.
+             *
              * @since 1.0
              */
             @NonNull
             public Builder setTop(@NonNull DpProp top) {
+                if (top.getDynamicValue() != null) {
+                    throw new IllegalArgumentException("setTop doesn't support dynamic values.");
+                }
                 mImpl.setTop(top.toProto());
                 mFingerprint.recordPropertyUpdate(
                         3, checkNotNull(top.getFingerprint()).aggregateValueAsInt());
@@ -765,10 +817,15 @@ public final class ModifiersBuilders {
             /**
              * Sets the padding at the bottom, in DP.
              *
+             * <p>Note that this field only supports static values.
+             *
              * @since 1.0
              */
             @NonNull
             public Builder setBottom(@NonNull DpProp bottom) {
+                if (bottom.getDynamicValue() != null) {
+                    throw new IllegalArgumentException("setBottom doesn't support dynamic values.");
+                }
                 mImpl.setBottom(bottom.toProto());
                 mFingerprint.recordPropertyUpdate(
                         4, checkNotNull(bottom.getFingerprint()).aggregateValueAsInt());
@@ -780,6 +837,8 @@ public final class ModifiersBuilders {
              * start/end will follow the layout direction (i.e. start will refer to the right hand
              * side of the container if the device is using an RTL locale). If false, start/end will
              * always map to left/right, accordingly.
+             *
+             * <p>Note that this field only supports static values.
              *
              * @since 1.0
              */
@@ -893,6 +952,12 @@ public final class ModifiersBuilders {
             return mImpl;
         }
 
+        @Override
+        @NonNull
+        public String toString() {
+            return "Border{" + "width=" + getWidth() + ", color=" + getColor() + "}";
+        }
+
         /** Builder for {@link Border} */
         public static final class Builder {
             private final ModifiersProto.Border.Builder mImpl = ModifiersProto.Border.newBuilder();
@@ -903,10 +968,15 @@ public final class ModifiersBuilders {
             /**
              * Sets the width of the border, in DP.
              *
+             * <p>Note that this field only supports static values.
+             *
              * @since 1.0
              */
             @NonNull
             public Builder setWidth(@NonNull DpProp width) {
+                if (width.getDynamicValue() != null) {
+                    throw new IllegalArgumentException("setWidth doesn't support dynamic values.");
+                }
                 mImpl.setWidth(width.toProto());
                 mFingerprint.recordPropertyUpdate(
                         1, checkNotNull(width.getFingerprint()).aggregateValueAsInt());
@@ -992,6 +1062,12 @@ public final class ModifiersBuilders {
             return mImpl;
         }
 
+        @Override
+        @NonNull
+        public String toString() {
+            return "Corner{" + "radius=" + getRadius() + "}";
+        }
+
         /** Builder for {@link Corner} */
         public static final class Builder {
             private final ModifiersProto.Corner.Builder mImpl = ModifiersProto.Corner.newBuilder();
@@ -1002,10 +1078,15 @@ public final class ModifiersBuilders {
             /**
              * Sets the radius of the corner in DP.
              *
+             * <p>Note that this field only supports static values.
+             *
              * @since 1.0
              */
             @NonNull
             public Builder setRadius(@NonNull DpProp radius) {
+                if (radius.getDynamicValue() != null) {
+                    throw new IllegalArgumentException("setRadius doesn't support dynamic values.");
+                }
                 mImpl.setRadius(radius.toProto());
                 mFingerprint.recordPropertyUpdate(
                         1, checkNotNull(radius.getFingerprint()).aggregateValueAsInt());
@@ -1090,6 +1171,12 @@ public final class ModifiersBuilders {
         @NonNull
         public ModifiersProto.Background toProto() {
             return mImpl;
+        }
+
+        @Override
+        @NonNull
+        public String toString() {
+            return "Background{" + "color=" + getColor() + ", corner=" + getCorner() + "}";
         }
 
         /** Builder for {@link Background} */
@@ -1191,6 +1278,12 @@ public final class ModifiersBuilders {
         @NonNull
         public ModifiersProto.ElementMetadata toProto() {
             return mImpl;
+        }
+
+        @Override
+        @NonNull
+        public String toString() {
+            return "ElementMetadata{" + "tagData=" + Arrays.toString(getTagData()) + "}";
         }
 
         /** Builder for {@link ElementMetadata} */
@@ -1372,6 +1465,28 @@ public final class ModifiersBuilders {
         @NonNull
         public ModifiersProto.Modifiers toProto() {
             return mImpl;
+        }
+
+        @Override
+        @OptIn(markerClass = ProtoLayoutExperimental.class)
+        @NonNull
+        public String toString() {
+            return "Modifiers{"
+                    + "clickable="
+                    + getClickable()
+                    + ", semantics="
+                    + getSemantics()
+                    + ", padding="
+                    + getPadding()
+                    + ", border="
+                    + getBorder()
+                    + ", background="
+                    + getBackground()
+                    + ", metadata="
+                    + getMetadata()
+                    + ", contentUpdateAnimation="
+                    + getContentUpdateAnimation()
+                    + "}";
         }
 
         /** Builder for {@link Modifiers} */
@@ -2641,6 +2756,17 @@ public final class ModifiersBuilders {
             return mImpl;
         }
 
+        @Override
+        @NonNull
+        public String toString() {
+            return "ArcModifiers{"
+                    + "clickable="
+                    + getClickable()
+                    + ", semantics="
+                    + getSemantics()
+                    + "}";
+        }
+
         /** Builder for {@link ArcModifiers} */
         public static final class Builder {
             private final ModifiersProto.ArcModifiers.Builder mImpl =
@@ -2741,6 +2867,12 @@ public final class ModifiersBuilders {
         @NonNull
         public ModifiersProto.SpanModifiers toProto() {
             return mImpl;
+        }
+
+        @Override
+        @NonNull
+        public String toString() {
+            return "SpanModifiers{" + "clickable=" + getClickable() + "}";
         }
 
         /** Builder for {@link SpanModifiers} */

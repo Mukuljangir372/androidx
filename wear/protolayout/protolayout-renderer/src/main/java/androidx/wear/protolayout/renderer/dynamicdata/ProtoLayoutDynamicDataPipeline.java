@@ -24,6 +24,8 @@ import static java.lang.Math.min;
 import android.annotation.SuppressLint;
 import android.graphics.drawable.AnimatedVectorDrawable;
 import android.icu.util.ULocale;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -38,6 +40,7 @@ import androidx.annotation.VisibleForTesting;
 import androidx.collection.ArrayMap;
 import androidx.collection.ArraySet;
 import androidx.vectordrawable.graphics.drawable.SeekableAnimatedVectorDrawable;
+import androidx.wear.protolayout.expression.PlatformHealthSources;
 import androidx.wear.protolayout.expression.pipeline.BoundDynamicType;
 import androidx.wear.protolayout.expression.pipeline.DynamicTypeBindingRequest;
 import androidx.wear.protolayout.expression.pipeline.DynamicTypeEvaluator;
@@ -45,7 +48,9 @@ import androidx.wear.protolayout.expression.pipeline.DynamicTypeEvaluator.Evalua
 import androidx.wear.protolayout.expression.pipeline.DynamicTypeValueReceiver;
 import androidx.wear.protolayout.expression.pipeline.FixedQuotaManagerImpl;
 import androidx.wear.protolayout.expression.pipeline.QuotaManager;
+import androidx.wear.protolayout.expression.pipeline.SensorGatewaySingleDataProvider;
 import androidx.wear.protolayout.expression.pipeline.StateStore;
+import androidx.wear.protolayout.expression.pipeline.TimeGatewayImpl;
 import androidx.wear.protolayout.expression.pipeline.sensor.SensorGateway;
 import androidx.wear.protolayout.expression.proto.DynamicProto.DynamicBool;
 import androidx.wear.protolayout.expression.proto.DynamicProto.DynamicColor;
@@ -62,6 +67,7 @@ import androidx.wear.protolayout.proto.TriggerProto.Trigger;
 import androidx.wear.protolayout.renderer.dynamicdata.NodeInfo.ResolvedAvd;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -92,16 +98,15 @@ public class ProtoLayoutDynamicDataPipeline {
     boolean mFullyVisible;
     @NonNull final QuotaManager mAnimationQuotaManager;
     @NonNull private final DynamicTypeEvaluator mEvaluator;
+    @NonNull private final TimeGatewayImpl mTimeGateway;
 
     /** Creates a {@link ProtoLayoutDynamicDataPipeline} without animation support. */
     @RestrictTo(Scope.LIBRARY_GROUP)
     public ProtoLayoutDynamicDataPipeline(
-            boolean canUpdateGateways,
             @Nullable SensorGateway sensorGateway,
             @NonNull StateStore stateStore) {
         // Build pipeline with quota that doesn't allow any animations.
         this(
-                canUpdateGateways,
                 sensorGateway,
                 stateStore,
                 /* enableAnimations= */ false,
@@ -115,13 +120,11 @@ public class ProtoLayoutDynamicDataPipeline {
      */
     @RestrictTo(Scope.LIBRARY_GROUP)
     public ProtoLayoutDynamicDataPipeline(
-            boolean canUpdateGateways,
             @Nullable SensorGateway sensorGateway,
             @NonNull StateStore stateStore,
             @NonNull QuotaManager animationQuotaManager,
             @NonNull QuotaManager dynamicNodesQuotaManager) {
         this(
-                canUpdateGateways,
                 sensorGateway,
                 stateStore,
                 /* enableAnimations= */ true,
@@ -131,7 +134,6 @@ public class ProtoLayoutDynamicDataPipeline {
 
     /** Creates a {@link ProtoLayoutDynamicDataPipeline}. */
     private ProtoLayoutDynamicDataPipeline(
-            boolean canUpdateGateways,
             @Nullable SensorGateway sensorGateway,
             @NonNull StateStore stateStore,
             boolean enableAnimations,
@@ -139,23 +141,33 @@ public class ProtoLayoutDynamicDataPipeline {
             @NonNull QuotaManager dynamicNodeQuotaManager) {
         this.mEnableAnimations = enableAnimations;
         this.mAnimationQuotaManager = animationQuotaManager;
+        this.mTimeGateway = new TimeGatewayImpl(new Handler(Looper.getMainLooper()));
         DynamicTypeEvaluator.Config.Builder evaluatorConfigBuilder =
                 new DynamicTypeEvaluator.Config.Builder()
-                        .setPlatformDataSourcesInitiallyEnabled(canUpdateGateways)
+                        .setTimeGateway(mTimeGateway)
                         .setStateStore(stateStore);
         evaluatorConfigBuilder.setDynamicTypesQuotaManager(dynamicNodeQuotaManager);
         if (sensorGateway != null) {
-            evaluatorConfigBuilder.setSensorGateway(sensorGateway);
+            evaluatorConfigBuilder.addPlatformDataProvider(
+                    new SensorGatewaySingleDataProvider(
+                            sensorGateway, PlatformHealthSources.Keys.HEART_RATE_BPM),
+                    Collections.singleton(PlatformHealthSources.Keys.HEART_RATE_BPM)
+            );
+            evaluatorConfigBuilder.addPlatformDataProvider(
+                    new SensorGatewaySingleDataProvider(
+                            sensorGateway, PlatformHealthSources.Keys.DAILY_STEPS),
+                    Collections.singleton(PlatformHealthSources.Keys.DAILY_STEPS)
+            );
         }
         if (enableAnimations) {
             evaluatorConfigBuilder.setAnimationQuotaManager(animationQuotaManager);
         }
-        this.mEvaluator = new DynamicTypeEvaluator(evaluatorConfigBuilder.build());
+        DynamicTypeEvaluator.Config evaluatorConfig = evaluatorConfigBuilder.build();
+        this.mEvaluator = new DynamicTypeEvaluator(evaluatorConfig);
     }
 
     /** Returns the number of active dynamic types in this pipeline. */
-    @VisibleForTesting(otherwise = VisibleForTesting.NONE)
-    @RestrictTo(Scope.TESTS)
+    @VisibleForTesting
     public int size() {
         return mPositionIdTree.getAllNodes().stream().mapToInt(NodeInfo::size).sum();
     }
@@ -186,7 +198,6 @@ public class ProtoLayoutDynamicDataPipeline {
      */
     @VisibleForTesting
     @NonNull
-    @RestrictTo(Scope.TESTS)
     public PipelineMaker newPipelineMaker() {
         return newPipelineMaker(
                 (enterTransition, view) -> new AnimationSet(/* shareInterpolator= */ false),
@@ -201,10 +212,12 @@ public class ProtoLayoutDynamicDataPipeline {
     @SuppressWarnings("RestrictTo")
     @RestrictTo(Scope.LIBRARY_GROUP)
     public void setUpdatesEnabled(boolean canUpdate) {
+        // SensorGateway is not owned by ProtoLayoutDynamicDataPipeline, so the callers who create
+        // it are responsible for updates.
         if (canUpdate) {
-            mEvaluator.enablePlatformDataSources();
+            mTimeGateway.enableUpdates();
         } else {
-            mEvaluator.disablePlatformDataSources();
+            mTimeGateway.disableUpdates();
         }
     }
 
@@ -212,7 +225,8 @@ public class ProtoLayoutDynamicDataPipeline {
     @RestrictTo(Scope.LIBRARY_GROUP)
     @SuppressWarnings("RestrictTo")
     public void close() {
-        mEvaluator.close();
+        mPositionIdTree.clear();
+        mTimeGateway.close();
     }
 
     /**
@@ -953,7 +967,7 @@ public class ProtoLayoutDynamicDataPipeline {
 
     /** Play the animation with the given trigger type. */
     @RestrictTo(Scope.LIBRARY_GROUP)
-    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
+    @VisibleForTesting
     public void playAvdAnimations(@NonNull Trigger.InnerCase triggerCase) {
         mPositionIdTree.forEach(info -> info.playAvdAnimations(triggerCase));
     }
@@ -969,7 +983,7 @@ public class ProtoLayoutDynamicDataPipeline {
      *
      */
     @UiThread
-    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
+    @VisibleForTesting
     @RestrictTo(Scope.LIBRARY_GROUP)
     public void resetAvdAnimations(@NonNull Trigger.InnerCase triggerCase) {
         mPositionIdTree.forEach(info -> info.resetAvdAnimations(triggerCase));
@@ -980,7 +994,7 @@ public class ProtoLayoutDynamicDataPipeline {
      *
      */
     @UiThread
-    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
+    @VisibleForTesting
     @RestrictTo(Scope.LIBRARY_GROUP)
     public void stopAvdAnimations(@NonNull Trigger.InnerCase triggerCase) {
         mPositionIdTree.forEach(info -> info.stopAvdAnimations(triggerCase));
@@ -1062,8 +1076,7 @@ public class ProtoLayoutDynamicDataPipeline {
     }
 
     /** Returns how many animations are running. */
-    @VisibleForTesting(otherwise = VisibleForTesting.NONE)
-    @RestrictTo(Scope.TESTS)
+    @VisibleForTesting
     public int getRunningAnimationsCount() {
         return mPositionIdTree.getAllNodes().stream()
                         .mapToInt(NodeInfo::getRunningAnimationCount)
@@ -1077,8 +1090,7 @@ public class ProtoLayoutDynamicDataPipeline {
     }
 
     /** Returns How many dynamic data nodes exist in the pipeline. */
-    @VisibleForTesting(otherwise = VisibleForTesting.NONE)
-    @RestrictTo(Scope.TESTS)
+    @VisibleForTesting
     public int getDynamicExpressionsNodesCount() {
         return mPositionIdTree.getAllNodes().stream()
                 .mapToInt(NodeInfo::getExpressionNodesCount)
@@ -1086,8 +1098,7 @@ public class ProtoLayoutDynamicDataPipeline {
     }
 
     /** Returns whether all quota has been released. */
-    @VisibleForTesting(otherwise = VisibleForTesting.NONE)
-    @RestrictTo(Scope.TESTS)
+    @VisibleForTesting
     public boolean isAllQuotaReleased() {
         return mAnimationQuotaManager instanceof FixedQuotaManagerImpl
                 && ((FixedQuotaManagerImpl) mAnimationQuotaManager).isAllQuotaReleased();

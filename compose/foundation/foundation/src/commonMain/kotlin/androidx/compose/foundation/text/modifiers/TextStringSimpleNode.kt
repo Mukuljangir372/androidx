@@ -21,10 +21,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorProducer
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.layout.AlignmentLine
 import androidx.compose.ui.layout.FirstBaseline
 import androidx.compose.ui.layout.IntrinsicMeasurable
@@ -36,14 +39,14 @@ import androidx.compose.ui.layout.MeasureScope
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.SemanticsModifierNode
+import androidx.compose.ui.node.invalidateDraw
 import androidx.compose.ui.node.invalidateLayer
-import androidx.compose.ui.node.invalidateMeasurements
+import androidx.compose.ui.node.invalidateMeasurement
 import androidx.compose.ui.node.invalidateSemantics
-import androidx.compose.ui.semantics.SemanticsConfiguration
+import androidx.compose.ui.semantics.SemanticsPropertyReceiver
 import androidx.compose.ui.semantics.getTextLayoutResult
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -67,9 +70,10 @@ internal class TextStringSimpleNode(
     private var overflow: TextOverflow = TextOverflow.Clip,
     private var softWrap: Boolean = true,
     private var maxLines: Int = Int.MAX_VALUE,
-    private var minLines: Int = DefaultMinLines
+    private var minLines: Int = DefaultMinLines,
+    private var overrideColor: ColorProducer? = null
 ) : Modifier.Node(), LayoutModifierNode, DrawModifierNode, SemanticsModifierNode {
-    private var baselineCache: Map<AlignmentLine, Int>? = null
+    private var baselineCache: MutableMap<AlignmentLine, Int>? = null
 
     private var _layoutCache: ParagraphLayoutCache? = null
     private val layoutCache: ParagraphLayoutCache
@@ -92,6 +96,16 @@ internal class TextStringSimpleNode(
         return layoutCache.also { it.density = density }
     }
 
+    fun updateDraw(color: ColorProducer?, style: TextStyle): Boolean {
+        var changed = false
+        if (color != this.overrideColor) {
+            changed = true
+        }
+        overrideColor = color
+        changed = changed || !style.hasSameDrawAffectingAttributes(this.style)
+        return changed
+    }
+
     /**
      * Element has text params to update
      */
@@ -112,11 +126,10 @@ internal class TextStringSimpleNode(
         fontFamilyResolver: FontFamily.Resolver,
         overflow: TextOverflow
     ): Boolean {
-        var changed = false
-        if (this.style != style) {
-            this.style = style
-            changed = true
-        }
+        var changed: Boolean
+
+        changed = !this.style.hasSameLayoutAffectingAttributes(style)
+        this.style = style
 
         if (this.minLines != minLines) {
             this.minLines = minLines
@@ -150,11 +163,11 @@ internal class TextStringSimpleNode(
      * request invalidate based on the results of [updateText] and [updateLayoutRelatedArgs]
      */
     fun doInvalidations(
+        drawChanged: Boolean,
         textChanged: Boolean,
         layoutChanged: Boolean
     ) {
-        if (textChanged) {
-            _semanticsConfiguration = null
+        if (textChanged || (drawChanged && semanticsTextLayoutResult != null)) {
             invalidateSemantics()
         }
 
@@ -168,44 +181,32 @@ internal class TextStringSimpleNode(
                 maxLines = maxLines,
                 minLines = minLines
             )
-            invalidateMeasurements()
-            invalidateLayer()
+            invalidateMeasurement()
+            invalidateDraw()
+        }
+        if (drawChanged) {
+            invalidateDraw()
         }
     }
-
-    private var _semanticsConfiguration: SemanticsConfiguration? = null
 
     private var semanticsTextLayoutResult: ((MutableList<TextLayoutResult>) -> Boolean)? = null
 
-    private fun generateSemantics(text: String): SemanticsConfiguration {
+    override fun SemanticsPropertyReceiver.applySemantics() {
         var localSemanticsTextLayoutResult = semanticsTextLayoutResult
         if (localSemanticsTextLayoutResult == null) {
             localSemanticsTextLayoutResult = { textLayoutResult ->
-                val layout = layoutCache.slowCreateTextLayoutResultOrNull()?.also {
+                val layout = layoutCache.slowCreateTextLayoutResultOrNull(
+                    color = overrideColor?.invoke() ?: Color.Unspecified
+                )?.also {
                     textLayoutResult.add(it)
                 }
                 layout != null
-                false
             }
             semanticsTextLayoutResult = localSemanticsTextLayoutResult
         }
-        return SemanticsConfiguration().also {
-            it.isMergingSemanticsOfDescendants = false
-            it.isClearingSemantics = false
-            it.text = AnnotatedString(text)
-            it.getTextLayoutResult(action = localSemanticsTextLayoutResult)
-        }
+        this.text = AnnotatedString(this@TextStringSimpleNode.text)
+        getTextLayoutResult(action = localSemanticsTextLayoutResult)
     }
-
-    override val semanticsConfiguration: SemanticsConfiguration
-        get() {
-            var localSemantics = _semanticsConfiguration
-            if (localSemantics == null) {
-                localSemantics = generateSemantics(text)
-                _semanticsConfiguration = localSemantics
-            }
-            return localSemantics
-        }
 
     /**
      * Text layout happens here
@@ -224,10 +225,13 @@ internal class TextStringSimpleNode(
 
         if (didChangeLayout) {
             invalidateLayer()
-            baselineCache = mapOf(
-                FirstBaseline to paragraph.firstBaseline.roundToInt(),
-                LastBaseline to paragraph.lastBaseline.roundToInt()
-            )
+            var cache = baselineCache
+            if (cache == null) {
+                cache = LinkedHashMap(2)
+            }
+            cache[FirstBaseline] = paragraph.firstBaseline.roundToInt()
+            cache[LastBaseline] = paragraph.lastBaseline.roundToInt()
+            baselineCache = cache
         }
 
         // then allow children to measure _inside_ our final box, with the above placeholders
@@ -273,7 +277,6 @@ internal class TextStringSimpleNode(
     /**
      * Optimized Text draw.
      */
-    @OptIn(ExperimentalTextApi::class)
     override fun ContentDrawScope.draw() {
         val localParagraph = requireNotNull(layoutCache.paragraph)
         drawIntoCanvas { canvas ->
@@ -301,13 +304,20 @@ internal class TextStringSimpleNode(
                         textDecoration = textDecoration
                     )
                 } else {
-                    val color = style.color
+                    val overrideColorVal = overrideColor?.invoke() ?: Color.Unspecified
+                    val color = if (overrideColorVal.isSpecified) {
+                        overrideColorVal
+                    } else if (style.color.isSpecified) {
+                        style.color
+                    } else {
+                        Color.Black
+                    }
                     localParagraph.paint(
                         canvas = canvas,
                         color = color,
                         shadow = shadow,
-                        textDecoration = textDecoration,
-                        drawStyle = drawStyle
+                        drawStyle = drawStyle,
+                        textDecoration = textDecoration
                     )
                 }
             } finally {

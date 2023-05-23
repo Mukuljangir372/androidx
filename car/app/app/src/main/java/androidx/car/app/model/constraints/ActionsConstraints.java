@@ -25,7 +25,6 @@ import static java.util.Objects.requireNonNull;
 import androidx.annotation.NonNull;
 import androidx.annotation.RestrictTo;
 import androidx.annotation.VisibleForTesting;
-import androidx.car.app.annotations.ExperimentalCarApi;
 import androidx.car.app.annotations.RequiresCarApi;
 import androidx.car.app.model.Action;
 import androidx.car.app.model.Action.ActionType;
@@ -40,7 +39,6 @@ import java.util.Set;
 /**
  * Encapsulates the constraints to apply when rendering a list of {@link Action}s on a template.
  *
- * @hide
  */
 @RestrictTo(Scope.LIBRARY)
 public final class ActionsConstraints {
@@ -161,7 +159,6 @@ public final class ActionsConstraints {
 
     /** Constraints for TabTemplate. */
     @NonNull
-    @ExperimentalCarApi
     @RequiresCarApi(6)
     public static final ActionsConstraints ACTIONS_CONSTRAINTS_TABS =
             new ActionsConstraints.Builder(ACTIONS_CONSTRAINTS_HEADER)

@@ -18,17 +18,18 @@ package androidx.wear.protolayout.expression.pipeline;
 
 import static java.util.Collections.emptyMap;
 
+import android.annotation.SuppressLint;
 import android.icu.util.ULocale;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RestrictTo;
 import androidx.annotation.RestrictTo.Scope;
-import androidx.annotation.UiThread;
+import androidx.collection.ArrayMap;
 import androidx.wear.protolayout.expression.DynamicBuilders;
+import androidx.wear.protolayout.expression.PlatformDataKey;
 import androidx.wear.protolayout.expression.pipeline.BoolNodes.ComparisonFloatNode;
 import androidx.wear.protolayout.expression.pipeline.BoolNodes.ComparisonInt32Node;
 import androidx.wear.protolayout.expression.pipeline.BoolNodes.FixedBoolNode;
@@ -55,7 +56,7 @@ import androidx.wear.protolayout.expression.pipeline.Int32Nodes.DynamicAnimatedI
 import androidx.wear.protolayout.expression.pipeline.Int32Nodes.FixedInt32Node;
 import androidx.wear.protolayout.expression.pipeline.Int32Nodes.FloatToInt32Node;
 import androidx.wear.protolayout.expression.pipeline.Int32Nodes.GetDurationPartOpNode;
-import androidx.wear.protolayout.expression.pipeline.Int32Nodes.PlatformInt32SourceNode;
+import androidx.wear.protolayout.expression.pipeline.Int32Nodes.LegacyPlatformInt32SourceNode;
 import androidx.wear.protolayout.expression.pipeline.Int32Nodes.StateInt32SourceNode;
 import androidx.wear.protolayout.expression.pipeline.StringNodes.FixedStringNode;
 import androidx.wear.protolayout.expression.pipeline.StringNodes.FloatFormatNode;
@@ -84,6 +85,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 /**
@@ -102,7 +105,7 @@ import java.util.concurrent.Executor;
  * <p>It's the callers responsibility to destroy those dynamic types after use, with {@link
  * BoundDynamicType#close()}.
  */
-public class DynamicTypeEvaluator implements AutoCloseable {
+public class DynamicTypeEvaluator {
     private static final String TAG = "DynamicTypeEvaluator";
     private static final QuotaManager NO_OP_QUOTA_MANAGER =
             new FixedQuotaManagerImpl(Integer.MAX_VALUE);
@@ -131,60 +134,42 @@ public class DynamicTypeEvaluator implements AutoCloseable {
 
     @NonNull private static final StateStore EMPTY_STATE_STORE = new StateStore(emptyMap());
 
-    @NonNull private final Config mConfig;
     @NonNull private final StateStore mStateStore;
     @NonNull private final QuotaManager mAnimationQuotaManager;
     @NonNull private final QuotaManager mDynamicTypesQuotaManager;
-    @NonNull private final TimeGateway mTimeGateway;
-    @Nullable private final EpochTimePlatformDataSource mTimeDataSource;
-    @Nullable private final SensorGatewayPlatformDataSource mSensorGatewayDataSource;
+    @NonNull private final EpochTimePlatformDataSource mTimeDataSource;
 
     /** Configuration for creating {@link DynamicTypeEvaluator}. */
     public static final class Config {
-        private final boolean mPlatformDataSourcesInitiallyEnabled;
         @Nullable private final StateStore mStateStore;
         @Nullable private final QuotaManager mAnimationQuotaManager;
         @Nullable private final TimeGateway mTimeGateway;
-        @Nullable private final SensorGateway mSensorGateway;
         @Nullable private final QuotaManager mDynamicTypesQuotaManager;
+        @NonNull private final Map<PlatformDataKey<?>, PlatformDataProvider>
+                mSourceKeyToDataProviders = new ArrayMap<>();
 
         Config(
-                boolean platformDataSourcesInitiallyEnabled,
                 @Nullable StateStore stateStore,
                 @Nullable QuotaManager animationQuotaManager,
                 @Nullable QuotaManager dynamicTypesQuotaManager,
                 @Nullable TimeGateway timeGateway,
-                @Nullable SensorGateway sensorGateway) {
-            this.mPlatformDataSourcesInitiallyEnabled = platformDataSourcesInitiallyEnabled;
+                @NonNull Map<PlatformDataKey<?>, PlatformDataProvider>
+                        sourceKeyToDataProviders) {
             this.mStateStore = stateStore;
             this.mAnimationQuotaManager = animationQuotaManager;
             this.mTimeGateway = timeGateway;
-            this.mSensorGateway = sensorGateway;
             this.mDynamicTypesQuotaManager = dynamicTypesQuotaManager;
+            this.mSourceKeyToDataProviders.putAll(sourceKeyToDataProviders);
         }
 
         /** Builds a {@link DynamicTypeEvaluator.Config}. */
         public static final class Builder {
-            private boolean mPlatformDataSourcesInitiallyEnabled = false;
             @Nullable private StateStore mStateStore = null;
             @Nullable private QuotaManager mAnimationQuotaManager = null;
             @Nullable private QuotaManager mDynamicTypesQuotaManager;
             @Nullable private TimeGateway mTimeGateway = null;
-
-            @Nullable private SensorGateway mSensorGateway = null;
-
-            /**
-             * Sets whether sending updates from sensor and time sources should be allowed
-             * initially. After that, enabling updates from sensor and time sources can be done via
-             * {@link #enablePlatformDataSources()} or {@link #disablePlatformDataSources()}.
-             *
-             * <p>Defaults to {@code false}.
-             */
-            @NonNull
-            public Builder setPlatformDataSourcesInitiallyEnabled(boolean value) {
-                mPlatformDataSourcesInitiallyEnabled = value;
-                return this;
-            }
+            @NonNull private final Map<PlatformDataKey<?>, PlatformDataProvider>
+                    mSourceKeyToDataProviders = new ArrayMap<>();
 
             /**
              * Sets the state store that will be used for dereferencing the state keys in the
@@ -237,36 +222,46 @@ public class DynamicTypeEvaluator implements AutoCloseable {
             }
 
             /**
-             * Sets the gateway used for sensor data.
+             * Add a platform data provider and specify the keys it can provide dynamic data for.
              *
-             * <p>If not set, sensor data will not be available (sensor bindings will trigger {@link
-             * DynamicTypeValueReceiver#onInvalidated()}).
+             * <p> The provider must support at least one key. If the provider supports multiple
+             * keys, they should not be independent, as their values should always update together.
+             * One data key must not have multiple providers, or an exception will be thrown.
+             *
+             * @throws IllegalArgumentException If a PlatformDataProvider supports an empty key
+             * set or if a key has multiple data providers.
              */
+            @SuppressLint("MissingGetterMatchingBuilder")
             @NonNull
-            public Builder setSensorGateway(@NonNull SensorGateway value) {
-                mSensorGateway = value;
+            public Builder addPlatformDataProvider(
+                    @NonNull PlatformDataProvider platformDataProvider,
+                    @NonNull Set<PlatformDataKey<?>> supportedDataKeys
+            ) {
+                if (supportedDataKeys.isEmpty()) {
+                    throw new IllegalArgumentException(
+                            "The PlatformDataProvider must support at least one key");
+                }
+                for (PlatformDataKey<?> dataKey : supportedDataKeys) {
+                    // Throws exception when one data key has multiple providers.
+                    if (mSourceKeyToDataProviders.containsKey(dataKey)) {
+                        throw new IllegalArgumentException(String.format(
+                                "Multiple data providers for PlatformDataKey (%s)", dataKey));
+                    }
+                    mSourceKeyToDataProviders.put(dataKey, platformDataProvider);
+                }
+
                 return this;
             }
 
             @NonNull
             public Config build() {
                 return new Config(
-                        mPlatformDataSourcesInitiallyEnabled,
                         mStateStore,
                         mAnimationQuotaManager,
                         mDynamicTypesQuotaManager,
                         mTimeGateway,
-                        mSensorGateway);
+                        mSourceKeyToDataProviders);
             }
-        }
-
-        /**
-         * Gets whether sending updates from sensor and time sources should be allowed initially.
-         * After that, enabling updates from sensor and time sources can be done via {@link
-         * #enablePlatformDataSources()} or {@link #disablePlatformDataSources()}.
-         */
-        public boolean isPlatformDataSourcesInitiallyEnabled() {
-            return mPlatformDataSourcesInitiallyEnabled;
         }
 
         /**
@@ -281,8 +276,8 @@ public class DynamicTypeEvaluator implements AutoCloseable {
 
         /**
          * Gets the quota manager used for limiting the total number of dynamic types in the
-         * pipeline, or {@code null} if there are no restriction on the number of dynamic types.
-         * If present, the quota manager is used to prevent unreasonably expensive expressions.
+         * pipeline, or {@code null} if there are no restriction on the number of dynamic types. If
+         * present, the quota manager is used to prevent unreasonably expensive expressions.
          */
         @Nullable
         public QuotaManager getDynamicTypesQuotaManager() {
@@ -300,15 +295,6 @@ public class DynamicTypeEvaluator implements AutoCloseable {
         }
 
         /**
-         * Gets the gateway used for sensor data, or {@code null} if sensor data is unavailable
-         * (sensor bindings will trigger {@link DynamicTypeValueReceiver#onInvalidated()}).
-         */
-        @Nullable
-        public SensorGateway getSensorGateway() {
-            return mSensorGateway;
-        }
-
-        /**
          * Gets the gateway used for time data, or {@code null} if a default 1hz {@link TimeGateway}
          * that utilizes a main-thread {@code Handler} to trigger is used.
          */
@@ -316,11 +302,19 @@ public class DynamicTypeEvaluator implements AutoCloseable {
         public TimeGateway getTimeGateway() {
             return mTimeGateway;
         }
+
+        /**
+         * Returns any available mapping between source key and its data provider.
+         */
+        @NonNull
+        public Map<PlatformDataKey<?>, PlatformDataProvider> getPlatformDataProviders() {
+            return new ArrayMap<>(
+                    (ArrayMap<PlatformDataKey<?>, PlatformDataProvider>) mSourceKeyToDataProviders);
+        }
     }
 
     /** Constructs a {@link DynamicTypeEvaluator}. */
     public DynamicTypeEvaluator(@NonNull Config config) {
-        this.mConfig = config;
         this.mStateStore =
                 config.getStateStore() != null ? config.getStateStore() : EMPTY_STATE_STORE;
         this.mAnimationQuotaManager =
@@ -333,26 +327,14 @@ public class DynamicTypeEvaluator implements AutoCloseable {
                         : NO_OP_QUOTA_MANAGER;
         Handler uiHandler = new Handler(Looper.getMainLooper());
         MainThreadExecutor uiExecutor = new MainThreadExecutor(uiHandler);
-        this.mTimeGateway =
-                config.getTimeGateway() != null
-                        ? config.getTimeGateway()
-                        : new TimeGatewayImpl(uiHandler);
-        this.mTimeDataSource = new EpochTimePlatformDataSource(uiExecutor, mTimeGateway);
-        if (config.isPlatformDataSourcesInitiallyEnabled()
-                && this.mTimeGateway instanceof TimeGatewayImpl) {
-            ((TimeGatewayImpl) this.mTimeGateway).enableUpdates();
+        TimeGateway timeGateway = config.getTimeGateway();
+        if (timeGateway == null) {
+            timeGateway = new TimeGatewayImpl(uiHandler);
+            ((TimeGatewayImpl) timeGateway).enableUpdates();
         }
-        if (config.getSensorGateway() != null) {
-            if (config.isPlatformDataSourcesInitiallyEnabled()) {
-                config.getSensorGateway().enableUpdates();
-            } else {
-                config.getSensorGateway().disableUpdates();
-            }
-            this.mSensorGatewayDataSource =
-                    new SensorGatewayPlatformDataSource(uiExecutor, config.getSensorGateway());
-        } else {
-            this.mSensorGatewayDataSource = null;
-        }
+        this.mTimeDataSource = new EpochTimePlatformDataSource(uiExecutor, timeGateway);
+
+        this.mStateStore.putAllPlatformProviders(config.getPlatformDataProviders());
     }
 
     /**
@@ -371,7 +353,7 @@ public class DynamicTypeEvaluator implements AutoCloseable {
         if (!mDynamicTypesQuotaManager.tryAcquireQuota(boundDynamicType.getDynamicNodeCount())) {
             throw new EvaluationException(
                     "Dynamic type expression limit reached. Try making the dynamic type expression"
-                        + " shorter or reduce the number of dynamic type expressions.");
+                            + " shorter or reduce the number of dynamic type expressions.");
         }
         return boundDynamicType;
     }
@@ -568,10 +550,8 @@ public class DynamicTypeEvaluator implements AutoCloseable {
                 }
             case STATE_SOURCE:
                 {
-                    node =
-                            new StateStringNode(
-                                    mStateStore, stringSource.getStateSource(), consumer);
-                    break;
+                   node = new StateStringNode(mStateStore, stringSource.getStateSource(), consumer);
+                   break;
                 }
             case CONDITIONAL_OP:
                 {
@@ -635,13 +615,13 @@ public class DynamicTypeEvaluator implements AutoCloseable {
             case FIXED:
                 node = new FixedInt32Node(int32Source.getFixed(), consumer);
                 break;
-            case PLATFORM_SOURCE:
-                node =
-                        new PlatformInt32SourceNode(
-                                int32Source.getPlatformSource(),
-                                mSensorGatewayDataSource,
-                                consumer);
+            case PLATFORM_SOURCE: {
+                node = new LegacyPlatformInt32SourceNode(
+                        mStateStore,
+                        int32Source.getPlatformSource(),
+                        consumer);
                 break;
+            }
             case ARITHMETIC_OPERATION:
                 {
                     ArithmeticInt32Node arithmeticNode =
@@ -661,9 +641,8 @@ public class DynamicTypeEvaluator implements AutoCloseable {
                 }
             case STATE_SOURCE:
                 {
-                    node =
-                            new StateInt32SourceNode(
-                                    mStateStore, int32Source.getStateSource(), consumer);
+                    node = new StateInt32SourceNode(
+                            mStateStore, int32Source.getStateSource(), consumer);
                     break;
                 }
             case CONDITIONAL_OP:
@@ -859,9 +838,8 @@ public class DynamicTypeEvaluator implements AutoCloseable {
                 node = new FixedFloatNode(floatSource.getFixed(), consumer);
                 break;
             case STATE_SOURCE:
-                node =
-                        new StateFloatSourceNode(
-                                mStateStore, floatSource.getStateSource(), consumer);
+                node = new StateFloatSourceNode(
+                        mStateStore, floatSource.getStateSource(), consumer);
                 break;
             case ARITHMETIC_OPERATION:
                 {
@@ -960,9 +938,8 @@ public class DynamicTypeEvaluator implements AutoCloseable {
                 node = new FixedColorNode(colorSource.getFixed(), consumer);
                 break;
             case STATE_SOURCE:
-                node =
-                        new StateColorSourceNode(
-                                mStateStore, colorSource.getStateSource(), consumer);
+                node = new StateColorSourceNode(
+                        mStateStore, colorSource.getStateSource(), consumer);
                 break;
             case ANIMATABLE_FIXED:
                 // We don't have to check if enableAnimations is true, because if it's false and
@@ -1100,46 +1077,6 @@ public class DynamicTypeEvaluator implements AutoCloseable {
         }
 
         resultBuilder.add(node);
-    }
-
-    /** Enables sending updates on sensor and time. */
-    @UiThread
-    public void enablePlatformDataSources() {
-        if (this.mTimeGateway instanceof TimeGatewayImpl) {
-            ((TimeGatewayImpl) mTimeGateway).enableUpdates();
-        }
-        if (mConfig.getSensorGateway() != null) {
-            mConfig.getSensorGateway().enableUpdates();
-        }
-    }
-
-    /** Disables sending updates on sensor and time. */
-    @UiThread
-    public void disablePlatformDataSources() {
-        if (this.mTimeGateway instanceof TimeGatewayImpl) {
-            ((TimeGatewayImpl) mTimeGateway).disableUpdates();
-        }
-        if (mConfig.getSensorGateway() != null) {
-            mConfig.getSensorGateway().disableUpdates();
-        }
-    }
-
-    /**
-     * Closes resources owned by this {@link DynamicTypeEvaluator}.
-     *
-     * <p>This will not close provided resources, like the {@link TimeGateway} or {@link
-     * SensorGateway}.
-     */
-    @RestrictTo(Scope.LIBRARY_GROUP)
-    @Override
-    public void close() {
-        if (mTimeGateway instanceof TimeGatewayImpl) {
-            try {
-                ((TimeGatewayImpl) mTimeGateway).close();
-            } catch (RuntimeException ex) {
-                Log.e(TAG, "Error while cleaning up time gateway", ex);
-            }
-        }
     }
 
     /**

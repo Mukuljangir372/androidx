@@ -16,7 +16,6 @@
 
 package androidx.compose.foundation
 
-import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -25,6 +24,7 @@ import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawOutline
+import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.node.DrawModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
 import androidx.compose.ui.platform.InspectorInfo
@@ -89,7 +89,7 @@ fun Modifier.background(
 )
 
 private class BackgroundElement(
-    private val color: Color? = null,
+    private val color: Color = Color.Unspecified,
     private val brush: Brush? = null,
     private val alpha: Float,
     private val shape: Shape,
@@ -104,12 +104,11 @@ private class BackgroundElement(
         )
     }
 
-    override fun update(node: BackgroundNode): BackgroundNode {
+    override fun update(node: BackgroundNode) {
         node.color = color
         node.brush = brush
         node.alpha = alpha
         node.shape = shape
-        return node
     }
 
     override fun InspectorInfo.inspectableProperties() {
@@ -117,7 +116,7 @@ private class BackgroundElement(
     }
 
     override fun hashCode(): Int {
-        var result = color?.hashCode() ?: 0
+        var result = color.hashCode()
         result = 31 * result + (brush?.hashCode() ?: 0)
         result = 31 * result + alpha.hashCode()
         result = 31 * result + shape.hashCode()
@@ -134,7 +133,7 @@ private class BackgroundElement(
 }
 
 private class BackgroundNode(
-    var color: Color?,
+    var color: Color,
     var brush: Brush?,
     var alpha: Float,
     var shape: Shape,
@@ -144,6 +143,7 @@ private class BackgroundNode(
     private var lastSize: Size? = null
     private var lastLayoutDirection: LayoutDirection? = null
     private var lastOutline: Outline? = null
+    private var lastShape: Shape? = null
 
     override fun ContentDrawScope.draw() {
         if (shape === RectangleShape) {
@@ -156,21 +156,22 @@ private class BackgroundNode(
     }
 
     private fun ContentDrawScope.drawRect() {
-        color?.let { drawRect(color = it) }
+        if (color != Color.Unspecified) drawRect(color = color)
         brush?.let { drawRect(brush = it, alpha = alpha) }
     }
 
     private fun ContentDrawScope.drawOutline() {
         val outline =
-            if (size == lastSize && layoutDirection == lastLayoutDirection) {
+            if (size == lastSize && layoutDirection == lastLayoutDirection && lastShape == shape) {
                 lastOutline!!
             } else {
                 shape.createOutline(size, layoutDirection, this)
             }
-        color?.let { drawOutline(outline, color = it) }
+        if (color != Color.Unspecified) drawOutline(outline, color = color)
         brush?.let { drawOutline(outline, brush = it, alpha = alpha) }
         lastOutline = outline
         lastSize = size
         lastLayoutDirection = layoutDirection
+        lastShape = shape
     }
 }

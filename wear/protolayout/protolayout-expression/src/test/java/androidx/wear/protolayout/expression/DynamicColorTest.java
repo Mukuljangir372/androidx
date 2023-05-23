@@ -58,7 +58,7 @@ public final class DynamicColorTest {
 
   @Test
   public void stateEntryValueColor() {
-    DynamicColor stateColor = DynamicColor.fromState(STATE_KEY);
+    DynamicColor stateColor = DynamicColor.from(new AppDataKey<>(STATE_KEY));
 
     assertThat(stateColor.toDynamicColorProto().getStateSource().getSourceKey())
         .isEqualTo(STATE_KEY);
@@ -66,8 +66,8 @@ public final class DynamicColorTest {
 
   @Test
   public void stateToString() {
-    assertThat(DynamicColor.fromState("key").toString())
-        .isEqualTo("StateColorSource{sourceKey=key}");
+    assertThat(DynamicColor.from(new AppDataKey<>("key")).toString())
+        .isEqualTo("StateColorSource{sourceKey=key, sourceNamespace=}");
   }
 
   @Test
@@ -104,10 +104,11 @@ public final class DynamicColorTest {
 
   @Test
   public void stateAnimatedColor() {
-    DynamicColor stateColor = DynamicColor.fromState(STATE_KEY);
+    AppDataKey<DynamicColor> source = new AppDataKey<>(STATE_KEY);
+    DynamicColor stateColor = DynamicColor.from(source);
 
-    DynamicColor animatedColor = DynamicColor.animate(STATE_KEY);
-    DynamicColor animatedColorWithSpec = DynamicColor.animate(STATE_KEY, SPEC);
+    DynamicColor animatedColor = DynamicColor.animate(source);
+    DynamicColor animatedColorWithSpec = DynamicColor.animate(source, SPEC);
 
     assertThat(animatedColor.toDynamicColorProto().getAnimatableDynamic().hasAnimationSpec())
         .isFalse();
@@ -124,7 +125,7 @@ public final class DynamicColorTest {
   public void stateAnimatedToString() {
     assertThat(
             DynamicColor.animate(
-                    /* stateKey= */ "key",
+                    /* stateKey= */ new AppDataKey<>("key"),
                     new AnimationSpec.Builder()
                             .setAnimationParameters(
                                     new AnimationParameters.Builder().setDelayMillis(1).build())
@@ -132,13 +133,14 @@ public final class DynamicColorTest {
                 .toString())
         .isEqualTo(
             "AnimatableDynamicColor{"
-                + "input=StateColorSource{sourceKey=key}, animationSpec=AnimationSpec{"
+                + "input=StateColorSource{sourceKey=key, sourceNamespace=}, "
+                + "animationSpec=AnimationSpec{"
                 + "animationParameters=AnimationParameters{durationMillis=0, easing=null, "
                 + "delayMillis=1}, repeatable=null}}");
   }
 
   @Test
-  public void validProto() {
+  public void fromByteArray_validProto() {
     DynamicColor from = DynamicColor.constant(CONSTANT_VALUE);
     DynamicColor to = DynamicColor.fromByteArray(from.toDynamicColorByteArray());
 
@@ -146,7 +148,55 @@ public final class DynamicColorTest {
   }
 
   @Test
-  public void invalidProto() {
+  public void fromByteArray_invalidProto() {
     assertThrows(IllegalArgumentException.class, () -> DynamicColor.fromByteArray(new byte[] {1}));
+  }
+
+  @Test
+  public void fromByteArray_existingByteArray() {
+    DynamicColor from = DynamicColor.constant(CONSTANT_VALUE);
+    byte[] buffer = new byte[100];
+    int written = from.toDynamicColorByteArray(buffer, 10, 50);
+
+    DynamicColor to = DynamicColor.fromByteArray(buffer, 10, written);
+
+    assertThat(to.toDynamicColorProto().getFixed().getArgb()).isEqualTo(CONSTANT_VALUE);
+  }
+
+  @Test
+  public void fromByteArray_existingByteArrayTooSmall() {
+    DynamicColor from = DynamicColor.constant(CONSTANT_VALUE);
+    byte[] buffer = new byte[100];
+    int written = from.toDynamicColorByteArray(buffer);
+
+    assertThrows(
+            IllegalArgumentException.class,
+            () -> DynamicColor.fromByteArray(buffer, 0, written - 1));
+  }
+
+  @Test
+  public void fromByteArray_existingByteArrayTooLarge() {
+    DynamicColor from = DynamicColor.constant(CONSTANT_VALUE);
+    byte[] buffer = new byte[100];
+    int written = from.toDynamicColorByteArray(buffer);
+
+    assertThrows(
+            IllegalArgumentException.class,
+            () -> DynamicColor.fromByteArray(buffer, 0, written + 1));
+  }
+
+  @Test
+  public void toByteArray_existingByteArrayTooSmall() {
+    assertThrows(
+            IllegalArgumentException.class,
+            () -> DynamicColor.constant(CONSTANT_VALUE).toDynamicColorByteArray(new byte[1]));
+  }
+
+  @Test
+  public void toByteArray_existingByteArraySameSize() {
+    DynamicColor from = DynamicColor.constant(CONSTANT_VALUE);
+
+    assertThat(from.toDynamicColorByteArray(new byte[100]))
+            .isEqualTo(from.toDynamicColorByteArray().length);
   }
 }

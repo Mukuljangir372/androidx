@@ -52,6 +52,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.platform.simpleIdentityToString
+import androidx.compose.ui.semantics.SemanticsConfiguration
 import androidx.compose.ui.semantics.generateSemanticsId
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
@@ -63,7 +64,10 @@ import androidx.compose.ui.viewinterop.InteropViewFactoryHolder
 /**
  * Enable to log changes to the LayoutNode tree.  This logging is quite chatty.
  */
+@Suppress("ConstPropertyName")
 private const val DebugChanges = false
+
+private val DefaultDensity = Density(1f)
 
 /**
  * An element in the layout hierarchy, built with compose UI.
@@ -79,7 +83,8 @@ internal class LayoutNode(
     // subcompose multiple times into the same LayoutNode and define offsets.
     private val isVirtual: Boolean = false,
     // The unique semantics ID that is used by all semantics modifiers attached to this LayoutNode.
-    override val semanticsId: Int = generateSemanticsId()
+    // TODO(b/281907968): Implement this with a getter that returns the compositeKeyHash.
+    override var semanticsId: Int = generateSemanticsId()
 ) : ComposeNodeLifecycleCallback,
     Remeasurement,
     OwnerScope,
@@ -87,6 +92,12 @@ internal class LayoutNode(
     ComposeUiNode,
     InteroperableComposeUiNode,
     Owner.OnLayoutCompletedListener {
+
+    @set:ExperimentalComposeUiApi
+    @get:ExperimentalComposeUiApi
+    @Suppress("OPT_IN_MARKER_ON_WRONG_TARGET")
+    @ExperimentalComposeUiApi
+    override var compositeKeyHash: Int = 0
 
     internal var isVirtualLookaheadRoot: Boolean = false
 
@@ -392,6 +403,37 @@ internal class LayoutNode(
         invalidateMeasurements()
     }
 
+    private var _collapsedSemantics: SemanticsConfiguration? = null
+    internal fun invalidateSemantics() {
+        _collapsedSemantics = null
+        // TODO(lmr): this ends up scheduling work that diffs the entire tree, but we should
+        //  eventually move to marking just this node as invalidated since we are invalidating
+        //  on a per-node level. This should preserve current behavior for now.
+        requireOwner().onSemanticsChange()
+    }
+    internal val collapsedSemantics: SemanticsConfiguration?
+        get() {
+            if (!nodes.has(Nodes.Semantics) || _collapsedSemantics != null) {
+                return _collapsedSemantics
+            }
+
+            var config = SemanticsConfiguration()
+            requireOwner().snapshotObserver.observeSemanticsReads(this) {
+                nodes.tailToHead(Nodes.Semantics) {
+                    if (it.shouldClearDescendantSemantics) {
+                        config = SemanticsConfiguration()
+                        config.isClearingSemantics = true
+                    }
+                    if (it.shouldMergeDescendantSemantics) {
+                        config.isMergingSemanticsOfDescendants = true
+                    }
+                    with(config) { with(it) { applySemantics() } }
+                }
+            }
+            _collapsedSemantics = config
+            return config
+        }
+
     /**
      * Set the [Owner] of this LayoutNode. This LayoutNode must not already be attached.
      * [owner] must match its [parent].[owner].
@@ -419,7 +461,7 @@ internal class LayoutNode(
         this.owner = owner
         this.depth = (parent?.depth ?: -1) + 1
         if (nodes.has(Nodes.Semantics)) {
-            owner.onSemanticsChange()
+            invalidateSemantics()
         }
         owner.onAttach(this)
 
@@ -469,7 +511,7 @@ internal class LayoutNode(
         onDetach?.invoke(owner)
 
         if (nodes.has(Nodes.Semantics)) {
-            owner.onSemanticsChange()
+            invalidateSemantics()
         }
         nodes.detach()
         owner.onDetach(this)
@@ -595,7 +637,7 @@ internal class LayoutNode(
     /**
      * The screen density to be used by this layout.
      */
-    override var density: Density = Density(1f)
+    override var density: Density = DefaultDensity
         set(value) {
             if (field != value) {
                 field = value
@@ -635,7 +677,6 @@ internal class LayoutNode(
             density = value[LocalDensity]
             layoutDirection = value[LocalLayoutDirection]
             viewConfiguration = value[LocalViewConfiguration]
-            @OptIn(ExperimentalComposeUiApi::class)
             nodes.headToTail(Nodes.CompositionLocalConsumer) { modifierNode ->
                 val delegatedNode = modifierNode.node
                 if (delegatedNode.isAttached) {
@@ -784,7 +825,6 @@ internal class LayoutNode(
     /**
      * The [Modifier] currently applied to this node.
      */
-    @OptIn(ExperimentalComposeUiApi::class)
     override var modifier: Modifier = Modifier
         set(value) {
             require(!isVirtual || modifier === Modifier) {
@@ -994,7 +1034,6 @@ internal class LayoutNode(
         }
     }
 
-    @OptIn(ExperimentalComposeUiApi::class)
     private fun invalidateFocusOnAttach() {
         if (nodes.has(FocusTarget or FocusProperties or FocusEvent)) {
             nodes.headToTail {
@@ -1035,7 +1074,6 @@ internal class LayoutNode(
         }
     }
 
-    @OptIn(ExperimentalComposeUiApi::class)
     internal fun dispatchOnPositionedCallbacks() {
         if (layoutState != Idle || layoutPending || measurePending) {
             return // it hasn't yet been properly positioned, so don't make a call
@@ -1135,14 +1173,11 @@ internal class LayoutNode(
      */
     internal fun markLookaheadLayoutPending() = layoutDelegate.markLookaheadLayoutPending()
 
-    @OptIn(ExperimentalComposeUiApi::class)
     fun invalidateSubtree(isRootOfInvalidation: Boolean = true) {
         if (isRootOfInvalidation) {
             parent?.invalidateLayer()
-            // Invalidate semantics. We can do this once because there isn't a node-by-node
-            // invalidation mechanism.
-            requireOwner().onSemanticsChange()
         }
+        invalidateSemantics()
         requestRemeasure()
         nodes.headToTail(Nodes.Layout) {
             it.requireCoordinator(Nodes.Layout).layer?.invalidate()
@@ -1172,7 +1207,6 @@ internal class LayoutNode(
         }
     }
 
-    @OptIn(ExperimentalComposeUiApi::class)
     override fun onLayoutComplete() {
         innerCoordinator.visitNodes(Nodes.LayoutAware) {
             it.onPlaced(innerCoordinator)
@@ -1203,7 +1237,6 @@ internal class LayoutNode(
         }
     }
 
-    @OptIn(ExperimentalComposeUiApi::class)
     private fun shouldInvalidateParentLayer(): Boolean {
         if (nodes.has(Nodes.Draw) && !nodes.has(Nodes.Layout)) return true
         nodes.headToTail {
@@ -1289,6 +1322,7 @@ internal class LayoutNode(
         }
         // resetModifierState detaches all nodes, so we need to re-attach them upon reuse.
         nodes.attach()
+        semanticsId = generateSemanticsId()
     }
 
     override fun onDeactivate() {

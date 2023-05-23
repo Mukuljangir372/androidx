@@ -24,6 +24,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.annotation.RequiresPermission;
+import androidx.annotation.RestrictTo;
+import androidx.annotation.RestrictTo.Scope;
 import androidx.camera.core.impl.utils.ContextUtil;
 import androidx.core.content.PermissionChecker;
 import androidx.core.util.Consumer;
@@ -56,8 +58,8 @@ public final class PendingRecording {
     private final OutputOptions mOutputOptions;
     private Consumer<VideoRecordEvent> mEventListener;
     private Executor mListenerExecutor;
-
     private boolean mAudioEnabled = false;
+    private boolean mIsPersistent = false;
 
     PendingRecording(@NonNull Context context, @NonNull Recorder recorder,
             @NonNull OutputOptions options) {
@@ -102,6 +104,10 @@ public final class PendingRecording {
         return mAudioEnabled;
     }
 
+    boolean isPersistent() {
+        return mIsPersistent;
+    }
+
     /**
      * Enables audio to be recorded for this recording.
      *
@@ -138,6 +144,21 @@ public final class PendingRecording {
     }
 
     /**
+     * Configures the recording to be a persistent recording.
+     *
+     * <p>A persistent recording will only be stopped by explicitly calling
+     * {@link Recording#stop()} or {@link Recording#close()} and will ignore events that would
+     * normally cause recording to stop, such as lifecycle events or explicit unbinding of a
+     * {@link VideoCapture} use case that the recording's {@link Recorder} is attached to.
+     */
+    @RestrictTo(Scope.LIBRARY_GROUP)
+    @NonNull
+    public PendingRecording asPersistentRecording() {
+        mIsPersistent = true;
+        return this;
+    }
+
+    /**
      * Starts the recording, making it an active recording.
      *
      * <p>Only a single recording can be active at a time, so if another recording is active,
@@ -157,7 +178,9 @@ public final class PendingRecording {
      *
      * <p>If the returned {@link Recording} is garbage collected, the recording will be
      * automatically stopped. A reference to the active recording must be maintained as long as
-     * the recording needs to be active.
+     * the recording needs to be active. If the recording is garbage collected, the
+     * {@link VideoRecordEvent.Finalize} event will contain error
+     * {@link VideoRecordEvent.Finalize#ERROR_RECORDING_GARBAGE_COLLECTED}.
      *
      * @throws IllegalStateException if the associated Recorder currently has an unfinished
      * active recording.

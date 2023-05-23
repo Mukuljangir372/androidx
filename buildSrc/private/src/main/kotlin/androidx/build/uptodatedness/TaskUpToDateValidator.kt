@@ -148,10 +148,8 @@ val DONT_TRY_RERUNNING_TASKS = setOf(
     "stripArchiveForPartialDejetification",
     "createArchive",
 
-    // b/275795136
-    ":room:integration-tests:room-testapp-kotlin:kspWithKspGenJavaDebugAndroidTestKotlin",
-    // b/275795136
-    ":room:integration-tests:room-testapp-kotlin:kspWithKspGenKotlinDebugAndroidTestKotlin"
+    // https://github.com/spdx/spdx-gradle-plugin/issues/18
+    "spdxSbomForRelease",
 )
 
 val DONT_TRY_RERUNNING_TASK_TYPES = setOf(
@@ -172,7 +170,6 @@ val DONT_TRY_RERUNNING_TASK_TYPES = setOf(
     "androidx.build.license.CheckExternalDependencyLicensesTask_Decorated",
 )
 
-@Suppress("UnstableApiUsage") // usage of BuildService that's incubating
 abstract class TaskUpToDateValidator :
     BuildService<TaskUpToDateValidator.Parameters>, OperationCompletionListener {
     interface Parameters : BuildServiceParameters {

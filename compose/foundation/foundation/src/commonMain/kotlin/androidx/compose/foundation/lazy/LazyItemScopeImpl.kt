@@ -20,7 +20,7 @@ import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.lazy.layout.LazyLayoutAnimateItemModifierNode
 import androidx.compose.runtime.State
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
@@ -37,8 +37,8 @@ import kotlin.math.roundToInt
 
 internal class LazyItemScopeImpl : LazyItemScope {
 
-    private var maxWidthState = mutableStateOf(Int.MAX_VALUE)
-    private var maxHeightState = mutableStateOf(Int.MAX_VALUE)
+    private var maxWidthState = mutableIntStateOf(Int.MAX_VALUE)
+    private var maxHeightState = mutableIntStateOf(Int.MAX_VALUE)
 
     fun setMaxSize(width: Int, height: Int) {
         maxWidthState.intValue = width
@@ -89,10 +89,10 @@ private class ParentSizeElement(
         )
     }
 
-    override fun update(node: ParentSizeNode): ParentSizeNode = node.also {
-        it.fraction = fraction
-        it.widthState = widthState
-        it.heightState = heightState
+    override fun update(node: ParentSizeNode) {
+        node.fraction = fraction
+        node.widthState = widthState
+        node.heightState = heightState
     }
 
     override fun equals(other: Any?): Boolean {
@@ -160,8 +160,8 @@ private class AnimateItemPlacementElement(
 
     override fun create(): AnimateItemPlacementNode = AnimateItemPlacementNode(animationSpec)
 
-    override fun update(node: AnimateItemPlacementNode): AnimateItemPlacementNode = node.also {
-        it.delegatingNode.placementAnimationSpec = animationSpec
+    override fun update(node: AnimateItemPlacementNode) {
+        node.delegatingNode.placementAnimationSpec = animationSpec
     }
 
     override fun equals(other: Any?): Boolean {

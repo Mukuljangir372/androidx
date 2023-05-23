@@ -27,7 +27,7 @@ import androidx.annotation.ChecksSdkIntAtLeast;
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.annotation.RequiresOptIn;
-import androidx.annotation.RestrictTo;
+import androidx.annotation.VisibleForTesting;
 
 import java.util.Locale;
 
@@ -47,11 +47,9 @@ public class BuildCompat {
      * @param buildCodename the value of {@link Build.VERSION#CODENAME}
      *
      * @return {@code true} if APIs from the requested codename are available in the build.
-     *
-     * @hide
      */
-    @RestrictTo(RestrictTo.Scope.TESTS)
-    protected static boolean isAtLeastPreReleaseCodename(@NonNull String codename,
+    @VisibleForTesting
+    static boolean isAtLeastPreReleaseCodename(@NonNull String codename,
             @NonNull String buildCodename) {
 
         // Special case "REL", which means the build is not a pre-release build.

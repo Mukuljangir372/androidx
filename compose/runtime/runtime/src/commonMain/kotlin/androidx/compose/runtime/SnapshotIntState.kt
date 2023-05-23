@@ -21,6 +21,7 @@ package androidx.compose.runtime
 import androidx.compose.runtime.snapshots.AutoboxingStateValueProperty
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.snapshots.SnapshotMutableState
+import androidx.compose.runtime.snapshots.StateFactoryMarker
 import androidx.compose.runtime.snapshots.StateObject
 import androidx.compose.runtime.snapshots.StateRecord
 import androidx.compose.runtime.snapshots.overwritable
@@ -40,8 +41,13 @@ import kotlin.reflect.KProperty
  *
  * @see IntState
  * @see MutableIntState
+ * @see mutableStateOf
+ * @see mutableLongStateOf
+ * @see mutableFloatStateOf
+ * @see mutableDoubleStateOf
  */
-fun mutableStateOf(
+@StateFactoryMarker
+fun mutableIntStateOf(
     value: Int
 ): MutableIntState = createSnapshotMutableIntState(value)
 
@@ -50,7 +56,7 @@ fun mutableStateOf(
  * function cause the current [RecomposeScope] to subscribe to changes of that value.
  *
  * @see MutableIntState
- * @see mutableStateOf
+ * @see mutableDoubleStateOf
  */
 @Stable
 @JvmDefaultWithCompatibility
@@ -76,7 +82,7 @@ inline operator fun IntState.getValue(thisObj: Any?, property: KProperty<*>): In
  * scheduled.
  *
  * @see [IntState]
- * @see [mutableStateOf]
+ * @see [mutableDoubleStateOf]
  */
 @Stable
 @JvmDefaultWithCompatibility
@@ -116,7 +122,7 @@ internal expect fun createSnapshotMutableIntState(
  *
  * @param value the wrapped value
  *
- * @see [mutableStateOf]
+ * @see [mutableDoubleStateOf]
  */
 internal open class SnapshotMutableIntStateImpl(
     value: Int

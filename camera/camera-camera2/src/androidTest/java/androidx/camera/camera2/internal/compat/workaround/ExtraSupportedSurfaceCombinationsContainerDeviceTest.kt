@@ -174,6 +174,10 @@ class ExtraSupportedSurfaceCombinationsContainerDeviceTest(val cameraId: String)
         val callback = FakeImageCaptureCallback()
         imageCapture.takePicture(CameraXExecutors.directExecutor(), callback)
         callback.awaitCapturesAndAssert()
+
+        withContext(Dispatchers.Main) {
+            cameraUseCaseAdapter.removeUseCases(cameraUseCaseAdapter.useCases)
+        }
     }
 
     @SdkSuppress(minSdkVersion = 28)
@@ -229,6 +233,10 @@ class ExtraSupportedSurfaceCombinationsContainerDeviceTest(val cameraId: String)
         val callback = FakeImageCaptureCallback()
         imageCapture.takePicture(CameraXExecutors.directExecutor(), callback)
         callback.awaitCapturesAndAssert()
+
+        withContext(Dispatchers.Main) {
+            cameraUseCaseAdapter.removeUseCases(cameraUseCaseAdapter.useCases)
+        }
     }
 
     private fun enableSessionProcessor(
@@ -308,7 +316,11 @@ class ExtraSupportedSurfaceCombinationsContainerDeviceTest(val cameraId: String)
         )
 
         extraConfigurationQuirk.get(cameraId, hardwareLevel).forEach { surfaceCombination ->
-            if (surfaceCombination.isSupported(surfaceCombinationYuvPrivYuv.surfaceConfigList)) {
+            if (surfaceCombination.getOrderedSupportedSurfaceConfigList(
+                    surfaceCombinationYuvPrivYuv.surfaceConfigList
+                )
+                != null
+            ) {
                 return true
             }
         }
@@ -343,7 +355,10 @@ class ExtraSupportedSurfaceCombinationsContainerDeviceTest(val cameraId: String)
         )
 
         extraConfigurationQuirk.get(cameraId, hardwareLevel).forEach { surfaceCombination ->
-            if (surfaceCombination.isSupported(surfaceCombinationYuvYuvYuv.surfaceConfigList)) {
+            if (surfaceCombination.getOrderedSupportedSurfaceConfigList(
+                    surfaceCombinationYuvYuvYuv.surfaceConfigList
+                ) != null
+            ) {
                 return true
             }
         }

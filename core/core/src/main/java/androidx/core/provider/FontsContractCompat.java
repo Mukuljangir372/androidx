@@ -18,7 +18,6 @@ package androidx.core.provider;
 
 import static androidx.annotation.RestrictTo.Scope.LIBRARY;
 import static androidx.annotation.RestrictTo.Scope.LIBRARY_GROUP_PREFIX;
-import static androidx.annotation.RestrictTo.Scope.TESTS;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -170,9 +169,8 @@ public class FontsContractCompat {
         }
     }
 
-    /** @hide */
+    @RestrictTo(LIBRARY)
     @VisibleForTesting
-    @RestrictTo(TESTS)
     public static void resetTypefaceCache() {
         FontRequestWorker.resetTypefaceCache();
     }

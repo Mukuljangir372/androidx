@@ -34,13 +34,13 @@ import androidx.annotation.GuardedBy;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
-import androidx.annotation.RestrictTo;
 import androidx.annotation.VisibleForTesting;
 import androidx.camera.core.CameraEffect;
 import androidx.camera.core.Logger;
 import androidx.camera.core.SurfaceOutput;
 import androidx.camera.core.SurfaceProcessor;
 import androidx.camera.core.impl.CameraInternal;
+import androidx.camera.core.impl.utils.MatrixExt;
 import androidx.concurrent.futures.CallbackToFutureAdapter;
 import androidx.core.util.Consumer;
 
@@ -239,7 +239,7 @@ final class SurfaceOutputImpl implements SurfaceOutput {
     /**
      * Returns the close state.
      */
-    @RestrictTo(RestrictTo.Scope.TESTS)
+    @VisibleForTesting
     public boolean isClosed() {
         synchronized (mLock) {
             return mIsClosed;
@@ -291,9 +291,7 @@ final class SurfaceOutputImpl implements SurfaceOutput {
         // - Apply the crop rect
 
         // Flipping for GL.
-        // TODO(b/278109696): move GL flipping to MatrixExt.
-        Matrix.translateM(mAdditionalTransform, 0, 0f, 1f, 0f);
-        Matrix.scaleM(mAdditionalTransform, 0, 1f, -1f, 1f);
+        MatrixExt.preVerticalFlip(mAdditionalTransform, 0.5f);
 
         // Rotation
         preRotate(mAdditionalTransform, mRotationDegrees, 0.5f, 0.5f);
@@ -343,9 +341,7 @@ final class SurfaceOutputImpl implements SurfaceOutput {
 
         // Flip for GL. SurfaceTexture#getTransformMatrix always contains this flipping regardless
         // of whether it has the camera transform.
-        // TODO(b/278109696): move GL flipping to MatrixExt.
-        Matrix.translateM(mInvertedTextureTransform, 0, 0f, 1f, 0f);
-        Matrix.scaleM(mInvertedTextureTransform, 0, 1f, -1f, 1f);
+        MatrixExt.preVerticalFlip(mInvertedTextureTransform, 0.5f);
 
         // Applies the camera sensor orientation if the input surface contains camera transform.
         if (mCameraInternal != null) {

@@ -33,7 +33,7 @@
     <string name="mr_controller_expand_group" msgid="4521419834052044261">"Espandi"</string>
     <string name="mr_controller_collapse_group" msgid="2585048604188129749">"Comprimi"</string>
     <string name="mr_controller_album_art" msgid="3330502667672708728">"Copertina dell\'album"</string>
-    <string name="mr_controller_volume_slider" msgid="2955862765169128170">"Dispositivo di scorrimento del volume"</string>
+    <string name="mr_controller_volume_slider" msgid="2955862765169128170">"Cursore del volume"</string>
     <string name="mr_controller_no_media_selected" msgid="5495452265246139458">"Nessun contenuto multimediale selezionato"</string>
     <string name="mr_controller_no_info_available" msgid="855271725131981086">"Nessuna informazione disponibile"</string>
     <string name="mr_controller_casting_screen" msgid="9171231064758955152">"Trasmissione dello schermo attiva"</string>
@@ -41,4 +41,8 @@
     <string name="mr_dialog_groupable_header" msgid="4307018456678388936">"Aggiungi un dispositivo"</string>
     <string name="mr_dialog_transferable_header" msgid="6068257520605505468">"Riproduci su un gruppo"</string>
     <string name="mr_cast_dialog_title_view_placeholder" msgid="2175930138959078155">"Nessuna informazione disponibile"</string>
+    <string name="mr_chooser_zero_routes_found_title" msgid="5213435473397442608">"Nessun dispositivo disponibile"</string>
+    <string name="mr_chooser_zero_routes_description" msgid="5123320430013505927">"Impossibile trovare dispositivi, assicurati che il dispositivo e il dispositivo di trasmissione siano sulla stessa rete Wi-Fi e riprova."</string>
+    <string name="mr_chooser_wifi_warning_description" msgid="337903053432238985">"Assicurati che il tuo dispositivo e quello di trasmissione siano collegati alla stessa rete Wi-Fi."</string>
+    <string name="mr_chooser_done_button_label" msgid="7897288652928484627">"Fine"</string>
 </resources>

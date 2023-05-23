@@ -17,8 +17,8 @@
 package androidx.wear.compose.integration.demos
 
 import androidx.wear.compose.foundation.samples.CurvedAndNormalText
-import androidx.wear.compose.foundation.samples.CurvedBottomLayout
 import androidx.wear.compose.foundation.samples.CurvedBackground
+import androidx.wear.compose.foundation.samples.CurvedBottomLayout
 import androidx.wear.compose.foundation.samples.CurvedFixedSize
 import androidx.wear.compose.foundation.samples.CurvedFontWeight
 import androidx.wear.compose.foundation.samples.CurvedFonts
@@ -33,6 +33,7 @@ import androidx.wear.compose.foundation.samples.SimpleCurvedWorld
 import androidx.wear.compose.foundation.samples.SimpleScalingLazyColumn
 import androidx.wear.compose.foundation.samples.SimpleScalingLazyColumnWithContentPadding
 import androidx.wear.compose.foundation.samples.SimpleScalingLazyColumnWithSnap
+import androidx.wear.compose.foundation.samples.SwipeToRevealWithExpandables
 
 val WearFoundationDemos = DemoCategory(
     "Foundation",
@@ -104,14 +105,17 @@ val WearFoundationDemos = DemoCategory(
                 ComposableDemo("Swipe To Reveal Chip") {
                     SwipeToRevealChips()
                 },
-                ComposableDemo("Swipe to Reveal Card") {
+                ComposableDemo("Swipe To Reveal Card") {
                     SwipeToRevealCards()
                 },
-                ComposableDemo("Swipe to Reveal - Custom") {
+                ComposableDemo("Swipe To Reveal - Custom") {
                     SwipeToRevealWithSingleAction()
                 },
-                ComposableDemo("Swipe to Reveal - RTL") {
+                ComposableDemo("Swipe To Reveal - RTL") {
                     SwipeToRevealInRtl()
+                },
+                ComposableDemo("Swipe To Reveal - Expandable") {
+                    SwipeToRevealWithExpandables()
                 }
             )
         )

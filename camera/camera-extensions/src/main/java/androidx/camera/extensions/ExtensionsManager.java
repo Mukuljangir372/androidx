@@ -15,6 +15,8 @@
  */
 package androidx.camera.extensions;
 
+import static androidx.annotation.RestrictTo.Scope.LIBRARY_GROUP;
+
 import android.content.Context;
 import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.params.StreamConfigurationMap;
@@ -32,6 +34,7 @@ import androidx.camera.core.ImageAnalysis;
 import androidx.camera.core.ImageCapture;
 import androidx.camera.core.Logger;
 import androidx.camera.core.Preview;
+import androidx.camera.core.impl.ExtendedCameraConfigProviderStore;
 import androidx.camera.core.impl.utils.ContextUtil;
 import androidx.camera.core.impl.utils.executor.CameraXExecutors;
 import androidx.camera.core.impl.utils.futures.Futures;
@@ -272,12 +275,11 @@ public final class ExtensionsManager {
      * complete. Then, tests can call the
      * {@link ExtensionsManager#getInstanceAsync(Context, CameraProvider)} function again to
      * initialize a new {@link ExtensionsManager} instance.
-     *
-     * @hide
      */
     // TODO: Will need to be rewritten to be threadsafe with use in conjunction with
     //  ExtensionsManager.init(...) if this is to be released for use outside of testing.
-    @RestrictTo(RestrictTo.Scope.TESTS)
+    @VisibleForTesting
+    @RestrictTo(LIBRARY_GROUP)
     @NonNull
     public ListenableFuture<Void> shutdown() {
         synchronized (EXTENSIONS_LOCK) {
@@ -313,6 +315,7 @@ public final class ExtensionsManager {
 
             // Once extension has been initialized start the deinit call
             if (availability == ExtensionsAvailability.LIBRARY_AVAILABLE) {
+                ExtendedCameraConfigProviderStore.clear();
                 sDeinitializeFuture = CallbackToFutureAdapter.getFuture(completer -> {
                     try {
                         InitializerImpl.deinit(
@@ -424,28 +427,58 @@ public final class ExtensionsManager {
      *                          specified extension mode.
      * @param mode              The extension mode to check.
      * @return the range of estimated minimal and maximal capture latency in milliseconds.
-     * Returns null if no capture latency info can be provided.
-     * @throws IllegalArgumentException If this device doesn't support extensions function, or no
-     *                                  camera can be found to support the specified extension mode.
+     * Returns null if no capture latency info can be provided or if the device doesn't support
+     * the extension mode on this camera.
      */
     @Nullable
     public Range<Long> getEstimatedCaptureLatencyRange(@NonNull CameraSelector cameraSelector,
             @ExtensionMode.Mode int mode) {
         if (mode == ExtensionMode.NONE
                 || mExtensionsAvailability != ExtensionsAvailability.LIBRARY_AVAILABLE) {
-            throw new IllegalArgumentException(
-                    "No camera can be found to support the specified extensions mode! "
-                            + "isExtensionAvailable should be checked first before calling "
-                            + "getEstimatedCaptureLatencyRange.");
+            // Returns null for non-Extensions mode or if Extensions are not supported on this
+            // device.
+            return null;
         }
 
         return mExtensionsInfo.getEstimatedCaptureLatencyRange(cameraSelector, mode, null);
+    }
+
+    /**
+     * Returns whether the given extension mode supports the {@link ImageAnalysis} use case on
+     * the camera specified by the given {@link CameraSelector}. If it returns false, invoking
+     * {@code ProcessCameraProvider.bindToLifecycle} with an {@link ImageAnalysis} use case will
+     * throw an {@link IllegalArgumentException}.
+     *
+     * @param cameraSelector    The {@link CameraSelector} to find a camera which supports the
+     *                          specified extension mode.
+     * @param mode              The extension mode to check.
+     * @return true if {@link ImageAnalysis} can be bound when the specified extension mode is
+     * enabled on the camera specified by the given {@link CameraSelector}. Returns false
+     * otherwise. If the device doesn't support this extension mode on this camera, it will also
+     * return false.
+     */
+    public boolean isImageAnalysisSupported(@NonNull CameraSelector cameraSelector,
+            @ExtensionMode.Mode int mode) {
+        if (mode == ExtensionMode.NONE) {
+            return true;
+        }
+
+        // Returns false if Extensions are not supported on this device.
+        if (mExtensionsAvailability != ExtensionsAvailability.LIBRARY_AVAILABLE) {
+            return false;
+        }
+
+        return mExtensionsInfo.isImageAnalysisSupported(cameraSelector, mode);
     }
 
     @VisibleForTesting
     @NonNull
     ExtensionsAvailability getExtensionsAvailability() {
         return mExtensionsAvailability;
+    }
+    @VisibleForTesting
+    void setVendorExtenderFactory(VendorExtenderFactory vendorExtenderFactory) {
+        mExtensionsInfo.setVendorExtenderFactory(vendorExtenderFactory);
     }
 
     private ExtensionsManager(@NonNull ExtensionsAvailability extensionsAvailability,

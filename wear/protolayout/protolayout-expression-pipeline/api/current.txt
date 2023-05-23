@@ -16,30 +16,25 @@ package androidx.wear.protolayout.expression.pipeline {
     method public static androidx.wear.protolayout.expression.pipeline.DynamicTypeBindingRequest forDynamicString(androidx.wear.protolayout.expression.DynamicBuilders.DynamicString, android.icu.util.ULocale, java.util.concurrent.Executor, androidx.wear.protolayout.expression.pipeline.DynamicTypeValueReceiver<java.lang.String!>);
   }
 
-  public class DynamicTypeEvaluator implements java.lang.AutoCloseable {
+  public class DynamicTypeEvaluator {
     ctor public DynamicTypeEvaluator(androidx.wear.protolayout.expression.pipeline.DynamicTypeEvaluator.Config);
     method public androidx.wear.protolayout.expression.pipeline.BoundDynamicType bind(androidx.wear.protolayout.expression.pipeline.DynamicTypeBindingRequest) throws androidx.wear.protolayout.expression.pipeline.DynamicTypeEvaluator.EvaluationException;
-    method @RestrictTo(androidx.annotation.RestrictTo.Scope.LIBRARY_GROUP) public void close();
-    method @UiThread public void disablePlatformDataSources();
-    method @UiThread public void enablePlatformDataSources();
   }
 
   public static final class DynamicTypeEvaluator.Config {
     method public androidx.wear.protolayout.expression.pipeline.QuotaManager? getAnimationQuotaManager();
     method public androidx.wear.protolayout.expression.pipeline.QuotaManager? getDynamicTypesQuotaManager();
-    method public androidx.wear.protolayout.expression.pipeline.sensor.SensorGateway? getSensorGateway();
+    method public java.util.Map<androidx.wear.protolayout.expression.PlatformDataKey<?>!,androidx.wear.protolayout.expression.pipeline.PlatformDataProvider!> getPlatformDataProviders();
     method public androidx.wear.protolayout.expression.pipeline.StateStore? getStateStore();
     method public androidx.wear.protolayout.expression.pipeline.TimeGateway? getTimeGateway();
-    method public boolean isPlatformDataSourcesInitiallyEnabled();
   }
 
   public static final class DynamicTypeEvaluator.Config.Builder {
     ctor public DynamicTypeEvaluator.Config.Builder();
+    method public androidx.wear.protolayout.expression.pipeline.DynamicTypeEvaluator.Config.Builder addPlatformDataProvider(androidx.wear.protolayout.expression.pipeline.PlatformDataProvider, java.util.Set<androidx.wear.protolayout.expression.PlatformDataKey<?>!>);
     method public androidx.wear.protolayout.expression.pipeline.DynamicTypeEvaluator.Config build();
     method public androidx.wear.protolayout.expression.pipeline.DynamicTypeEvaluator.Config.Builder setAnimationQuotaManager(androidx.wear.protolayout.expression.pipeline.QuotaManager);
     method public androidx.wear.protolayout.expression.pipeline.DynamicTypeEvaluator.Config.Builder setDynamicTypesQuotaManager(androidx.wear.protolayout.expression.pipeline.QuotaManager);
-    method public androidx.wear.protolayout.expression.pipeline.DynamicTypeEvaluator.Config.Builder setPlatformDataSourcesInitiallyEnabled(boolean);
-    method public androidx.wear.protolayout.expression.pipeline.DynamicTypeEvaluator.Config.Builder setSensorGateway(androidx.wear.protolayout.expression.pipeline.sensor.SensorGateway);
     method public androidx.wear.protolayout.expression.pipeline.DynamicTypeEvaluator.Config.Builder setStateStore(androidx.wear.protolayout.expression.pipeline.StateStore);
     method public androidx.wear.protolayout.expression.pipeline.DynamicTypeEvaluator.Config.Builder setTimeGateway(androidx.wear.protolayout.expression.pipeline.TimeGateway);
   }
@@ -53,14 +48,25 @@ package androidx.wear.protolayout.expression.pipeline {
     method public void onInvalidated();
   }
 
+  public interface PlatformDataProvider {
+    method public void clearReceiver();
+    method public void setReceiver(java.util.concurrent.Executor, androidx.wear.protolayout.expression.pipeline.PlatformDataReceiver);
+  }
+
+  public interface PlatformDataReceiver {
+    method public void onData(java.util.Map<androidx.wear.protolayout.expression.PlatformDataKey<?>!,androidx.wear.protolayout.expression.DynamicDataBuilders.DynamicDataValue!>);
+    method public void onInvalidated(java.util.Set<androidx.wear.protolayout.expression.PlatformDataKey<?>!>);
+  }
+
   public interface QuotaManager {
     method public void releaseQuota(int);
     method public boolean tryAcquireQuota(int);
   }
 
   public class StateStore {
-    method public static androidx.wear.protolayout.expression.pipeline.StateStore create(java.util.Map<java.lang.String!,androidx.wear.protolayout.expression.StateEntryBuilders.StateEntryValue!>);
-    method @UiThread public void setStateEntryValues(java.util.Map<java.lang.String!,androidx.wear.protolayout.expression.StateEntryBuilders.StateEntryValue!>);
+    method public static androidx.wear.protolayout.expression.pipeline.StateStore create(java.util.Map<androidx.wear.protolayout.expression.AppDataKey<?>!,androidx.wear.protolayout.expression.DynamicDataBuilders.DynamicDataValue!>);
+    method public static int getMaxStateEntryCount();
+    method @UiThread public void setAppStateEntryValues(java.util.Map<androidx.wear.protolayout.expression.AppDataKey<?>!,androidx.wear.protolayout.expression.DynamicDataBuilders.DynamicDataValue!>);
   }
 
   public interface TimeGateway {
@@ -71,26 +77,6 @@ package androidx.wear.protolayout.expression.pipeline {
   public static interface TimeGateway.TimeCallback {
     method public void onData();
     method public void onPreUpdate();
-  }
-
-}
-
-package androidx.wear.protolayout.expression.pipeline.sensor {
-
-  public interface SensorGateway extends java.io.Closeable {
-    method public void close();
-    method @UiThread public void registerSensorGatewayConsumer(int, androidx.wear.protolayout.expression.pipeline.sensor.SensorGateway.Consumer);
-    method @UiThread public void registerSensorGatewayConsumer(int, java.util.concurrent.Executor, androidx.wear.protolayout.expression.pipeline.sensor.SensorGateway.Consumer);
-    method @UiThread public void unregisterSensorGatewayConsumer(int, androidx.wear.protolayout.expression.pipeline.sensor.SensorGateway.Consumer);
-    field @RequiresApi(android.os.Build.VERSION_CODES.Q) @RequiresPermission(android.Manifest.permission.ACTIVITY_RECOGNITION) public static final int SENSOR_DATA_TYPE_DAILY_STEP_COUNT = 1; // 0x1
-    field @RequiresPermission(android.Manifest.permission.BODY_SENSORS) public static final int SENSOR_DATA_TYPE_HEART_RATE = 0; // 0x0
-    field public static final int SENSOR_DATA_TYPE_INVALID = -1; // 0xffffffff
-  }
-
-  public static interface SensorGateway.Consumer {
-    method @AnyThread public void onData(double);
-    method @AnyThread public default void onInvalidated();
-    method @AnyThread public default void onPreUpdate();
   }
 
 }

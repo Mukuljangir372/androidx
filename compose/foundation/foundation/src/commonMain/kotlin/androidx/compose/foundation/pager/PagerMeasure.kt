@@ -19,6 +19,7 @@ package androidx.compose.foundation.pager
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.fastFilter
 import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.snapping.calculateDistanceToDesiredSnapPosition
 import androidx.compose.foundation.layout.Arrangement.Absolute.spacedBy
 import androidx.compose.foundation.lazy.layout.LazyLayoutMeasureScope
 import androidx.compose.ui.Alignment
@@ -349,6 +350,7 @@ internal fun LazyLayoutMeasureScope.measurePager(
                 else
                     currentMainAxisOffset
             )
+
         val layoutHeight = constraints
             .constrainHeight(
                 if (orientation == Orientation.Vertical)
@@ -381,12 +383,13 @@ internal fun LazyLayoutMeasureScope.measurePager(
         val closestPageToSnapPosition = visiblePagesInfo.fastMaxBy {
             -abs(
                 calculateDistanceToDesiredSnapPosition(
-                    viewPortSize,
-                    beforeContentPadding,
-                    afterContentPadding,
-                    pageAvailableSize,
-                    it,
-                    SnapAlignmentStartToStart
+                    mainAxisViewPortSize = viewPortSize,
+                    beforeContentPadding = beforeContentPadding,
+                    afterContentPadding = afterContentPadding,
+                    itemSize = pageAvailableSize,
+                    itemOffset = it.offset,
+                    itemIndex = it.index,
+                    snapPositionInLayout = SnapAlignmentStartToStart
                 )
             )
         }
@@ -415,24 +418,6 @@ internal fun LazyLayoutMeasureScope.measurePager(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
-private fun Density.calculateDistanceToDesiredSnapPosition(
-    axisViewPortSize: Int,
-    beforeContentPadding: Int,
-    afterContentPadding: Int,
-    pageSize: Int,
-    page: PageInfo,
-    positionInLayout: Density.(layoutSize: Float, itemSize: Float) -> Float
-): Float {
-    val containerSize = axisViewPortSize - beforeContentPadding - afterContentPadding
-
-    val desiredDistance =
-        positionInLayout(containerSize.toFloat(), pageSize.toFloat())
-
-    val itemCurrentPosition = page.offset
-    return itemCurrentPosition - desiredDistance
-}
-
 private fun createPagesAfterList(
     currentLastPage: Int,
     pagesCount: Int,
@@ -444,18 +429,15 @@ private fun createPagesAfterList(
 
     val end = minOf(currentLastPage + beyondBoundsPageCount, pagesCount - 1)
 
-    fun addPage(index: Int) {
-        if (list == null) list = mutableListOf()
-        requireNotNull(list).add(getAndMeasure(index))
-    }
-
     for (i in currentLastPage + 1..end) {
-        addPage(i)
+        if (list == null) list = mutableListOf()
+        list.add(getAndMeasure(i))
     }
 
     pinnedPages.fastForEach { pageIndex ->
         if (pageIndex in (end + 1) until pagesCount) {
-            addPage(pageIndex)
+            if (list == null) list = mutableListOf()
+            list?.add(getAndMeasure(pageIndex))
         }
     }
 
@@ -472,20 +454,15 @@ private fun createPagesBeforeList(
 
     val start = maxOf(0, currentFirstPage - beyondBoundsPageCount)
 
-    fun addPage(index: Int) {
-        if (list == null) list = mutableListOf()
-        requireNotNull(list).add(
-            getAndMeasure(index)
-        )
-    }
-
     for (i in currentFirstPage - 1 downTo start) {
-        addPage(i)
+        if (list == null) list = mutableListOf()
+        list.add(getAndMeasure(i))
     }
 
     pinnedPages.fastForEach { pageIndex ->
         if (pageIndex < start) {
-            addPage(pageIndex)
+            if (list == null) list = mutableListOf()
+            list?.add(getAndMeasure(pageIndex))
         }
     }
 

@@ -17,12 +17,16 @@
 package androidx.build.metalava
 
 import androidx.build.AndroidXExtension
+import androidx.build.addFilterableTasks
 import androidx.build.addToBuildOnServer
 import androidx.build.addToCheckTask
 import androidx.build.checkapi.ApiBaselinesLocation
 import androidx.build.checkapi.ApiLocation
 import androidx.build.checkapi.getRequiredCompatibilityApiLocation
+import androidx.build.getSuppressCompatibilityOptInPathPrefixes
+import androidx.build.getSuppressCompatibilityOptOutPathPrefixes
 import androidx.build.java.JavaCompileInputs
+import androidx.build.relativePathForFiltering
 import androidx.build.uptodatedness.cacheEvenIfNoOutputs
 import com.android.build.gradle.tasks.ProcessLibraryManifest
 import org.gradle.api.Project
@@ -56,6 +60,9 @@ object MetalavaTasks {
             task.baselines.set(baselinesApiLocation)
             task.targetsJavaConsumers = extension.targetsJavaConsumers
             task.k2UastEnabled.set(extension.metalavaK2UastEnabled)
+            task.optedInToSuppressCompatibilityMigration.set(
+                project.isOptedInToSuppressCompatibilityMigration()
+            )
             processManifest?.let {
                 task.manifestPath.set(processManifest.manifestOutputFile)
             }
@@ -82,6 +89,9 @@ object MetalavaTasks {
                 task.dependencyClasspath = javaCompileInputs.dependencyClasspath
                 task.bootClasspath = javaCompileInputs.bootClasspath
                 task.k2UastEnabled.set(extension.metalavaK2UastEnabled)
+                task.optedInToSuppressCompatibilityMigration.set(
+                    project.isOptedInToSuppressCompatibilityMigration()
+                )
                 task.cacheEvenIfNoOutputs()
                 task.dependsOn(generateApi)
             }
@@ -97,11 +107,14 @@ object MetalavaTasks {
                 task.dependencyClasspath = javaCompileInputs.dependencyClasspath
                 task.bootClasspath = javaCompileInputs.bootClasspath
                 task.k2UastEnabled.set(extension.metalavaK2UastEnabled)
+                task.optedInToSuppressCompatibilityMigration.set(
+                    project.isOptedInToSuppressCompatibilityMigration()
+                )
                 task.dependsOn(generateApi)
             }
         }
 
-        project.tasks.register(
+        val updateApiLintBaseline = project.tasks.register(
             "updateApiLintBaseline",
             UpdateApiLintBaselineTask::class.java
         ) { task ->
@@ -109,6 +122,9 @@ object MetalavaTasks {
             task.baselines.set(baselinesApiLocation)
             task.targetsJavaConsumers.set(extension.targetsJavaConsumers)
             task.k2UastEnabled.set(extension.metalavaK2UastEnabled)
+            task.optedInToSuppressCompatibilityMigration.set(
+                project.isOptedInToSuppressCompatibilityMigration()
+            )
             processManifest?.let {
                 task.manifestPath.set(processManifest.manifestOutputFile)
             }
@@ -126,6 +142,9 @@ object MetalavaTasks {
                 task.builtApi.set(generateApi.flatMap { it.apiLocation })
                 task.cacheEvenIfNoOutputs()
                 task.checkedInApis.set(outputApiLocations)
+                task.optedInToSuppressCompatibilityMigration.set(
+                    project.isOptedInToSuppressCompatibilityMigration()
+                )
                 task.dependsOn(generateApi)
                 checkApiRelease?.let {
                     task.dependsOn(checkApiRelease)
@@ -140,6 +159,9 @@ object MetalavaTasks {
             task.description = "Regenerates historic API .txt files using the " +
                 "corresponding prebuilt and the latest Metalava"
             task.generateRestrictToLibraryGroupAPIs = generateRestrictToLibraryGroupAPIs
+            task.optedInToSuppressCompatibilityMigration.set(
+                project.isOptedInToSuppressCompatibilityMigration()
+            )
         }
 
         // ignoreApiChanges depends on the output of this task for the "last released" API
@@ -168,7 +190,7 @@ object MetalavaTasks {
         // Make sure it always runs *after* the updateApi task.
         ignoreApiChanges?.configure { it.mustRunAfter(updateApi) }
 
-        project.tasks.register("regenerateApis") { task ->
+        val regenerateApis = project.tasks.register("regenerateApis") { task ->
             task.group = "API"
             task.description = "Regenerates current and historic API .txt files using the " +
                 "corresponding prebuilt and the latest Metalava, then updates API ignore files"
@@ -179,6 +201,14 @@ object MetalavaTasks {
 
         project.addToCheckTask(checkApi)
         project.addToBuildOnServer(checkApi)
+        project.addFilterableTasks(
+            ignoreApiChanges,
+            updateApiLintBaseline,
+            checkApi,
+            regenerateOldApis,
+            updateApi,
+            regenerateApis,
+        )
     }
 
     private fun applyInputs(inputs: JavaCompileInputs, task: MetalavaTask) {
@@ -186,5 +216,17 @@ object MetalavaTasks {
         task.dependsOn(inputs.sourcePaths)
         task.dependencyClasspath = inputs.dependencyClasspath
         task.bootClasspath = inputs.bootClasspath
+    }
+}
+
+/**
+ * Returns whether the project has been opted-in to the Suppress Compatibility migration.
+ */
+internal fun Project.isOptedInToSuppressCompatibilityMigration(): Boolean {
+    val dir = relativePathForFiltering()
+    return getSuppressCompatibilityOptOutPathPrefixes().none { pathPrefix ->
+        dir.startsWith(pathPrefix)
+    } && getSuppressCompatibilityOptInPathPrefixes().any { pathPrefix ->
+        dir.startsWith(pathPrefix)
     }
 }

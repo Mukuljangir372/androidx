@@ -25,12 +25,15 @@ public class AidlLanguage extends Language {
   public static final Language INSTANCE = getOrCreate();
 
   private static Language getOrCreate() {
-    for(Language lang : Language.getRegisteredLanguages()) {
-      if (ID.equals(lang.getID())) {
+    // The Language class is not thread-safe, so this is a best-effort to avoid a race condition
+    // during our own access across multiple lint worker threads and classloaders.
+    synchronized (Language.ANY) {
+      Language lang = Language.findLanguageByID(ID);
+      if (lang != null) {
         return lang;
       }
+      return new AidlLanguage();
     }
-    return new AidlLanguage();
   }
 
   @NonNls private static final String ID = "AIDL";

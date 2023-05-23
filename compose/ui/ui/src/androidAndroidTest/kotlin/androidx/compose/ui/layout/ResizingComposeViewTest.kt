@@ -28,8 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.node.LayoutModifierNode
 import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.requireLayoutNode
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.test.TestActivity
 import androidx.compose.ui.unit.Constraints
@@ -274,7 +274,7 @@ class ResizingComposeViewTest {
             composeView.setContent {
                 ResizingChild(
                     layoutHeight = { childHeight },
-                    modifier = RemeasurementModifierElement { remeasurement = it }
+                    modifier = RemeasurementElement { remeasurement = it }
                 )
             }
         }
@@ -302,7 +302,7 @@ class ResizingComposeViewTest {
             composeView.setContent {
                 ResizingChild(
                     layoutHeight = { 10 },
-                    modifier = RemeasurementModifierElement { remeasurement = it }
+                    modifier = RemeasurementElement { remeasurement = it }
                 )
             }
         }
@@ -390,27 +390,26 @@ private val WrapContentLayoutParams = ViewGroup.LayoutParams(
     ViewGroup.LayoutParams.WRAP_CONTENT
 )
 
-private class RemeasurementModifierElement(
+private class RemeasurementElement(
     private val onRemeasurementAvailable: (Remeasurement) -> Unit
 ) : ModifierNodeElement<RemeasurementModifierNode>() {
-    override fun create() = RemeasurementModifierNode().also {
-        onRemeasurementAvailable(it)
-    }
-    override fun update(node: RemeasurementModifierNode) = node.also {
-        onRemeasurementAvailable(it)
+    override fun create() = RemeasurementModifierNode(onRemeasurementAvailable)
+    override fun update(node: RemeasurementModifierNode) {
+        node.onRemeasurementAvailable = onRemeasurementAvailable
     }
     override fun hashCode(): Int = 242
     override fun equals(other: Any?) = other === this
 }
 
-private class RemeasurementModifierNode : Modifier.Node(), LayoutModifierNode {
-    override fun MeasureScope.measure(
-        measurable: Measurable,
-        constraints: Constraints
-    ): MeasureResult {
-        val placeable = measurable.measure(constraints)
-        return layout(placeable.width, placeable.height) {
-            placeable.place(0, 0)
+private class RemeasurementModifierNode(
+    onRemeasurementAvailable: (Remeasurement) -> Unit
+) : Modifier.Node() {
+    var onRemeasurementAvailable: (Remeasurement) -> Unit = onRemeasurementAvailable
+        set(value) {
+            field = value
+            value(requireLayoutNode())
         }
+    override fun onAttach() {
+        onRemeasurementAvailable(requireLayoutNode())
     }
 }

@@ -34,9 +34,12 @@ import androidx.camera.camera2.pipe.RequestTemplate
 import androidx.camera.camera2.pipe.Result3A
 import androidx.camera.camera2.pipe.StreamId
 import androidx.camera.camera2.pipe.TorchState
+import androidx.camera.camera2.pipe.core.Log.debug
 import androidx.camera.camera2.pipe.integration.adapter.CaptureConfigAdapter
 import androidx.camera.camera2.pipe.integration.config.UseCaseCameraScope
 import androidx.camera.camera2.pipe.integration.config.UseCaseGraphConfig
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.impl.CaptureConfig
 import androidx.camera.core.impl.CaptureConfig.TEMPLATE_TYPE_NONE
 import androidx.camera.core.impl.Config
@@ -45,6 +48,7 @@ import androidx.camera.core.impl.TagBundle
 import dagger.Binds
 import dagger.Module
 import javax.inject.Inject
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 
@@ -179,6 +183,7 @@ class UseCaseCameraRequestControlImpl @Inject constructor(
         tags: Map<String, Any>,
         listeners: Set<Request.Listener>
     ): Deferred<Unit> = synchronized(lock) {
+        debug { "[$type] Add request option: $values" }
         infoBundleMap.getOrPut(type) { InfoBundle() }.let {
             it.options.addAllCaptureRequestOptionsWithPriority(values, optionPriority)
             it.tags.putAll(tags)
@@ -195,6 +200,7 @@ class UseCaseCameraRequestControlImpl @Inject constructor(
         template: RequestTemplate?,
         listeners: Set<Request.Listener>
     ): Deferred<Unit> = synchronized(lock) {
+        debug { "[$type] Set config: ${config?.toParameters()}" }
         infoBundleMap[type] = InfoBundle(
             Camera2ImplConfig.Builder().apply {
                 config?.let {
@@ -262,6 +268,20 @@ class UseCaseCameraRequestControlImpl @Inject constructor(
         flashType: Int,
         flashMode: Int,
     ): List<Deferred<Void?>> {
+        if (captureSequence.hasInvalidSurface()) {
+            return List(captureSequence.size) {
+                CompletableDeferred<Void?>().apply {
+                    completeExceptionally(
+                        ImageCaptureException(
+                            ImageCapture.ERROR_CAPTURE_FAILED,
+                            "Capture request failed due to invalid surface",
+                            null
+                        )
+                    )
+                }
+            }
+        }
+
         return synchronized(lock) {
             infoBundleMap.merge()
         }.let { infoBundle ->
@@ -278,6 +298,20 @@ class UseCaseCameraRequestControlImpl @Inject constructor(
                 flashMode = flashMode,
             )
         }
+    }
+
+    private fun List<CaptureConfig>.hasInvalidSurface(): Boolean {
+        forEach { captureConfig ->
+            if (captureConfig.surfaces.isEmpty()) {
+                return true
+            }
+            captureConfig.surfaces.forEach {
+                if (useCaseGraphConfig.surfaceToStreamMap[it] == null) {
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     /**

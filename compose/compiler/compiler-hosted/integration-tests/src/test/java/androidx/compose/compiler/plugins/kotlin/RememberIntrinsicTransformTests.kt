@@ -19,8 +19,11 @@ package androidx.compose.compiler.plugins.kotlin
 import org.intellij.lang.annotations.Language
 import org.jetbrains.kotlin.config.CompilerConfiguration
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
 
-class RememberIntrinsicTransformTests : AbstractIrTransformTest() {
+@RunWith(JUnit4::class)
+class RememberIntrinsicTransformTests : AbstractIrTransformTest(useFir = false) {
     override fun CompilerConfiguration.updateConfiguration() {
         put(ComposeConfiguration.SOURCE_INFORMATION_ENABLED_KEY, true)
         put(ComposeConfiguration.INTRINSIC_REMEMBER_OPTIMIZATION_ENABLED_KEY, true)
@@ -1167,10 +1170,10 @@ class RememberIntrinsicTransformTests : AbstractIrTransformTest() {
                 if (isTraceInProgress()) {
                   traceEventStart(<>, %dirty, -1, <>)
                 }
-                used(%composer.cache(%dirty and 0b1110 === 0b0100, {
+                used(%composer.cache(%dirty and 0b1110 === 0b0100) {
                   effect()
                 }
-                ))
+                )
                 if (isTraceInProgress()) {
                   traceEventEnd()
                 }

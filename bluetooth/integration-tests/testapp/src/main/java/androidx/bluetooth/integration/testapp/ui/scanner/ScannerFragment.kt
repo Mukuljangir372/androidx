@@ -16,20 +16,19 @@
 
 package androidx.bluetooth.integration.testapp.ui.scanner
 
-import android.bluetooth.le.ScanResult
+// TODO(ofy) Migrate to androidx.bluetooth.BluetoothLe once scan API is in place
+import android.annotation.SuppressLint
+import android.bluetooth.BluetoothDevice
 import android.bluetooth.le.ScanSettings
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.TextView
-
 import androidx.bluetooth.integration.testapp.R
 import androidx.bluetooth.integration.testapp.databinding.FragmentScannerBinding
-import android.annotation.SuppressLint
-// TODO(ofy) Migrate to androidx.bluetooth.BluetoothDevice once in place
-// TODO(ofy) Migrate to androidx.bluetooth.BluetoothLe once scan API is in place
 import androidx.bluetooth.integration.testapp.experimental.BluetoothLe
 import androidx.bluetooth.integration.testapp.ui.common.getColor
 import androidx.core.view.isVisible
@@ -37,15 +36,13 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.DividerItemDecoration
 import androidx.recyclerview.widget.LinearLayoutManager
-
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayout.Tab
-
+import java.lang.Exception
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import java.lang.Exception
 
 class ScannerFragment : Fragment() {
 
@@ -87,8 +84,8 @@ class ScannerFragment : Fragment() {
     private var showingScanResults: Boolean = false
         set(value) {
             field = value
-            _binding?.relativeLayoutScanResults?.isVisible = value
-            _binding?.linearLayoutDevice?.isVisible = !value
+            _binding?.layoutScanResults?.isVisible = value
+            _binding?.layoutDevice?.isVisible = !value
         }
 
     private val onTabSelectedListener = object : TabLayout.OnTabSelectedListener {
@@ -124,7 +121,7 @@ class ScannerFragment : Fragment() {
 
         binding.tabLayout.addOnTabSelectedListener(onTabSelectedListener)
 
-        scannerAdapter = ScannerAdapter { scanResult -> onClickScanResult(scanResult) }
+        scannerAdapter = ScannerAdapter { bluetoothDevice -> onClickScanResult(bluetoothDevice) }
         binding.recyclerViewScanResults.adapter = scannerAdapter
         binding.recyclerViewScanResults.addItemDecoration(
             DividerItemDecoration(context, LinearLayoutManager.VERTICAL)
@@ -136,8 +133,6 @@ class ScannerFragment : Fragment() {
             DividerItemDecoration(context, LinearLayoutManager.VERTICAL)
         )
 
-        initData()
-
         binding.buttonScan.setOnClickListener {
             if (scanJob?.isActive == true) {
                 isScanning = false
@@ -146,6 +141,12 @@ class ScannerFragment : Fragment() {
             }
         }
 
+        binding.buttonReconnect.setOnClickListener {
+            connectTo(scannerViewModel.deviceConnection(binding.tabLayout.selectedTabPosition))
+        }
+
+        initData()
+
         return binding.root
     }
 
@@ -153,15 +154,13 @@ class ScannerFragment : Fragment() {
         super.onDestroyView()
         _binding = null
         isScanning = false
-        scanJob?.cancel()
-        scanJob = null
     }
 
     private fun initData() {
-        scannerAdapter?.submitList(scannerViewModel.results)
-        scannerAdapter?.notifyItemRangeChanged(0, scannerViewModel.results.size)
+        scannerAdapter?.submitList(scannerViewModel.scanResults)
+        scannerAdapter?.notifyItemRangeChanged(0, scannerViewModel.scanResults.size)
 
-        scannerViewModel.devices.map { it.scanResult }.forEach(::addNewTab)
+        scannerViewModel.deviceConnections.map { it.bluetoothDevice }.forEach(::addNewTab)
     }
 
     private fun startScan() {
@@ -177,25 +176,25 @@ class ScannerFragment : Fragment() {
                     Log.d(TAG, "ScanResult collected: $it")
 
                     if (scannerViewModel.addScanResultIfNew(it)) {
-                        scannerAdapter?.submitList(scannerViewModel.results)
-                        scannerAdapter?.notifyItemInserted(scannerViewModel.results.size)
+                        scannerAdapter?.submitList(scannerViewModel.scanResults)
+                        scannerAdapter?.notifyItemInserted(scannerViewModel.scanResults.size)
                     }
                 }
         }
     }
 
-    private fun onClickScanResult(scanResult: ScanResult) {
+    private fun onClickScanResult(bluetoothDevice: BluetoothDevice) {
         isScanning = false
 
-        val index = scannerViewModel.addDeviceConnectionIfNew(scanResult)
+        val index = scannerViewModel.addDeviceConnectionIfNew(bluetoothDevice)
 
         val deviceTab = if (index == ScannerViewModel.NEW_DEVICE) {
-            addNewTab(scanResult)
+            addNewTab(bluetoothDevice)
         } else {
             binding.tabLayout.getTabAt(index)
         }
 
-        // To prevent TabSelectedListener being triggered when a tab is promatically selected.
+        // To prevent TabSelectedListener being triggered when a tab is programmatically selected.
         binding.tabLayout.removeOnTabSelectedListener(onTabSelectedListener)
         binding.tabLayout.selectTab(deviceTab)
         binding.tabLayout.addOnTabSelectedListener(onTabSelectedListener)
@@ -206,16 +205,22 @@ class ScannerFragment : Fragment() {
     }
 
     @SuppressLint("MissingPermission")
-    private fun addNewTab(scanResult: ScanResult): Tab {
-        val deviceAddress = scanResult.device.address
-        val deviceName = scanResult.device.name
+    private fun addNewTab(bluetoothDevice: BluetoothDevice): Tab {
+        val deviceAddress = bluetoothDevice.address
+        val deviceName = bluetoothDevice.name
 
         val newTab = binding.tabLayout.newTab()
         newTab.setCustomView(R.layout.tab_item_device)
 
         val customView = newTab.customView
         customView?.findViewById<TextView>(R.id.text_view_address)?.text = deviceAddress
-        customView?.findViewById<TextView>(R.id.text_view_name)?.text = deviceName
+        val textViewName = customView?.findViewById<TextView>(R.id.text_view_name)
+        textViewName?.text = deviceName
+        textViewName?.isVisible = deviceName.isNullOrEmpty().not()
+        customView?.findViewById<Button>(R.id.image_button_remove)?.setOnClickListener {
+            scannerViewModel.remove(bluetoothDevice)
+            binding.tabLayout.removeTab(newTab)
+        }
 
         binding.tabLayout.addTab(newTab)
         return newTab
@@ -231,7 +236,7 @@ class ScannerFragment : Fragment() {
             }
 
             try {
-                bluetoothLe.connectGatt(requireContext(), deviceConnection.scanResult.device) {
+                bluetoothLe.connectGatt(requireContext(), deviceConnection.bluetoothDevice) {
                     Log.d(TAG, "connectGatt result. getServices() = ${getServices()}")
 
                     deviceConnection.status = Status.CONNECTED
@@ -254,6 +259,7 @@ class ScannerFragment : Fragment() {
     @SuppressLint("NotifyDataSetChanged")
     private fun updateDeviceUI(deviceConnection: DeviceConnection) {
         binding.progressIndicatorDeviceConnection.isVisible = false
+        binding.buttonReconnect.isVisible = false
 
         when (deviceConnection.status) {
             Status.NOT_CONNECTED -> {
@@ -272,6 +278,7 @@ class ScannerFragment : Fragment() {
             Status.CONNECTION_FAILED -> {
                 binding.textViewDeviceConnectionStatus.text = getString(R.string.connection_failed)
                 binding.textViewDeviceConnectionStatus.setTextColor(getColor(R.color.red_500))
+                binding.buttonReconnect.isVisible = true
             }
         }
         deviceServicesAdapter?.services = deviceConnection.services

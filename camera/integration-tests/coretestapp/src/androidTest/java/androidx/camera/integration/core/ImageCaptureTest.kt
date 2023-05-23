@@ -63,13 +63,17 @@ import androidx.camera.core.impl.utils.CameraOrientationUtil
 import androidx.camera.core.impl.utils.Exif
 import androidx.camera.core.internal.compat.workaround.ExifRotationAvailability
 import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionSelector.PREFER_HIGHER_RESOLUTION_OVER_CAPTURE_RATE
 import androidx.camera.integration.core.util.CameraPipeUtil
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.testing.CameraPipeConfigTestRule
 import androidx.camera.testing.CameraUtil
+import androidx.camera.testing.CoreAppTestUtil
 import androidx.camera.testing.SurfaceTextureProvider
 import androidx.camera.testing.fakes.FakeLifecycleOwner
 import androidx.camera.testing.fakes.FakeSessionProcessor
+import androidx.camera.video.Recorder
+import androidx.camera.video.VideoCapture
 import androidx.core.content.ContextCompat
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.filters.LargeTest
@@ -146,6 +150,7 @@ class ImageCaptureTest(private val implName: String, private val cameraXConfig: 
 
     @Before
     fun setUp(): Unit = runBlocking {
+        CoreAppTestUtil.assumeCompatibleDevice()
         assumeTrue(CameraUtil.hasCameraWithLensFacing(BACK_LENS_FACING))
         createDefaultPictureFolderIfNotExist()
         ProcessCameraProvider.configureInstance(cameraXConfig)
@@ -1573,6 +1578,47 @@ class ImageCaptureTest(private val implName: String, private val cameraXConfig: 
     }
 
     @Test
+    fun unbindVideoCaptureWithoutStartingRecorder_imageCapturingShouldSuccess() = runBlocking {
+        // Arrange.
+        val imageCapture = ImageCapture.Builder().build()
+        val videoStreamReceived = CompletableDeferred<Boolean>()
+        val videoCapture = VideoCapture.Builder<Recorder>(Recorder.Builder().build()).also {
+            CameraPipeUtil.setCameraCaptureSessionCallback(
+                implName,
+                it,
+                object : CaptureCallback() {
+                    override fun onCaptureCompleted(
+                        session: CameraCaptureSession,
+                        request: CaptureRequest,
+                        result: TotalCaptureResult
+                    ) {
+                        videoStreamReceived.complete(true)
+                    }
+                })
+        }.build()
+
+        withContext(Dispatchers.Main) {
+            cameraProvider.bindToLifecycle(
+                fakeLifecycleOwner, BACK_SELECTOR, imageCapture, videoCapture
+            )
+        }
+
+        assertWithMessage("VideoCapture doesn't start").that(
+            videoStreamReceived.awaitWithTimeoutOrNull()
+        ).isTrue()
+
+        // Act.
+        val callback = FakeImageCaptureCallback(capturesCount = 1)
+        withContext(Dispatchers.Main) {
+            cameraProvider.unbind(videoCapture)
+            imageCapture.takePicture(mainExecutor, callback)
+        }
+
+        // Assert.
+        callback.awaitCapturesAndAssert(capturedImagesCount = 1)
+    }
+
+    @Test
     fun capturedImage_withHighResolutionEnabled_imageCaptureOnly() = runBlocking {
         capturedImage_withHighResolutionEnabled()
     }
@@ -1608,7 +1654,7 @@ class ImageCaptureTest(private val implName: String, private val cameraXConfig: 
         assumeTrue(maxHighResolutionOutputSize != null)
 
         val resolutionSelector = ResolutionSelector.Builder()
-            .setHighResolutionEnabledFlag(ResolutionSelector.HIGH_RESOLUTION_FLAG_ON)
+            .setAllowedResolutionMode(PREFER_HIGHER_RESOLUTION_OVER_CAPTURE_RATE)
             .setResolutionFilter { _, _ ->
                 listOf(maxHighResolutionOutputSize)
             }

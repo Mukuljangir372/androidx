@@ -23,10 +23,11 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RestrictTo;
 import androidx.annotation.RestrictTo.Scope;
+import androidx.wear.protolayout.expression.DynamicDataBuilders;
 import androidx.wear.protolayout.expression.Fingerprint;
-import androidx.wear.protolayout.expression.StateEntryBuilders;
-import androidx.wear.protolayout.expression.StateEntryBuilders.StateEntryValue;
-import androidx.wear.protolayout.expression.proto.StateEntryProto;
+import androidx.wear.protolayout.expression.DynamicDataBuilders.DynamicDataValue;
+import androidx.wear.protolayout.expression.AppDataKey;
+import androidx.wear.protolayout.expression.proto.DynamicDataProto;
 import androidx.wear.protolayout.proto.StateProto;
 import java.util.Collections;
 import java.util.HashMap;
@@ -46,11 +47,25 @@ public final class StateBuilders {
     private final StateProto.State mImpl;
     @Nullable private final Fingerprint mFingerprint;
 
+    private static final int MAX_STATE_ENTRY_COUNT = 30;
+
     State(StateProto.State impl, @Nullable Fingerprint fingerprint) {
       this.mImpl = impl;
       this.mFingerprint = fingerprint;
     }
 
+
+    /**
+     * Returns the maximum number for state entries that can be added to the {@link State} using
+     * {@link Builder#addIdToValueMapping(String, StateEntryValue)}.
+     *
+     * <p>The ProtoLayout state model is not designed to handle large volumes of layout provided
+     * state. So we limit the number of state entries to keep the on-the-wire size and state
+     * store update times manageable.
+     */
+    static public int getMaxStateEntryCount(){
+      return MAX_STATE_ENTRY_COUNT;
+    }
     /**
      * Gets the ID of the clickable that was last clicked.
      *
@@ -67,11 +82,13 @@ public final class StateBuilders {
      * @since 1.2
      */
     @NonNull
-    public Map<String, StateEntryValue> getIdToValueMapping() {
-      Map<String, StateEntryValue> map = new HashMap<>();
-      for (Entry<String, StateEntryProto.StateEntryValue> entry :
+    public Map<String, DynamicDataValue> getIdToValueMapping() {
+      Map<String, DynamicDataValue> map = new HashMap<>();
+      for (Entry<String, DynamicDataProto.DynamicDataValue> entry :
           mImpl.getIdToValueMap().entrySet()) {
-        map.put(entry.getKey(), StateEntryBuilders.stateEntryValueFromProto(entry.getValue()));
+        map.put(
+                entry.getKey(),
+                DynamicDataBuilders.dynamicDataValueFromProto(entry.getValue()));
       }
       return Collections.unmodifiableMap(map);
     }
@@ -142,16 +159,27 @@ public final class StateBuilders {
        */
       @SuppressLint("MissingGetterMatchingBuilder")
       @NonNull
-      public Builder addIdToValueMapping(@NonNull String id, @NonNull StateEntryValue value) {
-        mImpl.putIdToValue(id, value.toStateEntryValueProto());
+      public Builder addKeyToValueMapping(
+              @NonNull AppDataKey<?> sourceKey,
+              @NonNull DynamicDataValue value) {
+        mImpl.putIdToValue(sourceKey.getKey(), value.toDynamicDataValueProto());
         mFingerprint.recordPropertyUpdate(
-            id.hashCode(), checkNotNull(value.getFingerprint()).aggregateValueAsInt());
+                sourceKey.getKey().hashCode(),
+                checkNotNull(value.getFingerprint()).aggregateValueAsInt());
         return this;
       }
+
+
 
       /** Builds an instance from accumulated values. */
       @NonNull
       public State build() {
+        if (mImpl.getIdToValueMap().size() > getMaxStateEntryCount()) {
+          throw new IllegalStateException(
+                  String.format(
+                          "State size is too large: %d. Maximum " + "allowed state size is %d.",
+                          mImpl.getIdToValueMap().size(), getMaxStateEntryCount()));
+        }
         return new State(mImpl.build(), mFingerprint);
       }
     }

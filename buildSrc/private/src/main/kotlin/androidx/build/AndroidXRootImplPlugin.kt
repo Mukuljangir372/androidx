@@ -47,7 +47,6 @@ import org.gradle.build.event.BuildEventsListenerRegistry
 import org.gradle.kotlin.dsl.extra
 
 abstract class AndroidXRootImplPlugin : Plugin<Project> {
-    @Suppress("UnstableApiUsage")
     @get:javax.inject.Inject
     abstract val registry: BuildEventsListenerRegistry
 
@@ -68,6 +67,8 @@ abstract class AndroidXRootImplPlugin : Plugin<Project> {
         setDependencyVersions()
         configureKtlintCheckFile()
         tasks.register(CheckExternalDependencyLicensesTask.TASK_NAME)
+
+        maybeRegisterFilterableTask()
 
         // If we're running inside Studio, validate the Android Gradle Plugin version.
         val expectedAgpVersion = System.getenv("EXPECTED_AGP_VERSION")
@@ -136,8 +137,6 @@ abstract class AndroidXRootImplPlugin : Plugin<Project> {
             }
         }
 
-        tasks.register(AndroidXImplPlugin.BUILD_TEST_APKS_TASK)
-
         // NOTE: this task is used by the Github CI as well. If you make any changes here,
         // please update the .github/workflows files as well, if necessary.
         project.tasks.register(
@@ -150,6 +149,7 @@ abstract class AndroidXRootImplPlugin : Plugin<Project> {
             it.entryCompression = ZipEntryCompression.STORED
             // Archive is greater than 4Gb :O
             it.isZip64 = true
+            it.isReproducibleFileOrder = true
         }
         project.tasks.register(
             ZIP_CONSTRAINED_TEST_CONFIGS_WITH_APKS_TASK, Zip::class.java
@@ -161,6 +161,7 @@ abstract class AndroidXRootImplPlugin : Plugin<Project> {
             it.entryCompression = ZipEntryCompression.STORED
             // Archive is greater than 4Gb :O
             it.isZip64 = true
+            it.isReproducibleFileOrder = true
         }
 
         AffectedModuleDetector.configure(gradle, this)

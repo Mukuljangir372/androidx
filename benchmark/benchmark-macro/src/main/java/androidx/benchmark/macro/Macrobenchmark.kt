@@ -26,6 +26,7 @@ import androidx.benchmark.Arguments
 import androidx.benchmark.BenchmarkResult
 import androidx.benchmark.ConfigurationError
 import androidx.benchmark.DeviceInfo
+import androidx.benchmark.Errors
 import androidx.benchmark.InstrumentationResults
 import androidx.benchmark.ResultWriter
 import androidx.benchmark.Shell
@@ -33,6 +34,7 @@ import androidx.benchmark.UserspaceTracing
 import androidx.benchmark.checkAndGetSuppressionState
 import androidx.benchmark.conditionalError
 import androidx.benchmark.perfetto.PerfettoCaptureWrapper
+import androidx.benchmark.perfetto.PerfettoConfig
 import androidx.benchmark.perfetto.PerfettoTrace
 import androidx.benchmark.perfetto.PerfettoTraceProcessor
 import androidx.benchmark.perfetto.UiState
@@ -167,8 +169,7 @@ private fun macrobenchmark(
     }
 
     val suppressionState = checkErrors(packageName)
-    var warningMessage = suppressionState?.warningMessage ?: ""
-
+    var warningMessage = buildWarningMessage(suppressionState)
     // skip benchmark if not supported by vm settings
     compilationMode.assumeSupportedWithVmSettings()
 
@@ -200,7 +201,8 @@ private fun macrobenchmark(
             it.configure(packageName)
         }
         val measurements = PerfettoTraceProcessor.runServer {
-            List(if (Arguments.dryRunMode) 1 else iterations) { iteration ->
+            val runIterations = if (Arguments.dryRunMode) 1 else iterations
+            List(runIterations) { iteration ->
                 // Wake the device to ensure it stays awake with large iteration count
                 userspaceTrace("wake device") {
                     scope.device.wakeUp()
@@ -212,28 +214,44 @@ private fun macrobenchmark(
                 }
 
                 val iterString = iteration.toString().padStart(3, '0')
+                val fileLabel = "${uniqueName}_iter$iterString"
                 val tracePath = perfettoCollector.record(
-                    fileLabel = "${uniqueName}_iter$iterString",
-
-                    /**
-                     * Prior to API 24, every package name was joined into a single setprop which
-                     * can overflow, and disable *ALL* app level tracing.
-                     *
-                     * For safety here, we only trace the macrobench package on newer platforms,
-                     * and use reflection in the macrobench test process to trace important
-                     * sections
-                     *
-                     * @see androidx.benchmark.macro.perfetto.ForceTracing
-                     */
-                    appTagPackages = if (Build.VERSION.SDK_INT >= 24) {
-                        listOf(packageName, macrobenchPackageName)
-                    } else {
-                        listOf(packageName)
-                    },
+                    fileLabel = fileLabel,
+                    config = PerfettoConfig.Benchmark(
+                        /**
+                         * Prior to API 24, every package name was joined into a single setprop
+                         * which can overflow, and disable *ALL* app level tracing.
+                         *
+                         * For safety here, we only trace the macrobench package on newer platforms,
+                         * and use reflection in the macrobench test process to trace important
+                         * sections
+                         *
+                         * @see androidx.benchmark.macro.perfetto.ForceTracing
+                         */
+                        appTagPackages = if (Build.VERSION.SDK_INT >= 24) {
+                            listOf(packageName, macrobenchPackageName)
+                        } else {
+                            listOf(packageName)
+                        },
+                        useStackSamplingConfig = true
+                    ),
                     userspaceTracingPackage = userspaceTracingPackage
                 ) {
                     try {
                         trace("start metrics") {
+                            if (Arguments.methodTracingOptions.isNotEmpty()) {
+                                // Once you turn on method tracing its okay to ignore
+                                // the costs of true CompilationMode.COLD as the numbers cannot
+                                // be used for anything reasonable.
+
+                                // It would be nice if our metrics infra supported this use case
+                                // better.
+                                MethodTracing.startTracing(
+                                    packageName = packageName,
+                                    options = Arguments.methodTracingOptions,
+                                    uniqueName = fileLabel
+                                )
+                            }
                             metrics.forEach {
                                 it.start()
                             }
@@ -245,6 +263,12 @@ private fun macrobenchmark(
                         trace("stop metrics") {
                             metrics.forEach {
                                 it.stop()
+                            }
+                            if (Arguments.methodTracingOptions.isNotEmpty()) {
+                                MethodTracing.stopTracing(
+                                    packageName = packageName,
+                                    uniqueName = fileLabel
+                                )
                             }
                         }
                     }
@@ -285,7 +309,6 @@ private fun macrobenchmark(
                     appendUiState(uiState)
                 }
                 Log.d(TAG, "Iteration $iteration captured $uiState")
-
                 // report just the metrics
                 measurementList
             }.mergeMultiIterResults()
@@ -411,4 +434,16 @@ fun macrobenchmarkWithStartupMode(
         launchWithClearTask = startupMode == StartupMode.COLD || startupMode == StartupMode.WARM,
         measureBlock = measureBlock
     )
+}
+
+private fun buildWarningMessage(suppressionState: ConfigurationError.SuppressionState?): String {
+    val warnings = Errors.acquireWarningStringForLogging()
+    val builder = StringBuilder()
+    if (suppressionState != null) {
+        builder.append(suppressionState)
+    }
+    if (warnings != null) {
+        builder.append("\n").append(warnings)
+    }
+    return builder.toString()
 }

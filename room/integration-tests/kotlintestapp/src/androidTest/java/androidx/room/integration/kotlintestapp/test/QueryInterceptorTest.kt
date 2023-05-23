@@ -32,6 +32,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SmallTest
 import com.google.common.util.concurrent.MoreExecutors
+import java.util.concurrent.CopyOnWriteArrayList
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -39,7 +40,6 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.util.concurrent.CopyOnWriteArrayList
 
 @SmallTest
 @RunWith(AndroidJUnit4::class)
@@ -82,12 +82,10 @@ class QueryInterceptorTest {
             ApplicationProvider.getApplicationContext(),
             QueryInterceptorTestDatabase::class.java
         ).setQueryCallback(
-            object : RoomDatabase.QueryCallback {
-                override fun onQuery(sqlQuery: String, bindArgs: List<Any?>) {
-                    val argTrace = ArrayList<Any?>()
-                    argTrace.addAll(bindArgs)
-                    queryAndArgs.add(Pair(sqlQuery, argTrace))
-                }
+            { sqlQuery, bindArgs ->
+                val argTrace = ArrayList<Any?>()
+                argTrace.addAll(bindArgs)
+                queryAndArgs.add(Pair(sqlQuery, argTrace))
             },
             MoreExecutors.directExecutor()
         ).build()
@@ -190,12 +188,10 @@ class QueryInterceptorTest {
             ApplicationProvider.getApplicationContext(),
             QueryInterceptorTestDatabase::class.java
         ).setQueryCallback(
-            object : RoomDatabase.QueryCallback {
-                override fun onQuery(sqlQuery: String, bindArgs: List<Any?>) {
-                    val argTrace = ArrayList<Any?>()
-                    argTrace.addAll(bindArgs)
-                    queryAndArgs.add(Pair(sqlQuery, argTrace))
-                }
+            { sqlQuery, bindArgs ->
+                val argTrace = ArrayList<Any?>()
+                argTrace.addAll(bindArgs)
+                queryAndArgs.add(Pair(sqlQuery, argTrace))
             },
             MoreExecutors.directExecutor()
         )

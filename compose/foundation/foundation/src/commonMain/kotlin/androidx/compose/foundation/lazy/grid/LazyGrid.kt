@@ -256,7 +256,7 @@ private fun rememberLazyGridMeasurePolicy(
             itemProvider,
             this,
             spaceBetweenLines
-        ) { index, key, crossAxisSize, mainAxisSpacing, placeables ->
+        ) { index, key, contentType, crossAxisSize, mainAxisSpacing, placeables ->
             LazyGridMeasuredItem(
                 index = index,
                 key = key,
@@ -268,7 +268,8 @@ private fun rememberLazyGridMeasurePolicy(
                 beforeContentPadding = beforeContentPadding,
                 afterContentPadding = afterContentPadding,
                 visualOffset = visualItemOffset,
-                placeables = placeables
+                placeables = placeables,
+                contentType = contentType
             )
         }
         val measuredLineProvider = LazyGridMeasuredLineProvider(
@@ -285,26 +286,24 @@ private fun rememberLazyGridMeasurePolicy(
                 spans = spans,
                 slots = resolvedSlots,
                 isVertical = isVertical,
-                slotsPerLine = slotsPerLine,
-                layoutDirection = layoutDirection,
                 mainAxisSpacing = mainAxisSpacing,
             )
         }
         state.prefetchInfoRetriever = { line ->
-            val lineConfiguration = spanLayoutProvider.getLineConfiguration(line.value)
-            var index = ItemIndex(lineConfiguration.firstItemIndex)
+            val lineConfiguration = spanLayoutProvider.getLineConfiguration(line)
+            var index = lineConfiguration.firstItemIndex
             var slot = 0
             val result = ArrayList<Pair<Int, Constraints>>(lineConfiguration.spans.size)
             lineConfiguration.spans.fastForEach {
                 val span = it.currentLineSpan
-                result.add(index.value to measuredLineProvider.childConstraints(slot, span))
+                result.add(index to measuredLineProvider.childConstraints(slot, span))
                 ++index
                 slot += span
             }
             result
         }
 
-        val firstVisibleLineIndex: LineIndex
+        val firstVisibleLineIndex: Int
         val firstVisibleLineScrollOffset: Int
 
         Snapshot.withoutReadObservation {

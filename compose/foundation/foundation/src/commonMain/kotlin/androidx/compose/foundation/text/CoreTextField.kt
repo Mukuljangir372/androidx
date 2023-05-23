@@ -81,7 +81,6 @@ import androidx.compose.ui.semantics.cutText
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.editableText
 import androidx.compose.ui.semantics.getTextLayoutResult
-import androidx.compose.ui.semantics.imeAction
 import androidx.compose.ui.semantics.insertTextAtCursor
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.onLongClick
@@ -410,7 +409,6 @@ internal fun CoreTextField(
     val isPassword = visualTransformation is PasswordVisualTransformation
     val semanticsModifier = Modifier.semantics(true) {
         // focused semantics are handled by Modifier.focusable()
-        this.imeAction = imeOptions.imeAction
         this.editableText = transformedText.text
         this.textSelectionRange = value.selection
         if (!enabled) this.disabled()
@@ -503,7 +501,7 @@ internal fun CoreTextField(
                 false
             }
         }
-        performImeAction {
+        performImeAction(imeOptions.imeAction) {
             // This will perform the appropriate default action if no handler has been specified, so
             // as far as the platform is concerned, we always handle the action and never want to
             // defer to the default _platform_ implementation.
@@ -782,8 +780,17 @@ internal class TextFieldState(
      */
     var minHeightForSingleLineField by mutableStateOf(0.dp)
 
-    /** The last layout coordinates for the Text's layout, used by selection */
-    var layoutCoordinates: LayoutCoordinates? = null
+    /**
+     * The last layout coordinates for the inner text field LayoutNode, used by selection and
+     * notifyFocusedRect. Since this layoutCoordinates only used for relative position calculation,
+     * we are guarding ourselves from using it when it's not attached.
+     */
+    private var _layoutCoordinates: LayoutCoordinates? = null
+    var layoutCoordinates: LayoutCoordinates?
+        get() = _layoutCoordinates?.takeIf { it.isAttached }
+        set(value) {
+            _layoutCoordinates = value
+        }
 
     /**
      * You should be using proxy type [TextLayoutResultProxy] if you need to translate touch

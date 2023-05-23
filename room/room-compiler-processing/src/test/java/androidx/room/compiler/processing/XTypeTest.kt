@@ -67,9 +67,11 @@ class XTypeTest {
             package foo.bar;
             import java.io.InputStream;
             import java.util.Set;
+            import java.util.List;
             class Parent<InputStreamType extends InputStream> {
                 public void wildcardParam(Set<?> param1) {}
-                public void rawTypeParam(Set param1) {}
+                public void rawParamType(Set param1) {}
+                public void rawParamTypeArgument(List<Set> param1) {}
             }
             """.trimIndent()
         )
@@ -145,9 +147,42 @@ class XTypeTest {
                         )
                 }
             }
-            type.typeElement!!.getMethodByJvmName("rawTypeParam").let { method ->
-                val rawTypeParam = method.parameters.first()
-                assertThat(rawTypeParam.type.typeArguments).isEmpty()
+            type.typeElement!!.getMethodByJvmName("rawParamType").let { method ->
+                val rawParamType = method.parameters.first()
+                assertThat(rawParamType.type.typeArguments).isEmpty()
+                assertThat(rawParamType.type.asTypeName().java).isEqualTo(
+                    JClassName.get("java.util", "Set")
+                )
+                if (it.isKsp) {
+                    assertThat(rawParamType.type.asTypeName().kotlin).isEqualTo(
+                        KClassName("kotlin.collections", "MutableSet")
+                    )
+                }
+            }
+            type.typeElement!!.getMethodByJvmName("rawParamTypeArgument").let { method ->
+                val rawParamTypeArgument = method.parameters.first()
+                assertThat(rawParamTypeArgument.type.asTypeName().java).isEqualTo(
+                    JParameterizedTypeName.get(
+                        JClassName.get("java.util", "List"),
+                        JClassName.get("java.util", "Set"),
+                    )
+                )
+                if (it.isKsp) {
+                    assertThat(rawParamTypeArgument.type.asTypeName().kotlin).isEqualTo(
+                        KClassName("kotlin.collections", "MutableList").parameterizedBy(
+                            KClassName("kotlin.collections", "MutableSet")
+                        )
+                    )
+                }
+                val rawTypeArgument = rawParamTypeArgument.type.typeArguments.single()
+                assertThat(rawTypeArgument.asTypeName().java).isEqualTo(
+                    JClassName.get("java.util", "Set")
+                )
+                if (it.isKsp) {
+                    assertThat(rawTypeArgument.asTypeName().kotlin).isEqualTo(
+                        KClassName("kotlin.collections", "MutableSet")
+                    )
+                }
             }
         }
     }
@@ -933,7 +968,7 @@ class XTypeTest {
                 assertThat(actual["starList"]?.kotlin.toString())
                     .isEqualTo("kotlin.collections.List<*>")
                 assertThat(actual["rList"]?.kotlin.toString())
-                    .isEqualTo("kotlin.collections.List<out R>")
+                    .isEqualTo("kotlin.collections.List<R>")
             }
         }
     }
@@ -1635,6 +1670,58 @@ class XTypeTest {
                 // for now: https://github.com/google/ksp/issues/1296
                 checkKotlin(it)
             }
+        )
+    }
+
+    @Test
+    fun selfReferenceTypesDoesNotInfinitelyRecurse() {
+        fun runTest(src: Source) {
+            runProcessorTest(
+                sources = listOf(src),
+            ) { invocation ->
+                val fooTypeElement = invocation.processingEnv.requireTypeElement("test.Usage")
+                val fooType = fooTypeElement.getDeclaredField("foo").type
+
+                assertThat(fooType.asTypeName().java)
+                    .isEqualTo(
+                        JParameterizedTypeName.get(
+                            JClassName.get("test", "Foo"),
+                            JWildcardTypeName.subtypeOf(JClassName.OBJECT)
+                        )
+                    )
+
+                val typeParam = fooType.typeArguments.single()
+                assertThat(typeParam.asTypeName().java)
+                    .isEqualTo(JWildcardTypeName.subtypeOf(JClassName.OBJECT))
+
+                assertThat(typeParam.extendsBound()).isNull()
+            }
+        }
+        runTest(
+            Source.java(
+                "test.Usage",
+                """
+                package test;
+                public final class Usage {
+                  private final Foo<?> foo = null;
+                  private final Foo<? extends Foo<?>> fooExtendsFoo = null;
+                }
+                abstract class Foo<T extends Foo<T>> {}
+                """.trimIndent()
+            ),
+        )
+        runTest(
+            Source.kotlin(
+                "test.Foo.kt",
+                """
+            package test
+            class Usage {
+                val foo: Foo<*> = TODO()
+                val fooExtendsFoo: Foo<out Foo<*>> = TODO()
+            }
+            abstract class Foo<T: Foo<T>>
+            """.trimIndent()
+            )
         )
     }
 }

@@ -600,24 +600,24 @@ public class EditorSessionTest {
         val mockSurfaceHolder = `mock`(SurfaceHolder::class.java)
         `when`(mockSurfaceHolder.surfaceFrame).thenReturn(screenBounds)
         @Suppress("Deprecation")
-        val fakeRenderer = object : Renderer.CanvasRenderer(
-            mockSurfaceHolder,
-            userStyleRepository,
-            MutableWatchState().asWatchState(),
-            CanvasType.HARDWARE,
-            interactiveDrawModeUpdateDelayMillis = 16,
-            clearWithBackgroundTintBeforeRenderingHighlightLayer = false
-        ) {
-            override fun render(canvas: Canvas, bounds: Rect, zonedDateTime: ZonedDateTime) {
-            }
+        val fakeRenderer =
+            object :
+                Renderer.CanvasRenderer(
+                    mockSurfaceHolder,
+                    userStyleRepository,
+                    MutableWatchState().asWatchState(),
+                    CanvasType.HARDWARE,
+                    interactiveDrawModeUpdateDelayMillis = 16,
+                    clearWithBackgroundTintBeforeRenderingHighlightLayer = false
+                ) {
+                override fun render(canvas: Canvas, bounds: Rect, zonedDateTime: ZonedDateTime) {}
 
-            override fun renderHighlightLayer(
-                canvas: Canvas,
-                bounds: Rect,
-                zonedDateTime: ZonedDateTime
-            ) {
+                override fun renderHighlightLayer(
+                    canvas: Canvas,
+                    bounds: Rect,
+                    zonedDateTime: ZonedDateTime
+                ) {}
             }
-        }
 
         val complicationSlotsManager =
             ComplicationSlotsManager(complicationSlots, userStyleRepository, fakeRenderer)
@@ -1835,7 +1835,6 @@ public class EditorSessionTest {
         EditorService.globalEditorService.unregisterObserver(observerId)
     }
 
-    @SdkSuppress(maxSdkVersion = 32) // b/275361339
     @Test
     @Suppress("Deprecation") // userStyleSettings
     public fun commit_headless() {
@@ -1887,7 +1886,6 @@ public class EditorSessionTest {
         EditorService.globalEditorService.unregisterObserver(observerId)
     }
 
-    @SdkSuppress(maxSdkVersion = 32) // b/275361339
     @SuppressLint("NewApi")
     @Suppress("Deprecation") // userStyleSettings
     @Test

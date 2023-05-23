@@ -79,8 +79,6 @@ private fun Project.getKtlintConfiguration(): ConfigurableFileCollection {
 }
 
 private val DisabledRules = listOf(
-    // does not match IJ default ordering
-    "import-ordering",
     // not useful for our projects
     "final-newline",
     // TODO: reenable when https://github.com/pinterest/ktlint/issues/1221 is resolved
@@ -180,7 +178,7 @@ abstract class BaseKtlintTask : DefaultTask() {
 
         overrideDirectory?.let {
             val subdirectories = overrideSubdirectories
-            if (subdirectories == null || subdirectories.isEmpty()) return@let
+            if (subdirectories.isNullOrEmpty()) return@let
             subdirectories.map { arguments.add("$it/$InputDir/$IncludedFiles") }
         } ?: arguments.add("$InputDir/$IncludedFiles")
 
