@@ -44,6 +44,7 @@ abstract class AbstractIrTransformTest(useFir: Boolean) : AbstractCodegenTest(us
         expectedTransformed: String,
         dumpTree: Boolean = false,
         dumpClasses: Boolean = false,
+        validator: (element: IrElement) -> Unit = {},
     ) {
         val dependencyFileName = "Test_REPLACEME_${uniqueNumber++}"
 
@@ -59,6 +60,7 @@ abstract class AbstractIrTransformTest(useFir: Boolean) : AbstractCodegenTest(us
             source,
             expectedTransformed,
             "",
+            validator = validator,
             dumpTree = dumpTree,
             additionalPaths = listOf(classesDirectory.root)
         )
@@ -82,7 +84,7 @@ abstract class AbstractIrTransformTest(useFir: Boolean) : AbstractCodegenTest(us
         val actualTransformed = irModule
             .files[0]
             .validate()
-            .dumpSrc()
+            .dumpSrc(useFir)
             .replace('$', '%')
             // replace source keys for start group calls
             .replace(

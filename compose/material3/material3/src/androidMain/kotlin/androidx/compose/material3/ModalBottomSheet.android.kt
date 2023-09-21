@@ -48,6 +48,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionContext
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -63,7 +64,11 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.AbstractComposeView
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.ViewRootForInspector
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -75,6 +80,7 @@ import androidx.compose.ui.semantics.popup
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.lifecycle.findViewTreeLifecycleOwner
 import androidx.lifecycle.findViewTreeViewModelStoreOwner
 import androidx.lifecycle.setViewTreeLifecycleOwner
@@ -83,8 +89,6 @@ import androidx.savedstate.findViewTreeSavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import java.util.UUID
 import kotlin.math.max
-import kotlin.math.roundToInt
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
@@ -106,6 +110,8 @@ import kotlinx.coroutines.launch
  * animates to [Hidden].
  * @param modifier Optional [Modifier] for the bottom sheet.
  * @param sheetState The state of the bottom sheet.
+ * @param sheetMaxWidth [Dp] that defines what the maximum width the sheet will take.
+ * Pass in [Dp.Unspecified] for a sheet that spans the entire screen width.
  * @param shape The shape of the bottom sheet.
  * @param containerColor The color used for the background of this bottom sheet
  * @param contentColor The preferred color for content inside this bottom sheet. Defaults to either
@@ -124,6 +130,7 @@ fun ModalBottomSheet(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
     sheetState: SheetState = rememberModalBottomSheetState(),
+    sheetMaxWidth: Dp = BottomSheetDefaults.SheetMaxWidth,
     shape: Shape = BottomSheetDefaults.ExpandedShape,
     containerColor: Color = BottomSheetDefaults.ContainerColor,
     contentColor: Color = contentColorFor(containerColor),
@@ -133,9 +140,14 @@ fun ModalBottomSheet(
     windowInsets: WindowInsets = BottomSheetDefaults.windowInsets,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    // b/291735717 Remove this once deprecated methods without density are removed
+    val density = LocalDensity.current
+    SideEffect {
+        sheetState.density = density
+    }
     val scope = rememberCoroutineScope()
     val animateToDismiss: () -> Unit = {
-        if (sheetState.swipeableState.confirmValueChange(Hidden)) {
+        if (sheetState.anchoredDraggableState.confirmValueChange(Hidden)) {
             scope.launch { sheetState.hide() }.invokeOnCompletion {
                 if (!sheetState.isVisible) {
                     onDismissRequest()
@@ -147,22 +159,6 @@ fun ModalBottomSheet(
         scope.launch { sheetState.settle(it) }.invokeOnCompletion {
             if (!sheetState.isVisible) onDismissRequest()
         }
-    }
-
-    // Callback that is invoked when the anchors have changed.
-    val anchorChangeHandler = remember(sheetState, scope) {
-        ModalBottomSheetAnchorChangeHandler(
-            state = sheetState,
-            animateTo = { target, velocity ->
-                scope.launch { sheetState.animateTo(target, velocity = velocity) }
-            },
-            snapTo = { target ->
-                val didSnapImmediately = sheetState.trySnapTo(target)
-                if (!didSnapImmediately) {
-                    scope.launch { sheetState.snapTo(target) }
-                }
-            }
-        )
     }
 
     ModalBottomSheetPopup(
@@ -185,7 +181,7 @@ fun ModalBottomSheet(
             val bottomSheetPaneTitle = getString(string = Strings.BottomSheetPaneTitle)
             Surface(
                 modifier = modifier
-                    .widthIn(max = BottomSheetMaxWidth)
+                    .widthIn(max = sheetMaxWidth)
                     .fillMaxWidth()
                     .align(Alignment.TopCenter)
                     .semantics { paneTitle = bottomSheetPaneTitle }
@@ -206,13 +202,16 @@ fun ModalBottomSheet(
                             )
                         }
                     )
-                    .modalBottomSheetSwipeable(
+                    .draggable(
+                        state = sheetState.anchoredDraggableState.draggableState,
+                        orientation = Orientation.Vertical,
+                        enabled = sheetState.isVisible,
+                        startDragImmediately = sheetState.anchoredDraggableState.isAnimationRunning,
+                        onDragStopped = { settleToDismiss(it) }
+                    )
+                    .modalBottomSheetAnchors(
                         sheetState = sheetState,
-                        anchorChangeHandler = anchorChangeHandler,
-                        screenHeight = fullHeight.toFloat(),
-                        onDragStopped = {
-                            settleToDismiss(it)
-                        },
+                        fullHeight = fullHeight.toFloat()
                     ),
                 shape = shape,
                 color = containerColor,
@@ -238,15 +237,17 @@ fun ModalBottomSheet(
                                         }
                                         if (currentValue == PartiallyExpanded) {
                                             expand(expandActionLabel) {
-                                                if (swipeableState.confirmValueChange(Expanded)) {
+                                                if (anchoredDraggableState.confirmValueChange(
+                                                        Expanded
+                                                    )
+                                                ) {
                                                     scope.launch { sheetState.expand() }
                                                 }
                                                 true
                                             }
                                         } else if (hasPartiallyExpandedState) {
                                             collapse(collapseActionLabel) {
-                                                if (
-                                                    swipeableState.confirmValueChange(
+                                                if (anchoredDraggableState.confirmValueChange(
                                                         PartiallyExpanded
                                                     )
                                                 ) {
@@ -321,62 +322,32 @@ private fun Scrim(
 }
 
 @ExperimentalMaterial3Api
-private fun Modifier.modalBottomSheetSwipeable(
+private fun Modifier.modalBottomSheetAnchors(
     sheetState: SheetState,
-    anchorChangeHandler: AnchorChangeHandler<SheetValue>,
-    screenHeight: Float,
-    onDragStopped: CoroutineScope.(velocity: Float) -> Unit,
-) = draggable(
-        state = sheetState.swipeableState.swipeDraggableState,
-        orientation = Orientation.Vertical,
-        enabled = sheetState.isVisible,
-        startDragImmediately = sheetState.swipeableState.isAnimationRunning,
-        onDragStopped = onDragStopped
-    )
-    .swipeAnchors(
-        state = sheetState.swipeableState,
-        anchorChangeHandler = anchorChangeHandler,
-        possibleValues = setOf(Hidden, PartiallyExpanded, Expanded),
-    ) { value, sheetSize ->
-        when (value) {
-            Hidden -> screenHeight
-            PartiallyExpanded -> when {
-                sheetSize.height < screenHeight / 2 -> null
-                sheetState.skipPartiallyExpanded -> null
-                else -> screenHeight / 2f
-            }
-            Expanded -> if (sheetSize.height != 0) {
-                max(0f, screenHeight - sheetSize.height)
-            } else null
+    fullHeight: Float
+) = onSizeChanged { sheetSize ->
+
+    val newAnchors = DraggableAnchors {
+        Hidden at fullHeight
+        if (sheetSize.height > (fullHeight / 2) && !sheetState.skipPartiallyExpanded) {
+            PartiallyExpanded at fullHeight / 2f
+        }
+        if (sheetSize.height != 0) {
+            Expanded at max(0f, fullHeight - sheetSize.height)
         }
     }
 
-@ExperimentalMaterial3Api
-private fun ModalBottomSheetAnchorChangeHandler(
-    state: SheetState,
-    animateTo: (target: SheetValue, velocity: Float) -> Unit,
-    snapTo: (target: SheetValue) -> Unit,
-) = AnchorChangeHandler<SheetValue> { previousTarget, previousAnchors, newAnchors ->
-    val previousTargetOffset = previousAnchors[previousTarget]
-    val newTarget = when (previousTarget) {
+    val newTarget = when (sheetState.anchoredDraggableState.targetValue) {
         Hidden -> Hidden
         PartiallyExpanded, Expanded -> {
-            val hasPartiallyExpandedState = newAnchors.containsKey(PartiallyExpanded)
+            val hasPartiallyExpandedState = newAnchors.hasAnchorFor(PartiallyExpanded)
             val newTarget = if (hasPartiallyExpandedState) PartiallyExpanded
-            else if (newAnchors.containsKey(Expanded)) Expanded else Hidden
+            else if (newAnchors.hasAnchorFor(Expanded)) Expanded else Hidden
             newTarget
         }
     }
-    val newTargetOffset = newAnchors.getValue(newTarget)
-    if (newTargetOffset != previousTargetOffset) {
-        if (state.swipeableState.isAnimationRunning || previousAnchors.isEmpty()) {
-            // Re-target the animation to the new offset if it changed
-            animateTo(newTarget, state.swipeableState.lastVelocity)
-        } else {
-            // Snap to the new offset value of the target if no animation was running
-            snapTo(newTarget)
-        }
-    }
+
+    sheetState.anchoredDraggableState.updateAnchors(newAnchors, newTarget)
 }
 
 /**
@@ -392,7 +363,9 @@ internal fun ModalBottomSheetPopup(
     val id = rememberSaveable { UUID.randomUUID() }
     val parentComposition = rememberCompositionContext()
     val currentContent by rememberUpdatedState(content)
-    val modalBottomSheetWindow = remember {
+    val layoutDirection = LocalLayoutDirection.current
+    val configuration = LocalConfiguration.current
+    val modalBottomSheetWindow = remember(configuration) {
         ModalBottomSheetWindow(
             onDismissRequest = onDismissRequest,
             composeView = view,
@@ -416,6 +389,7 @@ internal fun ModalBottomSheetPopup(
 
     DisposableEffect(modalBottomSheetWindow) {
         modalBottomSheetWindow.show()
+        modalBottomSheetWindow.superSetLayoutDirection(layoutDirection)
         onDispose {
             modalBottomSheetWindow.disposeComposition()
             modalBottomSheetWindow.dismiss()
@@ -447,10 +421,7 @@ private class ModalBottomSheetWindow(
         composeView.context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
     private val displayWidth: Int
-        get() {
-            val density = context.resources.displayMetrics.density
-            return (context.resources.configuration.screenWidthDp * density).roundToInt()
-        }
+        get() = context.resources.displayMetrics.widthPixels
 
     private val params: WindowManager.LayoutParams =
         WindowManager.LayoutParams().apply {
@@ -475,8 +446,8 @@ private class ModalBottomSheetWindow(
             // Flags specific to modal bottom sheet.
             flags = flags and (
                 WindowManager.LayoutParams.FLAG_IGNORE_CHEEK_PRESSES or
-                WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM
-            ).inv()
+                    WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM
+                ).inv()
 
             flags = flags or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
         }
@@ -536,5 +507,19 @@ private class ModalBottomSheetWindow(
 
     override fun onGlobalLayout() {
         // No-op
+    }
+
+    override fun setLayoutDirection(layoutDirection: Int) {
+        // Do nothing. ViewRootImpl will call this method attempting to set the layout direction
+        // from the context's locale, but we have one already from the parent composition.
+    }
+
+    // Sets the "real" layout direction for our content that we obtain from the parent composition.
+    fun superSetLayoutDirection(layoutDirection: LayoutDirection) {
+        val direction = when (layoutDirection) {
+            LayoutDirection.Ltr -> android.util.LayoutDirection.LTR
+            LayoutDirection.Rtl -> android.util.LayoutDirection.RTL
+        }
+        super.setLayoutDirection(direction)
     }
 }

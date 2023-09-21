@@ -42,11 +42,13 @@ object ComposeClassIds {
     val ComposableTarget = classIdFor("ComposableTarget")
     val ComposeVersion = classIdFor("ComposeVersion")
     val Composer = classIdFor("Composer")
+    val DisallowComposableCalls = classIdFor("DisallowComposableCalls")
     val FunctionKeyMetaClass = internalClassIdFor("FunctionKeyMetaClass")
     val FunctionKeyMeta = internalClassIdFor("FunctionKeyMeta")
     val LiveLiteralFileInfo = internalClassIdFor("LiveLiteralFileInfo")
     val LiveLiteralInfo = internalClassIdFor("LiveLiteralInfo")
     val NoLiveLiterals = classIdFor("NoLiveLiterals")
+    val ReadOnlyComposable = classIdFor("ReadOnlyComposable")
     val State = classIdFor("State")
     val StabilityInferred = internalClassIdFor("StabilityInferred")
 }
@@ -87,6 +89,7 @@ object ComposeFqNames {
     private fun internalFqNameFor(cname: String) = FqName("$internalRoot.$cname")
     private fun composablesFqNameFor(cname: String) = fqNameFor("ComposablesKt.$cname")
 
+    val InternalPackage = internalRootFqName
     val Composable = ComposeClassIds.Composable.asSingleFqName()
     val ComposableTarget = ComposeClassIds.ComposableTarget.asSingleFqName()
     val ComposableTargetMarker = fqNameFor("ComposableTargetMarker")
@@ -98,8 +101,8 @@ object ComposeFqNames {
     val ComposableInferredTargetSchemeArgument = Name.identifier("scheme")
     val CurrentComposerIntrinsic = fqNameFor("<get-currentComposer>")
     val getCurrentComposerFullName = composablesFqNameFor("<get-currentComposer>")
-    val DisallowComposableCalls = fqNameFor("DisallowComposableCalls")
-    val ReadOnlyComposable = fqNameFor("ReadOnlyComposable")
+    val DisallowComposableCalls = ComposeClassIds.DisallowComposableCalls.asSingleFqName()
+    val ReadOnlyComposable = ComposeClassIds.ReadOnlyComposable.asSingleFqName()
     val ExplicitGroupsComposable = fqNameFor("ExplicitGroupsComposable")
     val NonRestartableComposable = fqNameFor("NonRestartableComposable")
     val composableLambdaType = ComposeClassIds.ComposableLambda.asSingleFqName()

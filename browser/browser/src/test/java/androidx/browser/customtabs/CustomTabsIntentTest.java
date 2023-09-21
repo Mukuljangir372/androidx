@@ -25,6 +25,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import android.app.PendingIntent;
 import android.content.Intent;
 import android.graphics.Color;
 import android.os.Build;
@@ -41,6 +42,8 @@ import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.annotation.Config;
 import org.robolectric.annotation.internal.DoNotInstrument;
+
+import java.util.Locale;
 
 /**
  * Tests for CustomTabsIntent.
@@ -536,6 +539,99 @@ public class CustomTabsIntentTest {
 
         assertEquals(LocaleList.getAdjustedDefault().get(0).toLanguageTag(),
                 intent.getBundleExtra(Browser.EXTRA_HEADERS).getString(ACCEPT_LANGUAGE));
+    }
+
+    @Test
+    public void testBookmarksButton() {
+        Intent intent = new CustomTabsIntent.Builder().build().intent;
+        assertTrue(CustomTabsIntent.isBookmarksButtonEnabled(intent));
+
+        intent = new CustomTabsIntent.Builder().setBookmarksButtonEnabled(true).build().intent;
+        assertTrue(CustomTabsIntent.isBookmarksButtonEnabled(intent));
+
+        // Disabled only when explicitly called to disable it.
+        intent = new CustomTabsIntent.Builder().setBookmarksButtonEnabled(false).build().intent;
+        assertFalse(CustomTabsIntent.isBookmarksButtonEnabled(intent));
+    }
+
+    @Test
+    public void testDownloadButton() {
+        Intent intent = new CustomTabsIntent.Builder().build().intent;
+        assertTrue(CustomTabsIntent.isDownloadButtonEnabled(intent));
+
+        intent = new CustomTabsIntent.Builder().setDownloadButtonEnabled(true).build().intent;
+        assertTrue(CustomTabsIntent.isDownloadButtonEnabled(intent));
+
+        // Disabled only when explicitly called to disable it.
+        intent = new CustomTabsIntent.Builder().setDownloadButtonEnabled(false).build().intent;
+        assertFalse(CustomTabsIntent.isDownloadButtonEnabled(intent));
+    }
+
+    @Test
+    public void testSendToExternalDefaultHandler() {
+        Intent intent = new CustomTabsIntent.Builder().build().intent;
+        assertFalse(CustomTabsIntent.isSendToExternalDefaultHandlerEnabled(intent));
+
+        intent = new CustomTabsIntent.Builder()
+                .setSendToExternalDefaultHandlerEnabled(false).build().intent;
+        assertFalse(CustomTabsIntent.isSendToExternalDefaultHandlerEnabled(intent));
+
+        // The extra is set to true only when explicitly called to enable it.
+        intent = new CustomTabsIntent.Builder()
+                .setSendToExternalDefaultHandlerEnabled(true).build().intent;
+        assertTrue(CustomTabsIntent.isSendToExternalDefaultHandlerEnabled(intent));
+    }
+
+    @Config(minSdk = Build.VERSION_CODES.N)
+    @Test
+    public void testBackgroundInteraction() {
+        Intent intent = new CustomTabsIntent.Builder().build().intent;
+        assertTrue(CustomTabsIntent.isBackgroundInteractionEnabled(intent));
+
+        intent = new CustomTabsIntent.Builder()
+                .setBackgroundInteractionEnabled(true).build().intent;
+        assertTrue(CustomTabsIntent.isBackgroundInteractionEnabled(intent));
+
+        // The extra (EXTRA_DISABLE_BACKGROUND_INTERACTION) is set to true
+        // only when explicitly called to disable it.
+        intent = new CustomTabsIntent.Builder()
+                .setBackgroundInteractionEnabled(false).build().intent;
+        assertFalse(CustomTabsIntent.isBackgroundInteractionEnabled(intent));
+    }
+
+    @Test
+    public void testShowOnToolbar() {
+        Intent intent = new CustomTabsIntent.Builder().build().intent;
+        assertFalse(CustomTabsIntent.isShowOnToolbarEnabled(intent));
+
+        intent = new CustomTabsIntent.Builder().setShowOnToolbarEnabled(false).build().intent;
+        assertFalse(CustomTabsIntent.isShowOnToolbarEnabled(intent));
+
+        // The extra is set to true only when explicitly called to enable it.
+        intent = new CustomTabsIntent.Builder().setShowOnToolbarEnabled(true).build().intent;
+        assertTrue(CustomTabsIntent.isShowOnToolbarEnabled(intent));
+    }
+
+    @Config(minSdk = Build.VERSION_CODES.N)
+    @Test
+    public void testTranslateLocale() {
+        Intent intent = new CustomTabsIntent.Builder().build().intent;
+        assertNull(CustomTabsIntent.getTranslateLocale(intent));
+
+        intent = new CustomTabsIntent.Builder().setTranslateLocale(Locale.FRANCE).build().intent;
+        Locale locale = CustomTabsIntent.getTranslateLocale(intent);
+        assertEquals(locale.toLanguageTag(), Locale.FRANCE.toLanguageTag());
+    }
+
+    @Config(minSdk = Build.VERSION_CODES.N)
+    @Test
+    public void testSecondaryToolbarSwipeUpGesture() {
+        PendingIntent pendingIntent = TestUtil.makeMockPendingIntent();
+        Intent intent = new CustomTabsIntent.Builder()
+                .setSecondaryToolbarSwipeUpGesture(pendingIntent)
+                .build()
+                .intent;
+        assertEquals(pendingIntent, CustomTabsIntent.getSecondaryToolbarSwipeUpGesture(intent));
     }
 
     private void assertNullSessionInExtras(Intent intent) {

@@ -18,11 +18,8 @@ package androidx.compose.compiler.plugins.kotlin
 
 import org.intellij.lang.annotations.Language
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.junit.runners.JUnit4
 
-@RunWith(JUnit4::class)
-class DefaultParamTransformTests : AbstractIrTransformTest(useFir = false) {
+class DefaultParamTransformTests(useFir: Boolean) : AbstractIrTransformTest(useFir) {
     private fun defaultParams(
         @Language("kotlin")
         unchecked: String,
@@ -119,7 +116,7 @@ class DefaultParamTransformTests : AbstractIrTransformTest(useFir = false) {
                   foo = Foo(0)
                 }
                 if (isTraceInProgress()) {
-                  traceEventStart(<>, %changed, -1, <>)
+                  traceEventStart(<>, %dirty, -1, <>)
                 }
                 print(foo)
                 if (isTraceInProgress()) {
@@ -246,7 +243,7 @@ class DefaultParamTransformTests : AbstractIrTransformTest(useFir = false) {
                 }
                 %composer.endDefaults()
                 if (isTraceInProgress()) {
-                  traceEventStart(<>, %changed, -1, <>)
+                  traceEventStart(<>, %dirty, -1, <>)
                 }
                 used(x)
                 if (isTraceInProgress()) {
@@ -305,7 +302,7 @@ class DefaultParamTransformTests : AbstractIrTransformTest(useFir = false) {
                 }
                 %composer.endDefaults()
                 if (isTraceInProgress()) {
-                  traceEventStart(<>, %changed, -1, <>)
+                  traceEventStart(<>, %dirty, -1, <>)
                 }
                 print(a)
                 print(b)
@@ -653,7 +650,7 @@ class DefaultParamTransformTests : AbstractIrTransformTest(useFir = false) {
                   a30 = 0
                 }
                 if (isTraceInProgress()) {
-                  traceEventStart(<>, %changed, %changed1, <>)
+                  traceEventStart(<>, %dirty, %dirty1, <>)
                 }
                 used(a00)
                 used(a01)
@@ -1040,7 +1037,7 @@ class DefaultParamTransformTests : AbstractIrTransformTest(useFir = false) {
                   a31 = 0
                 }
                 if (isTraceInProgress()) {
-                  traceEventStart(<>, %changed, %changed1, <>)
+                  traceEventStart(<>, %dirty, %dirty1, <>)
                 }
                 used(a00)
                 used(a01)
@@ -1439,7 +1436,7 @@ class DefaultParamTransformTests : AbstractIrTransformTest(useFir = false) {
                 }
                 %composer.endDefaults()
                 if (isTraceInProgress()) {
-                  traceEventStart(<>, %changed, %changed1, <>)
+                  traceEventStart(<>, %dirty, %dirty1, <>)
                 }
                 used(a00)
                 used(a01)

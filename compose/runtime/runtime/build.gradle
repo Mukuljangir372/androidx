@@ -16,6 +16,7 @@
 
 import androidx.build.KmpPlatformsKt
 import androidx.build.LibraryType
+import androidx.build.PlatformIdentifier
 
 plugins {
     id("AndroidXPlugin")
@@ -29,34 +30,53 @@ androidXMultiplatform {
     android()
     if (desktopEnabled) desktop()
 
+    defaultPlatform(PlatformIdentifier.ANDROID)
+
     sourceSets {
         commonMain {
             dependencies {
                 implementation(libs.kotlinStdlibCommon)
                 implementation(libs.kotlinCoroutinesCore)
+                implementation(project(":collection:collection"))
             }
         }
 
         commonTest {
             dependencies {
-                implementation kotlin("test")
+                implementation kotlin("test-junit")
                 implementation(libs.kotlinCoroutinesTest)
+                implementation(libs.kotlinReflect)
             }
         }
 
+        nonEmulatorCommonMain {
+            dependsOn(commonMain)
+        }
+
+        nonEmulatorCommonTest {
+            dependsOn(commonTest)
+        }
+
+        nonEmulatorJvmMain {
+            dependsOn(nonEmulatorCommonMain)
+        }
+
+        nonEmulatorJvmTest {
+            dependsOn(nonEmulatorCommonTest)
+        }
+
         jvmMain {
+            dependsOn(nonEmulatorJvmMain)
             dependencies {
                 implementation(libs.kotlinStdlib)
                 api(libs.kotlinCoroutinesCore)
             }
         }
 
-
         androidMain {
             dependsOn(jvmMain)
             dependencies {
                 api(libs.kotlinCoroutinesAndroid)
-                api("androidx.annotation:annotation:1.1.0")
             }
         }
 
@@ -72,19 +92,7 @@ androidXMultiplatform {
             }
         }
 
-        nonEmulatorCommonTest {
-            dependsOn(commonTest)
-            dependencies {
-            }
-        }
-
-        nonEmulatorJvmTest {
-            dependsOn(nonEmulatorCommonTest)
-            dependencies {
-            }
-        }
-
-        androidAndroidTest {
+        androidInstrumentedTest {
             dependsOn(jvmTest)
             dependencies {
                 implementation(libs.testExtJunit)
@@ -94,7 +102,7 @@ androidXMultiplatform {
             }
         }
 
-        androidTest {
+        androidUnitTest {
             dependsOn(jvmTest)
             dependsOn(nonEmulatorJvmTest)
         }

@@ -16,12 +16,15 @@
 
 package androidx.camera.camera2.pipe.integration.impl
 
+import android.content.Context
 import android.hardware.camera2.CameraCharacteristics
 import android.os.Build
 import android.util.Size
 import androidx.camera.camera2.pipe.CameraGraph
 import androidx.camera.camera2.pipe.CameraId
+import androidx.camera.camera2.pipe.CameraPipe
 import androidx.camera.camera2.pipe.integration.adapter.CameraStateAdapter
+import androidx.camera.camera2.pipe.integration.adapter.CameraUseCaseAdapter
 import androidx.camera.camera2.pipe.integration.adapter.RobolectricCameraPipeTestRunner
 import androidx.camera.camera2.pipe.integration.compat.StreamConfigurationMapCompat
 import androidx.camera.camera2.pipe.integration.compat.quirk.CameraQuirks
@@ -39,9 +42,9 @@ import androidx.camera.core.Preview
 import androidx.camera.core.UseCase
 import androidx.camera.core.impl.StreamSpec
 import androidx.camera.core.impl.utils.executor.CameraXExecutors
-import androidx.camera.testing.SurfaceTextureProvider
 import androidx.camera.testing.fakes.FakeCamera
-import androidx.camera.testing.fakes.FakeUseCase
+import androidx.camera.testing.impl.SurfaceTextureProvider
+import androidx.camera.testing.impl.fakes.FakeUseCase
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.CoroutineScope
@@ -53,6 +56,9 @@ import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
+import org.robolectric.shadow.api.Shadow
+import org.robolectric.shadows.ShadowCameraCharacteristics
+import org.robolectric.shadows.ShadowCameraManager
 import org.robolectric.shadows.StreamConfigurationMapBuilder
 
 @RunWith(RobolectricCameraPipeTestRunner::class)
@@ -325,13 +331,23 @@ class UseCaseManagerTest {
         val characteristicsMap: Map<CameraCharacteristics.Key<*>, Any?> = mapOf(
             CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP to streamConfigurationMap,
         )
+
+        val characteristics = ShadowCameraCharacteristics.newCameraCharacteristics()
+        (Shadow.extract<Any>(
+            ApplicationProvider.getApplicationContext<Context>()
+                .getSystemService(Context.CAMERA_SERVICE)
+        ) as ShadowCameraManager).addCamera("0", characteristics)
+
         val fakeCameraMetadata = FakeCameraMetadata(
             cameraId = cameraId,
             characteristics = characteristicsMap
         )
         val fakeCamera = FakeCamera()
         return UseCaseManager(
+            cameraPipe = CameraPipe(CameraPipe.Config(ApplicationProvider.getApplicationContext())),
             cameraConfig = CameraConfig(cameraId),
+            callbackMap = CameraCallbackMap(),
+            requestListener = ComboRequestListener(),
             builder = useCaseCameraComponentBuilder,
             controls = controls as java.util.Set<UseCaseCameraControl>,
             cameraProperties = FakeCameraProperties(
@@ -381,7 +397,14 @@ class UseCaseManagerTest {
             }
 
     private fun UseCase.simulateActivation() {
-        bindToCamera(FakeCamera("0"), null, null)
+        bindToCamera(
+            FakeCamera("0"),
+            null,
+            getDefaultConfig(
+                true,
+                CameraUseCaseAdapter(ApplicationProvider.getApplicationContext())
+            )
+        )
         updateSuggestedStreamSpec(StreamSpec.builder(supportedSizes[0]).build())
     }
 }

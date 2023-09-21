@@ -36,7 +36,6 @@ import androidx.wear.protolayout.expression.AnimationParameterBuilders.Animation
 import androidx.wear.protolayout.expression.Fingerprint;
 import androidx.wear.protolayout.expression.ProtoLayoutExperimental;
 import androidx.wear.protolayout.proto.ModifiersProto;
-import androidx.wear.protolayout.proto.TypesProto;
 import androidx.wear.protolayout.protobuf.ByteString;
 
 import java.lang.annotation.Retention;
@@ -456,6 +455,9 @@ public final class ModifiersBuilders {
          * Gets the content description associated with this element. This will be dictated when the
          * element is focused by the screen reader.
          *
+         * <p>While this field is statically accessible from 1.0, it's only bindable since version
+         * 1.2 and renderers supporting version 1.2 will use the dynamic value (if set).
+         *
          * @since 1.0
          */
         @Nullable
@@ -582,11 +584,7 @@ public final class ModifiersBuilders {
             @SuppressWarnings(
                     "deprecation") // Updating a deprecated field for backward compatibility
             public Builder setContentDescription(@NonNull String contentDescription) {
-                mImpl.setObsoleteContentDescription(contentDescription);
-                mImpl.mergeContentDescription(
-                        TypesProto.StringProp.newBuilder().setValue(contentDescription).build());
-                mFingerprint.recordPropertyUpdate(4, contentDescription.hashCode());
-                return this;
+                return setContentDescription(new StringProp.Builder(contentDescription).build());
             }
 
             /**
@@ -855,13 +853,13 @@ public final class ModifiersBuilders {
              * start/end will follow the layout direction (i.e. start will refer to the right hand
              * side of the container if the device is using an RTL locale). If false, start/end will
              * always map to left/right, accordingly.
+             *
+             * @since 1.0
              */
             @SuppressLint("MissingGetterMatchingBuilder")
             @NonNull
             public Builder setRtlAware(boolean rtlAware) {
-                mImpl.setRtlAware(TypesProto.BoolProp.newBuilder().setValue(rtlAware));
-                mFingerprint.recordPropertyUpdate(5, Boolean.hashCode(rtlAware));
-                return this;
+                return setRtlAware(new BoolProp.Builder().setValue(rtlAware).build());
             }
 
             /**
@@ -913,6 +911,9 @@ public final class ModifiersBuilders {
 
         /**
          * Gets the color of the border.
+         *
+         * <p>While this field is statically accessible from 1.0, it's only bindable since version
+         * 1.2 and renderers supporting version 1.2 will use the dynamic value (if set).
          *
          * @since 1.0
          */
@@ -1118,6 +1119,9 @@ public final class ModifiersBuilders {
         /**
          * Gets the background color for this element. If not defined, defaults to being
          * transparent.
+         *
+         * <p>While this field is statically accessible from 1.0, it's only bindable since version
+         * 1.2 and renderers supporting version 1.2 will use the dynamic value (if set).
          *
          * @since 1.0
          */

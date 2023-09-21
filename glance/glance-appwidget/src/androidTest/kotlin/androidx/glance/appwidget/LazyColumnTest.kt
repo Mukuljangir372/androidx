@@ -64,8 +64,8 @@ import org.junit.Rule
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
-@SdkSuppress(minSdkVersion = 29)
 @MediumTest
+@SdkSuppress(minSdkVersion = 29)
 class LazyColumnTest {
     @get:Rule
     val mHostRule = AppWidgetHostRule()
@@ -185,10 +185,14 @@ class LazyColumnTest {
         mHostRule.startHost()
 
         mHostRule.waitForListViewChildren { list ->
-            val textView0 = list.getUnboxedListItem<TextView>(0)
-            val textView1 = list.getUnboxedListItem<TextView>(1)
-            val textView2 = list.getUnboxedListItem<TextView>(2)
-            val textView3 = list.getUnboxedListItem<TextView>(3)
+            val textView0 =
+                list.getViewFromUnboxedListItem<TextView>(itemPosition = 0, viewPosition = 0)
+            val textView1 =
+                list.getViewFromUnboxedListItem<TextView>(itemPosition = 1, viewPosition = 0)
+            val textView2 =
+                list.getViewFromUnboxedListItem<TextView>(itemPosition = 2, viewPosition = 0)
+            val textView3 =
+                list.getViewFromUnboxedListItem<TextView>(itemPosition = 3, viewPosition = 0)
             assertThat(textView0.text.toString()).isEqualTo("Row 0")
             assertThat(textView1.text.toString()).isEqualTo("Row 1")
             assertThat(textView2.text.toString()).isEqualTo("Row 2")
@@ -209,10 +213,14 @@ class LazyColumnTest {
         mHostRule.startHost()
 
         mHostRule.waitForListViewChildren { list ->
-            val textView0 = list.getUnboxedListItem<TextView>(0)
-            val textView1 = list.getUnboxedListItem<TextView>(1)
-            val textView2 = list.getUnboxedListItem<TextView>(2)
-            val textView3 = list.getUnboxedListItem<TextView>(3)
+            val textView0 =
+                list.getViewFromUnboxedListItem<TextView>(itemPosition = 0, viewPosition = 0)
+            val textView1 =
+                list.getViewFromUnboxedListItem<TextView>(itemPosition = 1, viewPosition = 0)
+            val textView2 =
+                list.getViewFromUnboxedListItem<TextView>(itemPosition = 2, viewPosition = 0)
+            val textView3 =
+                list.getViewFromUnboxedListItem<TextView>(itemPosition = 3, viewPosition = 0)
             assertThat(textView0.text.toString()).isEqualTo("Row 0")
             assertThat(textView1.text.toString()).isEqualTo("Row 1")
             assertThat(textView2.text.toString()).isEqualTo("Row 2")
@@ -233,7 +241,7 @@ class LazyColumnTest {
         mHostRule.startHost()
 
         mHostRule.waitForListViewChildren { list ->
-            list.getUnboxedListItem<TextView>(0)
+            list.getViewFromUnboxedListItem<TextView>(itemPosition = 0, viewPosition = 0)
         }
     }
 
@@ -250,7 +258,7 @@ class LazyColumnTest {
         mHostRule.startHost()
 
         mHostRule.waitForListViewChildren { list ->
-            list.getUnboxedListItem<TextView>(0)
+            list.getViewFromUnboxedListItem<TextView>(itemPosition = 0, viewPosition = 0)
         }
     }
 
@@ -373,7 +381,7 @@ class LazyColumnTest {
             rowItem0.performClick()
         }
 
-        mHostRule.waitForListViewChildWithText(text = "Row item 0, count 1") {}
+        mHostRule.waitForListViewChildWithText(text = "Row item 0, count 2") {}
     }
 
     @Test
@@ -461,7 +469,8 @@ class LazyColumnTest {
         val buttons = arrayOfNulls<Button>(5)
         mHostRule.waitForListViewChildren { list ->
             for (it in 0..4) {
-                val button = list.getUnboxedListItem<Button>(it)
+                val button =
+                    list.getViewFromUnboxedListItem<Button>(itemPosition = it, viewPosition = 0)
                 buttons[it] = button
             }
         }
@@ -496,7 +505,10 @@ class LazyColumnTest {
         val buttons = arrayOfNulls<FrameLayout>(5)
         mHostRule.waitForListViewChildren { list ->
             for (it in 0..4) {
-                val button = list.getUnboxedListItem<FrameLayout>(it)
+                val button = list.getViewFromUnboxedListItem<FrameLayout>(
+                    itemPosition = it,
+                    viewPosition = 0
+                )
                 buttons[it] = assertIs<FrameLayout>(button)
             }
         }
@@ -632,15 +644,24 @@ fun <T> Flow<T>.debounce(timeout: Duration): Flow<T> = channelFlow {
 }.buffer(0)
 
 internal inline fun <reified T : View> ListView.getUnboxedListItem(position: Int): T {
+    // RemoteViewsAdapter$RemoteViewsFrameLayout
     val remoteViewFrame = assertIs<FrameLayout>(getChildAt(position))
-    // Each list item frame has an explicit focusable = true, see
-    // "Glance.AppWidget.Theme.ListChildren" style.
-    assertThat(remoteViewFrame.isFocusable).isTrue()
 
     // Android S- have a RemoteViewsAdapter$RemoteViewsFrameLayout first, Android T+ do not.
     if (Build.VERSION.SDK_INT > Build.VERSION_CODES.S) {
         return remoteViewFrame.getChildAt(0).getTargetView()
     }
-    val frame = assertIs<FrameLayout>(remoteViewFrame.getChildAt(0))
-    return frame.getChildAt(0).getTargetView()
+    // The RemoteViews created in translateComposition for holding an item
+    val rootView = assertIs<FrameLayout>(remoteViewFrame.getChildAt(0))
+    return rootView.getChildAt(0).getTargetView()
+}
+
+internal inline fun <reified T : View> ListView.getViewFromUnboxedListItem(
+    itemPosition: Int,
+    viewPosition: Int
+): T {
+    // Box added during normalization to allow aligning item contents per the alignment set on
+    // LazyColumn
+    val alignmentView = assertIs<FrameLayout>(getUnboxedListItem(itemPosition))
+    return alignmentView.getChildAt(viewPosition).getTargetView()
 }

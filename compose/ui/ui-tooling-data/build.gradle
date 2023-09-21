@@ -17,6 +17,7 @@
 
 import androidx.build.KmpPlatformsKt
 import androidx.build.LibraryType
+import androidx.build.PlatformIdentifier
 
 plugins {
     id("AndroidXPlugin")
@@ -29,6 +30,8 @@ def desktopEnabled = KmpPlatformsKt.enableDesktop(project)
 androidXMultiplatform {
     android()
     if (desktopEnabled) desktop()
+
+    defaultPlatform(PlatformIdentifier.ANDROID)
 
     sourceSets {
         commonMain {
@@ -85,7 +88,7 @@ androidXMultiplatform {
             }
         }
 
-        androidAndroidTest {
+        androidInstrumentedTest {
             dependsOn(jvmTest)
             dependencies {
                 implementation(project(":compose:ui:ui-test-junit4"))
@@ -103,7 +106,7 @@ androidXMultiplatform {
             }
         }
 
-        androidTest {
+        androidUnitTest {
             dependsOn(jvmTest)
             dependencies {
                 implementation(libs.truth)
@@ -113,7 +116,6 @@ androidXMultiplatform {
         if (desktopEnabled) {
             desktopTest {
                 dependsOn(jvmTest)
-                dependsOn(desktopMain)
                 dependencies {
 
                 }

@@ -34,7 +34,11 @@ import androidx.wear.protolayout.proto.ColorProto;
 public final class ColorBuilders {
     private ColorBuilders() {}
 
-    /** Shortcut for building a {@link ColorProp} using an ARGB value. */
+    /**
+     * Shortcut for building a {@link ColorProp} using an ARGB value.
+     *
+     * @since 1.0
+     */
     @NonNull
     public static ColorProp argb(@ColorInt int colorArgb) {
         return new ColorProp.Builder().setArgb(colorArgb).build();
@@ -55,7 +59,10 @@ public final class ColorBuilders {
         }
 
         /**
-         * Gets the color value, in ARGB format.
+         * Gets the static color value, in ARGB format. If a dynamic value is also set and the
+         * renderer supports dynamic values for the corresponding field, this static value will be
+         * ignored. If the static value is not specified, zero (equivalent to {@link
+         * Color#TRANSPARENT}) will be used instead.
          *
          * @since 1.0
          */
@@ -65,7 +72,9 @@ public final class ColorBuilders {
         }
 
         /**
-         * Gets the dynamic value.
+         * Gets the dynamic value. Note that when setting this value, the static value is still
+         * required to be set to support older renderers that only read the static value. If {@code
+         * dynamicValue} has an invalid result, the provided static value will be used instead.
          *
          * @since 1.2
          */
@@ -127,9 +136,9 @@ public final class ColorBuilders {
             }
 
             /**
-             * Sets the static  color value, in ARGB format. If a dynamic value is also set and the
-             * renderer supports dynamic values for the corresponding field, this static value
-             * will be ignored. If the static value is not specified, zero (equivalent to {@link
+             * Sets the static color value, in ARGB format. If a dynamic value is also set and the
+             * renderer supports dynamic values for the corresponding field, this static value will
+             * be ignored. If the static value is not specified, zero (equivalent to {@link
              * Color#TRANSPARENT}) will be used instead.
              *
              * @since 1.0

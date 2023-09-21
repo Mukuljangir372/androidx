@@ -427,6 +427,7 @@ internal constructor(
 ) : EditorSession {
     protected var closed: Boolean = false
     protected var forceClosed: Boolean = false
+    protected open var editorObscuresWatchFace = false
 
     private val editorSessionTraceEvent = AsyncTraceEvent("EditorSession")
     private val closeCallback =
@@ -522,6 +523,10 @@ internal constructor(
                 "Can't configure fixed complication ID $complicationSlotId"
             }
 
+            // Don't animate the watch face while the provider is running, because that makes
+            // hardware rendering of the complication preview images very much slower.
+            editorObscuresWatchFace = true
+
             val deferredResult = CompletableDeferred<ComplicationDataSourceChooserResult?>()
 
             synchronized(this) {
@@ -552,6 +557,8 @@ internal constructor(
                     synchronized(this) { pendingComplicationDataSourceChooserResult = null }
                 }
 
+            editorObscuresWatchFace = false
+
             // If deferredResult was null then the user canceled so return null.
             if (complicationDataSourceChooserResult == null) {
                 return null
@@ -563,6 +570,8 @@ internal constructor(
 
             try {
                 deferredComplicationPreviewDataAvailable.await()
+                val previousDataSourceInfo: ComplicationDataSourceInfo? =
+                    complicationsDataSourceInfo.value[complicationSlotId]
 
                 // Emit an updated complicationsDataSourceInfoMap.
                 complicationsDataSourceInfo.value =
@@ -582,6 +591,11 @@ internal constructor(
                     HashMap(complicationsPreviewData.value).apply {
                         this[complicationSlotId] = previewData ?: EmptyComplicationData()
                     }
+                onComplicationUpdated(
+                    complicationSlotId,
+                    from = previousDataSourceInfo,
+                    to = complicationDataSourceChooserResult.dataSourceInfo,
+                )
 
                 return ChosenComplicationDataSource(
                     complicationSlotId,
@@ -772,6 +786,12 @@ internal constructor(
     protected open val showComplicationDeniedDialogIntent: Intent? = null
 
     protected open val showComplicationRationaleDialogIntent: Intent? = null
+
+    protected open fun onComplicationUpdated(
+        complicationSlotId: Int,
+        from: ComplicationDataSourceInfo?,
+        to: ComplicationDataSourceInfo?,
+    ) {}
 }
 
 /**
@@ -843,6 +863,12 @@ internal class OnWatchFaceEditorSessionImpl(
     }
 
     internal val wrappedUserStyle by lazy { MutableStateFlow(editorDelegate.userStyle) }
+
+    override var editorObscuresWatchFace: Boolean
+        get() = editorDelegate.editorObscuresWatchFace
+        set(value) {
+            editorDelegate.editorObscuresWatchFace = value
+        }
 
     // Unfortunately a dynamic proxy is the only way we can reasonably validate the UserStyle,
     // exceptions thrown within a coroutine are lost and the MutableStateFlow interface includes
@@ -923,6 +949,11 @@ internal class OnWatchFaceEditorSessionImpl(
         if (!commitChangesOnClose && this::previousWatchFaceUserStyle.isInitialized) {
             userStyle.value = previousWatchFaceUserStyle
         }
+        if (this::editorDelegate.isInitialized) {
+            editorDelegate.complicationSlotsManager.unfreezeAllSlotsForEdit(
+                clearData = commitChangesOnClose
+            )
+        }
 
         if (this::fetchComplicationsDataJob.isInitialized) {
             // Wait until the fetchComplicationsDataJob has finished and released the
@@ -981,6 +1012,18 @@ internal class OnWatchFaceEditorSessionImpl(
     override fun getComplicationSlotIdAt(@Px x: Int, @Px y: Int): Int? {
         requireNotClosed()
         return editorDelegate.complicationSlotsManager.getComplicationSlotAt(x, y)?.id
+    }
+
+    override fun onComplicationUpdated(
+        complicationSlotId: Int,
+        from: ComplicationDataSourceInfo?,
+        to: ComplicationDataSourceInfo?,
+    ) {
+        editorDelegate.complicationSlotsManager.freezeSlotForEdit(
+            complicationSlotId,
+            from = from,
+            to = to,
+        )
     }
 }
 
@@ -1117,6 +1160,7 @@ internal class ComplicationDataSourceChooserContract :
                 input.instanceId,
                 input.showComplicationDeniedDialogIntent,
                 input.showComplicationRationaleDialogIntent,
+                input.editorSession.userStyle.value.toUserStyleData()
             )
         val complicationState = complicationSlotsState[input.complicationSlotId]!!
         intent.replaceExtras(

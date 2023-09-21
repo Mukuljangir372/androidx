@@ -17,6 +17,7 @@
 
 import androidx.build.KmpPlatformsKt
 import androidx.build.LibraryType
+import androidx.build.PlatformIdentifier
 import androidx.compose.material.icons.generator.tasks.IconGenerationTask
 
 
@@ -31,6 +32,8 @@ def desktopEnabled = KmpPlatformsKt.enableDesktop(project)
 androidXMultiplatform {
     android()
     if (desktopEnabled) desktop()
+
+    defaultPlatform(PlatformIdentifier.ANDROID)
 
     sourceSets {
         commonMain {
@@ -82,13 +85,13 @@ androidXMultiplatform {
             }
         }
 
-        androidAndroidTest {
+        androidInstrumentedTest {
             dependsOn(jvmTest)
             dependencies {
             }
         }
 
-        androidTest {
+        androidUnitTest {
             dependsOn(jvmTest)
             dependencies {
             }
@@ -97,7 +100,6 @@ androidXMultiplatform {
         if (desktopEnabled) {
             desktopTest {
                 dependsOn(jvmTest)
-                dependsOn(desktopMain)
                 dependencies {
                 }
             }

@@ -82,6 +82,7 @@ import androidx.wear.protolayout.expression.pipeline.StateStore;
 import androidx.wear.protolayout.expression.proto.AnimationParameterProto.AnimationParameters;
 import androidx.wear.protolayout.expression.proto.AnimationParameterProto.AnimationSpec;
 import androidx.wear.protolayout.expression.proto.AnimationParameterProto.Repeatable;
+import androidx.wear.protolayout.expression.proto.DynamicDataProto.DynamicDataValue;
 import androidx.wear.protolayout.expression.proto.DynamicProto.AnimatableDynamicFloat;
 import androidx.wear.protolayout.expression.proto.DynamicProto.DynamicColor;
 import androidx.wear.protolayout.expression.proto.DynamicProto.DynamicFloat;
@@ -96,7 +97,6 @@ import androidx.wear.protolayout.expression.proto.FixedProto.FixedColor;
 import androidx.wear.protolayout.expression.proto.FixedProto.FixedFloat;
 import androidx.wear.protolayout.expression.proto.FixedProto.FixedInt32;
 import androidx.wear.protolayout.expression.proto.FixedProto.FixedString;
-import androidx.wear.protolayout.expression.proto.DynamicDataProto.DynamicDataValue;
 import androidx.wear.protolayout.proto.ActionProto.Action;
 import androidx.wear.protolayout.proto.ActionProto.AndroidActivity;
 import androidx.wear.protolayout.proto.ActionProto.AndroidBooleanExtra;
@@ -3409,7 +3409,7 @@ public class ProtoLayoutInflaterTest {
             FixedQuotaManagerImpl quotaManager) {
         mDataPipeline =
                 new ProtoLayoutDynamicDataPipeline(
-                        /* sensorGateway= */ null,
+                        /* platformDataProviders= */ ImmutableMap.of(),
                         mStateStore,
                         quotaManager,
                         new FixedQuotaManagerImpl(MAX_VALUE));
@@ -4133,6 +4133,58 @@ public class ProtoLayoutInflaterTest {
         ShadowChoreographer.setPaused(false);
         shadowOf(getMainLooper()).idleFor(Duration.ofSeconds(5));
         applyMutationFuture.get();
+    }
+
+    @Test
+    public void layoutGetsApplied_whenApplyingSecondMutation_beforeExitAnimationsAreFinished()
+            throws Exception {
+        Renderer renderer =
+                renderer(
+                        fingerprintedLayout(
+                                getTextElementWithExitAnimation("Hello", /* iterations= */ 10)));
+        mDataPipeline.setFullyVisible(true);
+        FrameLayout inflatedViewParent = renderer.inflate();
+        shadowOf(getMainLooper()).idle();
+        ShadowChoreographer.setPaused(true);
+        ShadowChoreographer.setFrameDelay(Duration.ofMillis(15));
+
+        ViewGroupMutation mutation =
+                renderer.computeMutation(
+                        getRenderedMetadata(inflatedViewParent),
+                        fingerprintedLayout(
+                                getTextElementWithExitAnimation("World", /* iterations= */ 10)));
+        ListenableFuture<Void> applyMutationFuture =
+                renderer.mRenderer.applyMutation(inflatedViewParent, mutation);
+
+        shadowOf(getMainLooper()).idleFor(Duration.ofMillis(100));
+        assertThat(mDataPipeline.getRunningAnimationsCount()).isEqualTo(1);
+
+        ViewGroupMutation secondMutation =
+                renderer.computeMutation(
+                        getRenderedMetadata(inflatedViewParent),
+                        fingerprintedLayout(
+                                getTextElementWithExitAnimation(
+                                        "Second mutation",
+                                        /* iterations= */ 10)));
+
+        ListenableFuture<Void> applySecondMutationFuture =
+                renderer.mRenderer.applyMutation(inflatedViewParent, secondMutation);
+
+        // the previous mutation should be finished
+        assertThat(applyMutationFuture.isDone()).isTrue();
+        assertThat(((TextView) inflatedViewParent.getChildAt(0)).getText().toString())
+                .isEqualTo("World");
+
+        shadowOf(getMainLooper()).idleFor(Duration.ofMillis(100));
+        assertThat(mDataPipeline.getRunningAnimationsCount()).isEqualTo(1);
+
+        ShadowChoreographer.setPaused(false);
+        shadowOf(getMainLooper()).idleFor(Duration.ofSeconds(5));
+        applySecondMutationFuture.get();
+
+        assertThat(mDataPipeline.getRunningAnimationsCount()).isEqualTo(0);
+        assertThat(((TextView) inflatedViewParent.getChildAt(0)).getText().toString())
+                .isEqualTo("Second mutation");
     }
 
     @Test

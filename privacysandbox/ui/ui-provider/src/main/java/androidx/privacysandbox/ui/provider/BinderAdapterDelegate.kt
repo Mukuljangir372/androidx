@@ -26,6 +26,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.util.Log
 import android.view.SurfaceControlViewHost
 import androidx.annotation.RequiresApi
 import androidx.annotation.VisibleForTesting
@@ -54,10 +55,16 @@ fun SandboxedUiAdapter.toCoreLibInfo(@Suppress("ContextFirst") context: Context)
 private class BinderAdapterDelegate(
     private val sandboxContext: Context,
     private val adapter: SandboxedUiAdapter
-) : ISandboxedUiAdapter.Stub() {
+) : ISandboxedUiAdapter.Stub(), SandboxedUiAdapter {
 
-    fun openSession(
+    companion object {
+        private const val TAG = "BinderAdapterDelegate"
+        private const val FRAME_TIMEOUT_MILLIS = 1000.toLong()
+    }
+
+    override fun openSession(
         context: Context,
+        windowInputToken: IBinder,
         initialWidth: Int,
         initialHeight: Int,
         isZOrderOnTop: Boolean,
@@ -65,13 +72,13 @@ private class BinderAdapterDelegate(
         client: SandboxedUiAdapter.SessionClient
     ) {
         adapter.openSession(
-            context, initialWidth, initialHeight, isZOrderOnTop, clientExecutor,
+            context, windowInputToken, initialWidth, initialHeight, isZOrderOnTop, clientExecutor,
             client
         )
     }
 
     override fun openRemoteSession(
-        hostToken: IBinder,
+        windowInputToken: IBinder,
         displayId: Int,
         initialWidth: Int,
         initialHeight: Int,
@@ -87,13 +94,14 @@ private class BinderAdapterDelegate(
                     sandboxContext.createDisplayContext(mDisplayManager.getDisplay(displayId))
                 val surfaceControlViewHost = SurfaceControlViewHost(
                     windowContext,
-                    mDisplayManager.getDisplay(displayId), hostToken
+                    mDisplayManager.getDisplay(displayId), windowInputToken
                 )
                 val sessionClient = SessionClientProxy(
-                    surfaceControlViewHost, initialWidth, initialHeight, remoteSessionClient
+                    surfaceControlViewHost, initialWidth, initialHeight, isZOrderOnTop,
+                    remoteSessionClient
                 )
                 openSession(
-                    windowContext, initialWidth, initialHeight, isZOrderOnTop,
+                    windowContext, windowInputToken, initialWidth, initialHeight, isZOrderOnTop,
                     Runnable::run, sessionClient
                 )
             } catch (exception: Throwable) {
@@ -106,19 +114,40 @@ private class BinderAdapterDelegate(
         private val surfaceControlViewHost: SurfaceControlViewHost,
         private val initialWidth: Int,
         private val initialHeight: Int,
+        private val isZOrderOnTop: Boolean,
         private val remoteSessionClient: IRemoteSessionClient
     ) : SandboxedUiAdapter.SessionClient {
 
         override fun onSessionOpened(session: SandboxedUiAdapter.Session) {
             val view = session.view
-            surfaceControlViewHost.setView(view, initialWidth, initialHeight)
-            val surfacePackage = surfaceControlViewHost.surfacePackage
-            val remoteSessionController =
-                RemoteSessionController(surfaceControlViewHost, session)
-            remoteSessionClient.onRemoteSessionOpened(
-                surfacePackage, remoteSessionController,
-                /* isZOrderOnTop= */ true
-            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                val touchTransferringView = TouchFocusTransferringView(
+                    sandboxContext, surfaceControlViewHost)
+                touchTransferringView.addView(view)
+                surfaceControlViewHost.setView(touchTransferringView, initialWidth, initialHeight)
+            } else {
+                surfaceControlViewHost.setView(view, initialWidth, initialHeight)
+            }
+
+            // This var is not locked as it will be set to false by the first event that can trigger
+            // sending the remote session opened callback.
+            var alreadyOpenedSession = false
+            view.viewTreeObserver.registerFrameCommitCallback {
+                if (!alreadyOpenedSession) {
+                    alreadyOpenedSession = true
+                    sendRemoteSessionOpened(session)
+                }
+            }
+
+            // If a frame commit callback is not triggered within the timeout (such as when the
+            // screen is off), open the session anyway.
+            Handler(Looper.getMainLooper()).postDelayed({
+                if (!alreadyOpenedSession) {
+                    Log.w(TAG, "Frame not committed within $FRAME_TIMEOUT_MILLIS ms.")
+                    alreadyOpenedSession = true
+                    sendRemoteSessionOpened(session)
+                }
+            }, FRAME_TIMEOUT_MILLIS)
         }
 
         override fun onSessionError(throwable: Throwable) {
@@ -127,6 +156,16 @@ private class BinderAdapterDelegate(
 
         override fun onResizeRequested(width: Int, height: Int) {
             remoteSessionClient.onResizeRequested(width, height)
+        }
+
+        private fun sendRemoteSessionOpened(session: SandboxedUiAdapter.Session) {
+            val surfacePackage = surfaceControlViewHost.surfacePackage
+            val remoteSessionController =
+                RemoteSessionController(surfaceControlViewHost, session)
+            remoteSessionClient.onRemoteSessionOpened(
+                surfacePackage, remoteSessionController,
+                isZOrderOnTop
+            )
         }
 
         @VisibleForTesting
@@ -141,13 +180,23 @@ private class BinderAdapterDelegate(
             }
 
             override fun notifyResized(width: Int, height: Int) {
-                surfaceControlViewHost.relayout(width, height)
-                session.notifyResized(width, height)
+                val mHandler = Handler(Looper.getMainLooper())
+                mHandler.post {
+                    surfaceControlViewHost.relayout(width, height)
+                    session.notifyResized(width, height)
+                }
+            }
+
+            override fun notifyZOrderChanged(isZOrderOnTop: Boolean) {
+                session.notifyZOrderChanged(isZOrderOnTop)
             }
 
             override fun close() {
-                session.close()
-                surfaceControlViewHost.release()
+                val mHandler = Handler(Looper.getMainLooper())
+                mHandler.post {
+                    session.close()
+                    surfaceControlViewHost.release()
+                }
             }
         }
     }

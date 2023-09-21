@@ -87,6 +87,7 @@ import android.app.DownloadManager;
 import android.app.KeyguardManager;
 import android.app.NotificationManager;
 import android.app.SearchManager;
+import android.app.UiAutomation;
 import android.app.UiModeManager;
 import android.app.WallpaperManager;
 import android.app.admin.DevicePolicyManager;
@@ -146,11 +147,9 @@ import android.view.accessibility.CaptioningManager;
 import android.view.inputmethod.InputMethodManager;
 import android.view.textservice.TextServicesManager;
 
-import androidx.annotation.OptIn;
 import androidx.core.app.AppLocalesStorageHelper;
 import androidx.core.app.NotificationManagerCompat;
 import androidx.core.hardware.display.DisplayManagerCompat;
-import androidx.core.os.BuildCompat;
 import androidx.core.os.ConfigurationCompat;
 import androidx.core.os.LocaleListCompat;
 import androidx.core.test.R;
@@ -531,11 +530,15 @@ public class ContextCompatTest extends BaseInstrumentationTestCase<ThemedYellowA
     @Test
     @SdkSuppress(minSdkVersion = 29, maxSdkVersion = 32)
     public void testRegisterReceiverPermissionNotGrantedApi26() {
-        InstrumentationRegistry
-                .getInstrumentation().getUiAutomation().adoptShellPermissionIdentity();
-        assertThrows(RuntimeException.class,
-                () -> ContextCompat.registerReceiver(mContext,
-                        mTestReceiver, mTestFilter, ContextCompat.RECEIVER_NOT_EXPORTED));
+        UiAutomation uiAutomation = InstrumentationRegistry.getInstrumentation().getUiAutomation();
+        uiAutomation.adoptShellPermissionIdentity();
+        try {
+            assertThrows(RuntimeException.class,
+                    () -> ContextCompat.registerReceiver(mContext,
+                            mTestReceiver, mTestFilter, ContextCompat.RECEIVER_NOT_EXPORTED));
+        } finally {
+            uiAutomation.dropShellPermissionIdentity();
+        }
     }
 
     @Test
@@ -599,9 +602,8 @@ public class ContextCompatTest extends BaseInstrumentationTestCase<ThemedYellowA
     }
 
     @Test
-    @OptIn(markerClass = BuildCompat.PrereleaseSdkCheck.class)
     public void testCheckSelfPermissionNotificationPermission() {
-        if (BuildCompat.isAtLeastT()) {
+        if (Build.VERSION.SDK_INT >= 33) {
             assertEquals(
                     mContext.checkCallingPermission(Manifest.permission.POST_NOTIFICATIONS),
                     ContextCompat.checkSelfPermission(

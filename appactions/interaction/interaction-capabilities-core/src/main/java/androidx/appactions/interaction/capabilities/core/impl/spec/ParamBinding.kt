@@ -16,14 +16,17 @@
 
 package androidx.appactions.interaction.capabilities.core.impl.spec
 
-import androidx.appactions.interaction.capabilities.core.impl.BuilderOf
 import androidx.appactions.interaction.capabilities.core.impl.exceptions.StructConversionException
 import androidx.appactions.interaction.proto.ParamValue
 
-data class ParamBinding<ArgumentsT, ArgumentsBuilderT : BuilderOf<ArgumentsT>>
+data class ParamBinding<ArgumentsT, ArgumentsBuilderT>
 internal constructor(
     val name: String,
-    val argumentSetter: ArgumentSetter<ArgumentsBuilderT>
+    val argumentSetter: ArgumentSetter<ArgumentsBuilderT>,
+    /**
+     * Given a ArgumentsT instance, return a list of ParamValue for this slot.
+     */
+    val argumentSerializer: (ArgumentsT) -> List<ParamValue>
 ) {
     /**
      * Given a `List<ParamValue>`, convert it to user-visible type and set it into

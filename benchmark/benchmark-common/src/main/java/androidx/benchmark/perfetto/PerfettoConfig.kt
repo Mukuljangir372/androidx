@@ -132,6 +132,10 @@ private fun ftraceDataSource(
                 "ion/ion_stat",
                 "oom/oom_score_adj_update",
 
+                // Disk I/O
+                "disk",
+                "ufs/ufshcd_clk_gating",
+
                 // Old (kernel) LMK
                 "lowmemorykiller/lowmemory_kill",
             ),
@@ -313,8 +317,6 @@ private fun stackSamplingSource(
  * Config for perfetto.
  *
  * Eventually, this should be more configurable.
- *
- * @suppress
  */
 @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
 internal fun perfettoConfig(

@@ -42,6 +42,7 @@ package androidx.work.testing {
   }
 
   public final class WorkManagerTestInitHelper {
+    method public static void closeWorkDatabase();
     method @Deprecated public static androidx.work.testing.TestDriver? getTestDriver();
     method public static androidx.work.testing.TestDriver? getTestDriver(android.content.Context);
     method public static void initializeTestWorkManager(android.content.Context);
@@ -53,6 +54,7 @@ package androidx.work.testing {
   public enum WorkManagerTestInitHelper.ExecutorsMode {
     enum_constant public static final androidx.work.testing.WorkManagerTestInitHelper.ExecutorsMode LEGACY_OVERRIDE_WITH_SYNCHRONOUS_EXECUTORS;
     enum_constant public static final androidx.work.testing.WorkManagerTestInitHelper.ExecutorsMode PRESERVE_EXECUTORS;
+    enum_constant public static final androidx.work.testing.WorkManagerTestInitHelper.ExecutorsMode USE_TIME_BASED_SCHEDULING;
   }
 
 }

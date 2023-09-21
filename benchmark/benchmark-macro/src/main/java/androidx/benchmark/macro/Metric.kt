@@ -16,7 +16,6 @@
 
 package androidx.benchmark.macro
 
-import android.annotation.SuppressLint
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.annotation.RestrictTo
@@ -181,7 +180,7 @@ class AudioUnderrunMetric : Metric() {
  * Positive numbers indicate a dropped frame and visible jank / stutter, negative numbers indicate
  * how much faster than the deadline a frame was.
  *
- * * `frameCpuTimeMs` - How much time the frame took to be produced on the CPU - on both the UI
+ * * `frameDurationCpuMs` - How much time the frame took to be produced on the CPU - on both the UI
  * Thread, and RenderThread.
  */
 @Suppress("CanSealedSubClassBeObject")
@@ -190,7 +189,6 @@ class FrameTimingMetric : Metric() {
     override fun start() {}
     override fun stop() {}
 
-    @SuppressLint("SyntheticAccessor")
     override fun getResult(
         captureInfo: CaptureInfo,
         traceSession: PerfettoTraceProcessor.Session
@@ -239,7 +237,6 @@ class StartupTimingMetric : Metric() {
     override fun stop() {
     }
 
-    @SuppressLint("SyntheticAccessor")
     override fun getResult(
         captureInfo: CaptureInfo,
         traceSession: PerfettoTraceProcessor.Session
@@ -382,7 +379,8 @@ abstract class TraceMetric : Metric() {
  * Captures the time taken by named trace section - a named begin / end pair matching the provided
  * [sectionName].
  *
- * Select how matching sections are resolved into a duration metric with [mode].
+ * Select how matching sections are resolved into a duration metric with [mode], and configure if
+ * sections outside the target process are included with [targetPackageOnly].
  *
  * @see androidx.tracing.Trace.beginSection
  * @see androidx.tracing.Trace.endSection
@@ -390,8 +388,22 @@ abstract class TraceMetric : Metric() {
  */
 @ExperimentalMetricApi
 class TraceSectionMetric(
+    /**
+     * Section name or pattern to match.
+     *
+     * "%" can be used as a wildcard, as this is supported by the underlying
+     * [PerfettoTraceProcessor] query. For example `"JIT %"` will match a section named
+     * `"JIT compiling int com.package.MyClass.method(int)"` present in the trace.
+     */
     private val sectionName: String,
-    private val mode: Mode = Mode.First
+    /**
+     * How should the
+     */
+    private val mode: Mode = Mode.First,
+    /**
+     * Filter results to trace sections only from the target process, defaults to true.
+     */
+    private val targetPackageOnly: Boolean = true
 ) : Metric() {
     enum class Mode {
         /**
@@ -420,12 +432,14 @@ class TraceSectionMetric(
     override fun stop() {
     }
 
-    @SuppressLint("SyntheticAccessor")
     override fun getResult(
         captureInfo: CaptureInfo,
         traceSession: PerfettoTraceProcessor.Session
     ): List<Measurement> {
-        val slices = traceSession.querySlices(sectionName)
+        val slices = traceSession.querySlices(
+            sectionName,
+            packageName = if (targetPackageOnly) captureInfo.targetPackageName else null
+        )
 
         return when (mode) {
             Mode.First -> {
@@ -446,6 +460,10 @@ class TraceSectionMetric(
                         name = sectionName + "Ms",
                         // note, this duration assumes non-reentrant slices
                         data = slices.sumOf { it.dur } / 1_000_000.0
+                    ),
+                    Measurement(
+                        name = sectionName + "Count",
+                        data = slices.size.toDouble()
                     )
                 )
             }
@@ -579,7 +597,7 @@ class PowerMetric(
         traceSession: PerfettoTraceProcessor.Session
     ): List<Measurement> {
         // collect metrics between trace point flags
-        val slice = traceSession.querySlices(MEASURE_BLOCK_SECTION_NAME)
+        val slice = traceSession.querySlices(MEASURE_BLOCK_SECTION_NAME, packageName = null)
             .firstOrNull()
             ?: return emptyList()
 
@@ -715,6 +733,7 @@ class MemoryUsageMetric(
          */
         Max
     }
+
     enum class SubMetric(
         /**
          * Name of counter in trace.

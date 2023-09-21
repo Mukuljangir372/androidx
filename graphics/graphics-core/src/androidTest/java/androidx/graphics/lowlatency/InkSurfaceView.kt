@@ -62,6 +62,8 @@ class InkSurfaceView(context: Context) : SurfaceView(context) {
 
         override fun onDrawFrontBufferedLayer(
             eglManager: EGLManager,
+            width: Int,
+            height: Int,
             bufferInfo: BufferInfo,
             transform: FloatArray,
             param: FloatArray
@@ -92,6 +94,8 @@ class InkSurfaceView(context: Context) : SurfaceView(context) {
 
         override fun onDrawMultiBufferedLayer(
             eglManager: EGLManager,
+            width: Int,
+            height: Int,
             bufferInfo: BufferInfo,
             transform: FloatArray,
             params: Collection<FloatArray>
@@ -120,6 +124,7 @@ class InkSurfaceView(context: Context) : SurfaceView(context) {
     val renderCount = AtomicInteger(0)
 
     init {
+        setZOrderOnTop(true)
         setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {

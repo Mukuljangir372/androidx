@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.PrimaryPressedPointerButtons
 import androidx.compose.ui.autofill.Autofill
 import androidx.compose.ui.autofill.AutofillTree
+import androidx.compose.ui.draganddrop.DragAndDropInfo
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusDirection.Companion.In
 import androidx.compose.ui.focus.FocusDirection.Companion.Next
@@ -38,6 +39,7 @@ import androidx.compose.ui.focus.FocusOwner
 import androidx.compose.ui.focus.FocusOwnerImpl
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Canvas
+import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.graphics.asComposeCanvas
 import androidx.compose.ui.input.InputMode.Companion.Keyboard
 import androidx.compose.ui.input.InputModeManager
@@ -73,10 +75,7 @@ import androidx.compose.ui.node.RootForTest
 import androidx.compose.ui.semantics.EmptySemanticsElement
 import androidx.compose.ui.semantics.SemanticsOwner
 import androidx.compose.ui.text.ExperimentalTextApi
-import androidx.compose.ui.text.InternalTextApi
 import androidx.compose.ui.text.font.createFontFamilyResolver
-import androidx.compose.ui.text.input.PlatformTextInputPluginRegistry
-import androidx.compose.ui.text.input.PlatformTextInputPluginRegistryImpl
 import androidx.compose.ui.text.input.TextInputService
 import androidx.compose.ui.text.platform.FontLoader
 import androidx.compose.ui.unit.Constraints
@@ -202,7 +201,9 @@ internal class SkiaBasedOwner(
     init {
         snapshotObserver.startObserving()
         root.attach(this)
-        focusOwner.takeFocus()
+        focusOwner.focusTransactionManager.withNewTransaction {
+            focusOwner.takeFocus()
+        }
     }
 
     fun dispose() {
@@ -211,13 +212,6 @@ internal class SkiaBasedOwner(
     }
 
     override val textInputService = TextInputService(platformInputService)
-
-    @Suppress("UNUSED_ANONYMOUS_PARAMETER")
-    @OptIn(InternalTextApi::class)
-    override val platformTextInputPluginRegistry: PlatformTextInputPluginRegistry
-        get() = PlatformTextInputPluginRegistryImpl { factory, platformTextInput ->
-            TODO("See https://issuetracker.google.com/267235947")
-        }
 
     @Deprecated(
         "fontLoader is deprecated, use fontFamilyResolver",
@@ -400,6 +394,8 @@ internal class SkiaBasedOwner(
 
     override fun localToScreen(localPosition: Offset): Offset = localPosition
 
+    override fun localToScreen(localTransform: Matrix) {}
+
     override fun screenToLocal(positionOnScreen: Offset): Offset = positionOnScreen
 
     fun draw(canvas: org.jetbrains.skia.Canvas) {
@@ -505,6 +501,16 @@ internal class SkiaBasedOwner(
     override fun registerOnLayoutCompletedListener(listener: Owner.OnLayoutCompletedListener) {
         measureAndLayoutDelegate.registerOnLayoutCompletedListener(listener)
         requestLayout()
+    }
+
+    override suspend fun textInputSession(
+        session: suspend PlatformTextInputSessionScope.() -> Nothing
+    ): Nothing {
+        component.textInputSession(session)
+    }
+
+    override fun drag(dragAndDropInfo: DragAndDropInfo): Boolean {
+        TODO("Not yet implemented")
     }
 
     // A Stub for the PointerIconService required in Owner.kt

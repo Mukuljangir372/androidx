@@ -40,6 +40,7 @@ public class Utils {
     private Utils() {
         throw new AssertionError();
     }
+
     /**
      * Utility method to write a byte array into a stream.
      */
@@ -86,19 +87,30 @@ public class Utils {
     /**
      * Checks if the given AssetFileDescriptor passes certain conditions.
      */
+
     public static void checkAssetFileDescriptor(@NonNull AssetFileDescriptor afd,
-            int maxLength) {
-        if (afd.getStartOffset() != 0) {
-            throw new UnsupportedOperationException(
-                    "AssetFileDescriptor.getStartOffset() != 0");
-        }
-        if (afd.getLength() < 0) {
-            throw new UnsupportedOperationException(
-                    "AssetFileDescriptor.getLength() should be >=0");
-        }
-        if (afd.getLength() > maxLength) {
+            boolean allowUnknownLength) {
+        if (afd.getStartOffset() < 0) {
             throw new IllegalArgumentException(
-                    "AssetFileDescriptor.getLength() should be <= " + maxLength);
+                    "AssetFileDescriptor offset should be >= 0");
+        }
+        if (afd.getLength() != AssetFileDescriptor.UNKNOWN_LENGTH && afd.getLength() < 0) {
+            throw new IllegalArgumentException(
+                    "AssetFileDescriptor should have valid length");
+        }
+        if (afd.getDeclaredLength() != AssetFileDescriptor.UNKNOWN_LENGTH
+                && afd.getDeclaredLength() < 0) {
+            throw new IllegalArgumentException(
+                    "AssetFileDescriptor should have valid declared length");
+        }
+        if (afd.getLength() == AssetFileDescriptor.UNKNOWN_LENGTH && afd.getStartOffset() != 0) {
+            throw new UnsupportedOperationException(
+                    "AssetFileDescriptor offset should be 0 for unknown length");
+        }
+
+        if (!allowUnknownLength && afd.getLength() == AssetFileDescriptor.UNKNOWN_LENGTH) {
+            throw new UnsupportedOperationException(
+                    "AssetFileDescriptor should have known length");
         }
     }
 
@@ -157,18 +169,18 @@ public class Utils {
     @NonNull
     public static String readToString(@NonNull AssetFileDescriptor afd, int maxLength,
             boolean truncate)
-            throws IOException {
+            throws IOException, LengthLimitExceededException {
         try {
-            int lengthToRead;
-            try {
-                Utils.checkAssetFileDescriptor(afd, maxLength);
-                lengthToRead = (int) afd.getLength();
-            } catch (IllegalArgumentException ex) {
-                if (!truncate) {
-                    throw ex;
-                } else {
+            Utils.checkAssetFileDescriptor(afd, /*allowUnknownLength=*/ false);
+            int lengthToRead = (int) afd.getLength();
+            if (afd.getLength() > maxLength) {
+                if (truncate) {
                     // If truncate is true, read how much ever you are allowed to read.
                     lengthToRead = maxLength;
+                } else {
+                    throw new LengthLimitExceededException(
+                            "AssetFileDescriptor.getLength() should be"
+                                    + " <= " + maxLength);
                 }
             }
             byte[] bytes = new byte[lengthToRead];

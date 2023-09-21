@@ -30,6 +30,7 @@ import androidx.compose.ui.node.LayoutAwareModifierNode
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.toSize
 import kotlin.math.abs
+import kotlin.math.absoluteValue
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineName
@@ -47,6 +48,11 @@ private const val DEBUG = false
 private const val TAG = "ContentInViewModifier"
 
 /**
+ * A minimum amount of delta that it is considered a valid scroll.
+ */
+private const val MinScrollThreshold = 0.5f
+
+/**
  * A [Modifier] to be placed on a scrollable container (i.e. [Modifier.scrollable]) that animates
  * the [ScrollableState] to handle [BringIntoViewRequester] requests and keep the currently-focused
  * child in view when the viewport shrinks.
@@ -57,7 +63,8 @@ private const val TAG = "ContentInViewModifier"
 internal class ContentInViewNode(
     private var orientation: Orientation,
     private var scrollState: ScrollableState,
-    private var reverseDirection: Boolean
+    private var reverseDirection: Boolean,
+    private var bringIntoViewSpec: BringIntoViewSpec
 ) : Modifier.Node(), BringIntoViewResponder, LayoutAwareModifierNode {
 
     /**
@@ -92,9 +99,12 @@ internal class ContentInViewNode(
     private var trackingFocusedChild = false
 
     /** The size of the scrollable container. */
-    private var viewportSize = IntSize.Zero
+    internal var viewportSize = IntSize.Zero
+        private set
+
     private var isAnimationRunning = false
-    private val animationState = UpdatableAnimationState()
+    private val animationState =
+        UpdatableAnimationState(bringIntoViewSpec.scrollAnimationSpec)
 
     override fun calculateRectForParent(localRect: Rect): Rect {
         check(viewportSize != IntSize.Zero) {
@@ -167,7 +177,7 @@ internal class ContentInViewNode(
     }
 
     private fun launchAnimation() {
-        check(!isAnimationRunning)
+        check(!isAnimationRunning) { "launchAnimation called when previous animation was running" }
 
         if (DEBUG) println("[$TAG] launchAnimation")
 
@@ -197,7 +207,7 @@ internal class ContentInViewNode(
                             )
                             val consumedScroll = scrollMultiplier * scrollBy(adjustedDelta)
                             if (DEBUG) println("[$TAG] Consumed $consumedScroll of scroll")
-                            if (consumedScroll < delta) {
+                            if (consumedScroll.absoluteValue < delta.absoluteValue) {
                                 // If the scroll state didn't consume all the scroll on this frame,
                                 // it probably won't consume any more later either (we might have
                                 // hit the scroll bounds). This is a terminal condition for the
@@ -291,15 +301,15 @@ internal class ContentInViewNode(
 
         val size = viewportSize.toSize()
         return when (orientation) {
-            Vertical -> relocationDistance(
+            Vertical -> bringIntoViewSpec.calculateScrollDistance(
                 rectangleToMakeVisible.top,
-                rectangleToMakeVisible.bottom,
+                rectangleToMakeVisible.bottom - rectangleToMakeVisible.top,
                 size.height
             )
 
-            Horizontal -> relocationDistance(
+            Horizontal -> bringIntoViewSpec.calculateScrollDistance(
                 rectangleToMakeVisible.left,
-                rectangleToMakeVisible.right,
+                rectangleToMakeVisible.right - rectangleToMakeVisible.left,
                 size.width
             )
         }
@@ -320,7 +330,9 @@ internal class ContentInViewNode(
                 // TODO(klippenstein) if there is a request that's too big to fit in the current
                 //  bounds, we should try to fit the largest part of it that contains the
                 //  next-smallest request.
-                return rectangleToMakeVisible
+                // if rectangleToMakeVisible is null, return the current bounds even if it is
+                // oversized.
+                return rectangleToMakeVisible ?: bounds
             }
         }
         return rectangleToMakeVisible
@@ -342,7 +354,9 @@ internal class ContentInViewNode(
      * already filling the whole viewport.
      */
     private fun Rect.isMaxVisible(size: IntSize = viewportSize): Boolean {
-        return relocationOffset(this, size) == Offset.Zero
+        val relocationOffset = relocationOffset(this, size)
+        return abs(relocationOffset.x) <= MinScrollThreshold &&
+            abs(relocationOffset.y) <= MinScrollThreshold
     }
 
     private fun relocationOffset(childBounds: Rect, containerSize: IntSize): Offset {
@@ -350,35 +364,23 @@ internal class ContentInViewNode(
         return when (orientation) {
             Vertical -> Offset(
                 x = 0f,
-                y = relocationDistance(childBounds.top, childBounds.bottom, size.height)
+                y = bringIntoViewSpec.calculateScrollDistance(
+                    childBounds.top,
+                    childBounds.bottom - childBounds.top,
+                    size.height
+                )
             )
 
             Horizontal -> Offset(
-                x = relocationDistance(childBounds.left, childBounds.right, size.width),
+                x = bringIntoViewSpec.calculateScrollDistance(
+                    childBounds.left,
+                    childBounds.right - childBounds.left,
+                    size.width
+                ),
                 y = 0f
             )
         }
     }
-
-    /**
-     * Calculate the offset needed to bring one of the edges into view. The leadingEdge is the side
-     * closest to the origin (For the x-axis this is 'left', for the y-axis this is 'top').
-     * The trailing edge is the other side (For the x-axis this is 'right', for the y-axis this is
-     * 'bottom').
-     */
-    private fun relocationDistance(leadingEdge: Float, trailingEdge: Float, containerSize: Float) =
-        when {
-            // If the item is already visible, no need to scroll.
-            leadingEdge >= 0 && trailingEdge <= containerSize -> 0f
-
-            // If the item is visible but larger than the parent, we don't scroll.
-            leadingEdge < 0 && trailingEdge > containerSize -> 0f
-
-            // Find the minimum scroll needed to make one of the edges coincide with the parent's
-            // edge.
-            abs(leadingEdge) < abs(trailingEdge - containerSize) -> leadingEdge
-            else -> trailingEdge - containerSize
-        }
 
     private operator fun IntSize.compareTo(other: IntSize): Int = when (orientation) {
         Horizontal -> width.compareTo(other.width)
@@ -390,10 +392,16 @@ internal class ContentInViewNode(
         Vertical -> height.compareTo(other.height)
     }
 
-    fun update(orientation: Orientation, state: ScrollableState, reverseDirection: Boolean) {
+    fun update(
+        orientation: Orientation,
+        state: ScrollableState,
+        reverseDirection: Boolean,
+        bringIntoViewSpec: BringIntoViewSpec
+    ) {
         this.orientation = orientation
         this.scrollState = state
         this.reverseDirection = reverseDirection
+        this.bringIntoViewSpec = bringIntoViewSpec
     }
 
     /**

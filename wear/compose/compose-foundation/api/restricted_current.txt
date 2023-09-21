@@ -27,8 +27,12 @@ package androidx.wear.compose.foundation {
   }
 
   public final class CompositionLocalsKt {
-    method @androidx.wear.compose.foundation.ExperimentalWearFoundationApi public static androidx.compose.runtime.ProvidableCompositionLocal<androidx.wear.compose.foundation.ReduceMotion> getLocalReduceMotion();
-    property @androidx.wear.compose.foundation.ExperimentalWearFoundationApi public static final androidx.compose.runtime.ProvidableCompositionLocal<androidx.wear.compose.foundation.ReduceMotion> LocalReduceMotion;
+    method @SuppressCompatibility @androidx.wear.compose.foundation.ExperimentalWearFoundationApi public static androidx.compose.runtime.ProvidableCompositionLocal<androidx.wear.compose.foundation.ReduceMotion> getLocalReduceMotion();
+    method public static androidx.compose.runtime.ProvidableCompositionLocal<androidx.compose.ui.graphics.Color> getLocalSwipeToDismissBackgroundScrimColor();
+    method public static androidx.compose.runtime.ProvidableCompositionLocal<androidx.compose.ui.graphics.Color> getLocalSwipeToDismissContentScrimColor();
+    property @SuppressCompatibility @androidx.wear.compose.foundation.ExperimentalWearFoundationApi public static final androidx.compose.runtime.ProvidableCompositionLocal<androidx.wear.compose.foundation.ReduceMotion> LocalReduceMotion;
+    property public static final androidx.compose.runtime.ProvidableCompositionLocal<androidx.compose.ui.graphics.Color> LocalSwipeToDismissBackgroundScrimColor;
+    property public static final androidx.compose.runtime.ProvidableCompositionLocal<androidx.compose.ui.graphics.Color> LocalSwipeToDismissContentScrimColor;
   }
 
   public interface CurvedAlignment {
@@ -135,7 +139,7 @@ package androidx.wear.compose.foundation {
 
   public final class CurvedParentDataKt {
     method public static androidx.wear.compose.foundation.CurvedModifier parentDataModifier(androidx.wear.compose.foundation.CurvedModifier, kotlin.jvm.functions.Function1<java.lang.Object,?> modifyParentData);
-    method public static androidx.wear.compose.foundation.CurvedModifier weight(androidx.wear.compose.foundation.CurvedModifier, float weight);
+    method public static androidx.wear.compose.foundation.CurvedModifier weight(androidx.wear.compose.foundation.CurvedModifier, @FloatRange(from=0.0, fromInclusive=false) float weight);
   }
 
   public final class CurvedRowKt {
@@ -149,8 +153,8 @@ package androidx.wear.compose.foundation {
     method public static androidx.wear.compose.foundation.CurvedModifier angularSize(androidx.wear.compose.foundation.CurvedModifier, float sweepDegrees);
     method public static androidx.wear.compose.foundation.CurvedModifier angularSizeDp(androidx.wear.compose.foundation.CurvedModifier, float angularWidth);
     method public static androidx.wear.compose.foundation.CurvedModifier radialSize(androidx.wear.compose.foundation.CurvedModifier, float thickness);
-    method public static androidx.wear.compose.foundation.CurvedModifier size(androidx.wear.compose.foundation.CurvedModifier, float sweepDegrees, float thickness);
-    method public static androidx.wear.compose.foundation.CurvedModifier sizeIn(androidx.wear.compose.foundation.CurvedModifier, optional float minSweepDegrees, optional float maxSweepDegrees, optional float minThickness, optional float maxThickness);
+    method public static androidx.wear.compose.foundation.CurvedModifier size(androidx.wear.compose.foundation.CurvedModifier, @FloatRange(from=0.0, to=360.0) float sweepDegrees, float thickness);
+    method public static androidx.wear.compose.foundation.CurvedModifier sizeIn(androidx.wear.compose.foundation.CurvedModifier, optional @FloatRange(from=0.0, to=360.0) float minSweepDegrees, optional @FloatRange(from=0.0, to=360.0) float maxSweepDegrees, optional float minThickness, optional float maxThickness);
   }
 
   public final class CurvedTextStyle {
@@ -190,6 +194,7 @@ package androidx.wear.compose.foundation {
     method public static void expandableItem(androidx.wear.compose.foundation.lazy.ScalingLazyListScope, androidx.wear.compose.foundation.ExpandableState state, optional Object? key, kotlin.jvm.functions.Function1<? super java.lang.Boolean,kotlin.Unit> content);
     method public static void expandableItems(androidx.wear.compose.foundation.lazy.ScalingLazyListScope, androidx.wear.compose.foundation.ExpandableState state, int count, optional kotlin.jvm.functions.Function1<? super java.lang.Integer,?>? key, kotlin.jvm.functions.Function2<? super androidx.compose.foundation.layout.BoxScope,? super java.lang.Integer,kotlin.Unit> itemContent);
     method @androidx.compose.runtime.Composable public static androidx.wear.compose.foundation.ExpandableState rememberExpandableState(optional boolean initiallyExpanded, optional androidx.compose.animation.core.AnimationSpec<java.lang.Float> expandAnimationSpec, optional androidx.compose.animation.core.AnimationSpec<java.lang.Float> collapseAnimationSpec);
+    method @androidx.compose.runtime.Composable public static <T> androidx.wear.compose.foundation.ExpandableStateMapping<T> rememberExpandableStateMapping(optional kotlin.jvm.functions.Function1<? super T,java.lang.Boolean> initiallyExpanded, optional androidx.compose.animation.core.AnimationSpec<java.lang.Float> expandAnimationSpec, optional androidx.compose.animation.core.AnimationSpec<java.lang.Float> collapseAnimationSpec);
   }
 
   public final class ExpandableState {
@@ -200,41 +205,67 @@ package androidx.wear.compose.foundation {
     property public final boolean expanded;
   }
 
-  @kotlin.RequiresOptIn(message="This Wear Foundation API is experimental and is likely to change or to be removed in" + " the future.") @kotlin.annotation.Retention(kotlin.annotation.AnnotationRetention.BINARY) public @interface ExperimentalWearFoundationApi {
+  public final class ExpandableStateMapping<T> {
+    method public androidx.wear.compose.foundation.ExpandableState getOrPutNew(T key);
+  }
+
+  @SuppressCompatibility @kotlin.RequiresOptIn(message="This Wear Foundation API is experimental and is likely to change or to be removed in" + " the future.") @kotlin.annotation.Retention(kotlin.annotation.AnnotationRetention.BINARY) public @interface ExperimentalWearFoundationApi {
   }
 
   public final class HierarchicalFocusCoordinatorKt {
-    method @androidx.compose.runtime.Composable @androidx.wear.compose.foundation.ExperimentalWearFoundationApi public static void HierarchicalFocusCoordinator(kotlin.jvm.functions.Function0<java.lang.Boolean> requiresFocus, kotlin.jvm.functions.Function0<kotlin.Unit> content);
-    method @androidx.compose.runtime.Composable @androidx.wear.compose.foundation.ExperimentalWearFoundationApi public static void OnFocusChange(kotlin.jvm.functions.Function2<? super kotlinx.coroutines.CoroutineScope,? super java.lang.Boolean,kotlin.Unit> onFocusChanged);
-    method @androidx.compose.runtime.Composable @androidx.wear.compose.foundation.ExperimentalWearFoundationApi public static void RequestFocusWhenActive(androidx.compose.ui.focus.FocusRequester focusRequester);
-    method @androidx.compose.runtime.Composable @androidx.wear.compose.foundation.ExperimentalWearFoundationApi public static androidx.compose.ui.focus.FocusRequester rememberActiveFocusRequester();
+    method @SuppressCompatibility @androidx.compose.runtime.Composable @androidx.wear.compose.foundation.ExperimentalWearFoundationApi public static void HierarchicalFocusCoordinator(kotlin.jvm.functions.Function0<java.lang.Boolean> requiresFocus, kotlin.jvm.functions.Function0<kotlin.Unit> content);
+    method @SuppressCompatibility @androidx.compose.runtime.Composable @androidx.wear.compose.foundation.ExperimentalWearFoundationApi public static void OnFocusChange(kotlin.jvm.functions.Function2<? super kotlinx.coroutines.CoroutineScope,? super java.lang.Boolean,kotlin.Unit> onFocusChanged);
+    method @SuppressCompatibility @androidx.compose.runtime.Composable @androidx.wear.compose.foundation.ExperimentalWearFoundationApi public static void RequestFocusWhenActive(androidx.compose.ui.focus.FocusRequester focusRequester);
+    method @SuppressCompatibility @androidx.compose.runtime.Composable @androidx.wear.compose.foundation.ExperimentalWearFoundationApi public static androidx.compose.ui.focus.FocusRequester rememberActiveFocusRequester();
   }
 
-  @androidx.wear.compose.foundation.ExperimentalWearFoundationApi public fun interface ReduceMotion {
+  @SuppressCompatibility @androidx.wear.compose.foundation.ExperimentalWearFoundationApi public fun interface ReduceMotion {
     method @androidx.compose.runtime.Composable public boolean enabled();
   }
 
-  @androidx.wear.compose.foundation.ExperimentalWearFoundationApi public interface RevealScope {
+  @SuppressCompatibility @androidx.wear.compose.foundation.ExperimentalWearFoundationApi @kotlin.jvm.JvmInline public final value class RevealActionType {
+    method public int getValue();
+    property public final int value;
+    field public static final androidx.wear.compose.foundation.RevealActionType.Companion Companion;
+  }
+
+  public static final class RevealActionType.Companion {
+    method public int getNone();
+    method public int getPrimaryAction();
+    method public int getSecondaryAction();
+    method public int getUndoAction();
+    property public final int None;
+    property public final int PrimaryAction;
+    property public final int SecondaryAction;
+    property public final int UndoAction;
+  }
+
+  @SuppressCompatibility @androidx.wear.compose.foundation.ExperimentalWearFoundationApi public interface RevealScope {
+    method public int getLastActionType();
     method public float getRevealOffset();
+    property public abstract int lastActionType;
     property public abstract float revealOffset;
   }
 
-  @androidx.wear.compose.foundation.ExperimentalWearFoundationApi public final class RevealState {
+  @SuppressCompatibility @androidx.wear.compose.foundation.ExperimentalWearFoundationApi public final class RevealState {
     method public suspend Object? animateTo(int targetValue, kotlin.coroutines.Continuation<? super kotlin.Unit>);
     method public int getCurrentValue();
+    method public int getLastActionType();
     method public float getOffset();
     method public java.util.Map<androidx.wear.compose.foundation.RevealValue,java.lang.Float> getSwipeAnchors();
     method public int getTargetValue();
     method public boolean isAnimationRunning();
+    method public void setLastActionType(int);
     method public suspend Object? snapTo(int targetValue, kotlin.coroutines.Continuation<? super kotlin.Unit>);
     property public final int currentValue;
     property public final boolean isAnimationRunning;
+    property public final int lastActionType;
     property public final float offset;
     property public final java.util.Map<androidx.wear.compose.foundation.RevealValue,java.lang.Float> swipeAnchors;
     property public final int targetValue;
   }
 
-  @androidx.wear.compose.foundation.ExperimentalWearFoundationApi @kotlin.jvm.JvmInline public final value class RevealValue {
+  @SuppressCompatibility @androidx.wear.compose.foundation.ExperimentalWearFoundationApi @kotlin.jvm.JvmInline public final value class RevealValue {
     method public int getValue();
     property public final int value;
     field public static final androidx.wear.compose.foundation.RevealValue.Companion Companion;
@@ -249,10 +280,50 @@ package androidx.wear.compose.foundation {
     property public final int Revealing;
   }
 
+  public final class SwipeToDismissBoxDefaults {
+    method public androidx.compose.animation.core.SpringSpec<java.lang.Float> getAnimationSpec();
+    method public float getEdgeWidth();
+    property public final androidx.compose.animation.core.SpringSpec<java.lang.Float> AnimationSpec;
+    property public final float EdgeWidth;
+    field public static final androidx.wear.compose.foundation.SwipeToDismissBoxDefaults INSTANCE;
+  }
+
+  public final class SwipeToDismissBoxKt {
+    method @androidx.compose.runtime.Composable public static void SwipeToDismissBox(androidx.wear.compose.foundation.SwipeToDismissBoxState state, optional androidx.compose.ui.Modifier modifier, optional Object backgroundKey, optional Object contentKey, optional boolean userSwipeEnabled, kotlin.jvm.functions.Function2<? super androidx.compose.foundation.layout.BoxScope,? super java.lang.Boolean,kotlin.Unit> content);
+    method @androidx.compose.runtime.Composable public static void SwipeToDismissBox(kotlin.jvm.functions.Function0<kotlin.Unit> onDismissed, optional androidx.compose.ui.Modifier modifier, optional androidx.wear.compose.foundation.SwipeToDismissBoxState state, optional Object backgroundKey, optional Object contentKey, optional boolean userSwipeEnabled, kotlin.jvm.functions.Function2<? super androidx.compose.foundation.layout.BoxScope,? super java.lang.Boolean,kotlin.Unit> content);
+    method public static androidx.compose.ui.Modifier edgeSwipeToDismiss(androidx.compose.ui.Modifier, androidx.wear.compose.foundation.SwipeToDismissBoxState swipeToDismissBoxState, optional float edgeWidth);
+    method @androidx.compose.runtime.Composable public static androidx.wear.compose.foundation.SwipeToDismissBoxState rememberSwipeToDismissBoxState(optional androidx.compose.animation.core.AnimationSpec<java.lang.Float> animationSpec, optional kotlin.jvm.functions.Function1<? super androidx.wear.compose.foundation.SwipeToDismissValue,java.lang.Boolean> confirmStateChange);
+  }
+
+  @androidx.compose.runtime.Stable public final class SwipeToDismissBoxState {
+    ctor public SwipeToDismissBoxState(optional androidx.compose.animation.core.AnimationSpec<java.lang.Float> animationSpec, optional kotlin.jvm.functions.Function1<? super androidx.wear.compose.foundation.SwipeToDismissValue,java.lang.Boolean> confirmStateChange);
+    method public androidx.wear.compose.foundation.SwipeToDismissValue getCurrentValue();
+    method public androidx.wear.compose.foundation.SwipeToDismissValue getTargetValue();
+    method public boolean isAnimationRunning();
+    method public suspend Object? snapTo(androidx.wear.compose.foundation.SwipeToDismissValue targetValue, kotlin.coroutines.Continuation<? super kotlin.Unit>);
+    property public final androidx.wear.compose.foundation.SwipeToDismissValue currentValue;
+    property public final boolean isAnimationRunning;
+    property public final androidx.wear.compose.foundation.SwipeToDismissValue targetValue;
+  }
+
+  public enum SwipeToDismissKeys {
+    method public static androidx.wear.compose.foundation.SwipeToDismissKeys valueOf(String value) throws java.lang.IllegalArgumentException, java.lang.NullPointerException;
+    method public static androidx.wear.compose.foundation.SwipeToDismissKeys[] values();
+    enum_constant public static final androidx.wear.compose.foundation.SwipeToDismissKeys Background;
+    enum_constant public static final androidx.wear.compose.foundation.SwipeToDismissKeys Content;
+  }
+
+  public enum SwipeToDismissValue {
+    method public static androidx.wear.compose.foundation.SwipeToDismissValue valueOf(String value) throws java.lang.IllegalArgumentException, java.lang.NullPointerException;
+    method public static androidx.wear.compose.foundation.SwipeToDismissValue[] values();
+    enum_constant public static final androidx.wear.compose.foundation.SwipeToDismissValue Default;
+    enum_constant public static final androidx.wear.compose.foundation.SwipeToDismissValue Dismissed;
+  }
+
   public final class SwipeToRevealKt {
-    method @androidx.compose.runtime.Composable @androidx.wear.compose.foundation.ExperimentalWearFoundationApi public static void SwipeToReveal(kotlin.jvm.functions.Function1<? super androidx.wear.compose.foundation.RevealScope,kotlin.Unit> action, optional androidx.compose.ui.Modifier modifier, optional kotlin.jvm.functions.Function0<kotlin.Unit> onFullSwipe, optional androidx.wear.compose.foundation.RevealState state, optional kotlin.jvm.functions.Function1<? super androidx.wear.compose.foundation.RevealScope,kotlin.Unit>? additionalAction, optional kotlin.jvm.functions.Function1<? super androidx.wear.compose.foundation.RevealScope,kotlin.Unit>? undoAction, kotlin.jvm.functions.Function0<kotlin.Unit> content);
-    method @androidx.wear.compose.foundation.ExperimentalWearFoundationApi public static java.util.Map<androidx.wear.compose.foundation.RevealValue,java.lang.Float> createAnchors(optional float coveredAnchor, optional float revealingAnchor, optional float revealedAnchor);
-    method @androidx.compose.runtime.Composable @androidx.wear.compose.foundation.ExperimentalWearFoundationApi public static androidx.wear.compose.foundation.RevealState rememberRevealState(optional int initialValue, optional androidx.compose.animation.core.AnimationSpec<java.lang.Float> animationSpec, optional kotlin.jvm.functions.Function1<? super androidx.wear.compose.foundation.RevealValue,java.lang.Boolean> confirmValueChange, optional kotlin.jvm.functions.Function2<? super androidx.compose.ui.unit.Density,? super java.lang.Float,java.lang.Float> positionalThreshold, optional java.util.Map<androidx.wear.compose.foundation.RevealValue,java.lang.Float> anchors);
+    method @SuppressCompatibility @androidx.compose.runtime.Composable @androidx.wear.compose.foundation.ExperimentalWearFoundationApi public static void SwipeToReveal(kotlin.jvm.functions.Function1<? super androidx.wear.compose.foundation.RevealScope,kotlin.Unit> primaryAction, optional androidx.compose.ui.Modifier modifier, optional kotlin.jvm.functions.Function0<kotlin.Unit> onFullSwipe, optional androidx.wear.compose.foundation.RevealState state, optional kotlin.jvm.functions.Function1<? super androidx.wear.compose.foundation.RevealScope,kotlin.Unit>? secondaryAction, optional kotlin.jvm.functions.Function1<? super androidx.wear.compose.foundation.RevealScope,kotlin.Unit>? undoAction, kotlin.jvm.functions.Function0<kotlin.Unit> content);
+    method @SuppressCompatibility @androidx.wear.compose.foundation.ExperimentalWearFoundationApi public static java.util.Map<androidx.wear.compose.foundation.RevealValue,java.lang.Float> createAnchors(optional float coveredAnchor, optional float revealingAnchor, optional float revealedAnchor);
+    method @SuppressCompatibility @androidx.compose.runtime.Composable @androidx.wear.compose.foundation.ExperimentalWearFoundationApi public static androidx.wear.compose.foundation.RevealState rememberRevealState(optional int initialValue, optional androidx.compose.animation.core.AnimationSpec<java.lang.Float> animationSpec, optional kotlin.jvm.functions.Function1<? super androidx.wear.compose.foundation.RevealValue,java.lang.Boolean> confirmValueChange, optional kotlin.jvm.functions.Function2<? super androidx.compose.ui.unit.Density,? super java.lang.Float,java.lang.Float> positionalThreshold, optional java.util.Map<androidx.wear.compose.foundation.RevealValue,java.lang.Float> anchors);
   }
 
 }
@@ -308,9 +379,9 @@ package androidx.wear.compose.foundation.lazy {
   }
 
   @androidx.compose.runtime.Stable @androidx.wear.compose.foundation.lazy.ScalingLazyScopeMarker public sealed interface ScalingLazyListItemScope {
-    method public androidx.compose.ui.Modifier fillParentMaxHeight(androidx.compose.ui.Modifier, optional float fraction);
-    method public androidx.compose.ui.Modifier fillParentMaxSize(androidx.compose.ui.Modifier, optional float fraction);
-    method public androidx.compose.ui.Modifier fillParentMaxWidth(androidx.compose.ui.Modifier, optional float fraction);
+    method public androidx.compose.ui.Modifier fillParentMaxHeight(androidx.compose.ui.Modifier, optional @FloatRange(from=0.0, to=1.0) float fraction);
+    method public androidx.compose.ui.Modifier fillParentMaxSize(androidx.compose.ui.Modifier, optional @FloatRange(from=0.0, to=1.0) float fraction);
+    method public androidx.compose.ui.Modifier fillParentMaxWidth(androidx.compose.ui.Modifier, optional @FloatRange(from=0.0, to=1.0) float fraction);
   }
 
   public sealed interface ScalingLazyListLayoutInfo {
@@ -377,20 +448,20 @@ package androidx.wear.compose.foundation.lazy {
   }
 
   @androidx.compose.runtime.Stable public interface ScalingParams {
-    method public float getEdgeAlpha();
-    method public float getEdgeScale();
-    method public float getMaxElementHeight();
-    method public float getMaxTransitionArea();
-    method public float getMinElementHeight();
-    method public float getMinTransitionArea();
+    method @FloatRange(from=0.0, to=1.0) public float getEdgeAlpha();
+    method @FloatRange(from=0.0, to=1.0) public float getEdgeScale();
+    method @FloatRange(from=0.0, to=1.0) public float getMaxElementHeight();
+    method @FloatRange(from=0.0, to=1.0) public float getMaxTransitionArea();
+    method @FloatRange(from=0.0, to=1.0) public float getMinElementHeight();
+    method @FloatRange(from=0.0, to=1.0) public float getMinTransitionArea();
     method public androidx.compose.animation.core.Easing getScaleInterpolator();
     method public int resolveViewportVerticalOffset(long viewportConstraints);
-    property public abstract float edgeAlpha;
-    property public abstract float edgeScale;
-    property public abstract float maxElementHeight;
-    property public abstract float maxTransitionArea;
-    property public abstract float minElementHeight;
-    property public abstract float minTransitionArea;
+    property @FloatRange(from=0.0, to=1.0) public abstract float edgeAlpha;
+    property @FloatRange(from=0.0, to=1.0) public abstract float edgeScale;
+    property @FloatRange(from=0.0, to=1.0) public abstract float maxElementHeight;
+    property @FloatRange(from=0.0, to=1.0) public abstract float maxTransitionArea;
+    property @FloatRange(from=0.0, to=1.0) public abstract float minElementHeight;
+    property @FloatRange(from=0.0, to=1.0) public abstract float minTransitionArea;
     property public abstract androidx.compose.animation.core.Easing scaleInterpolator;
   }
 

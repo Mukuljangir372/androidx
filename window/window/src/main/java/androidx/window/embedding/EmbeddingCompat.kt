@@ -17,11 +17,14 @@
 package androidx.window.embedding
 
 import android.app.Activity
+import android.app.ActivityOptions
 import android.content.Context
+import android.os.IBinder
 import android.util.Log
+import androidx.window.RequiresWindowSdkExtension
+import androidx.window.WindowSdkExtensions
 import androidx.window.core.BuildConfig
 import androidx.window.core.ConsumerAdapter
-import androidx.window.core.ExperimentalWindowApi
 import androidx.window.core.ExtensionsUtil
 import androidx.window.core.VerificationMode
 import androidx.window.embedding.EmbeddingInterfaceCompat.EmbeddingCallbackInterface
@@ -37,7 +40,7 @@ import java.lang.reflect.Proxy
  * Adapter implementation for different historical versions of activity embedding OEM interface in
  * [ActivityEmbeddingComponent]. Only supports the single current version in this implementation.
  */
-internal class EmbeddingCompat constructor(
+internal class EmbeddingCompat(
     private val embeddingExtension: ActivityEmbeddingComponent,
     private val adapter: EmbeddingAdapter,
     private val consumerAdapter: ConsumerAdapter,
@@ -90,29 +93,61 @@ internal class EmbeddingCompat constructor(
         return embeddingExtension.isActivityEmbedded(activity)
     }
 
-    @ExperimentalWindowApi
+    @RequiresWindowSdkExtension(2)
     override fun setSplitAttributesCalculator(
         calculator: (SplitAttributesCalculatorParams) -> SplitAttributes
     ) {
-        if (!isSplitAttributesCalculatorSupported()) {
-            throw UnsupportedOperationException("#setSplitAttributesCalculator is not supported " +
-                "on the device.")
-        }
+        WindowSdkExtensions.getInstance().requireExtensionVersion(2)
+
         embeddingExtension.setSplitAttributesCalculator(
             adapter.translateSplitAttributesCalculator(calculator)
         )
     }
 
+    @RequiresWindowSdkExtension(2)
     override fun clearSplitAttributesCalculator() {
-        if (!isSplitAttributesCalculatorSupported()) {
-            throw UnsupportedOperationException("#clearSplitAttributesCalculator is not " +
-                "supported on the device.")
-        }
+        WindowSdkExtensions.getInstance().requireExtensionVersion(2)
+
         embeddingExtension.clearSplitAttributesCalculator()
     }
 
-    override fun isSplitAttributesCalculatorSupported(): Boolean =
-        ExtensionsUtil.safeVendorApiLevel >= VENDOR_API_LEVEL_2
+    @RequiresWindowSdkExtension(3)
+    override fun finishActivityStacks(activityStacks: Set<ActivityStack>) {
+        WindowSdkExtensions.getInstance().requireExtensionVersion(3)
+
+        val stackTokens = activityStacks.mapTo(mutableSetOf()) { it.token }
+        embeddingExtension.finishActivityStacks(stackTokens)
+    }
+
+    @RequiresWindowSdkExtension(3)
+    override fun invalidateTopVisibleSplitAttributes() {
+        WindowSdkExtensions.getInstance().requireExtensionVersion(3)
+
+        embeddingExtension.invalidateTopVisibleSplitAttributes()
+    }
+
+    @RequiresWindowSdkExtension(3)
+    override fun updateSplitAttributes(
+        splitInfo: SplitInfo,
+        splitAttributes: SplitAttributes
+    ) {
+        WindowSdkExtensions.getInstance().requireExtensionVersion(3)
+
+        embeddingExtension.updateSplitAttributes(
+            splitInfo.token,
+            adapter.translateSplitAttributes(splitAttributes)
+        )
+    }
+
+    @RequiresWindowSdkExtension(3)
+    override fun setLaunchingActivityStack(
+        options: ActivityOptions,
+        token: IBinder
+    ): ActivityOptions {
+        WindowSdkExtensions.getInstance().requireExtensionVersion(3)
+
+        return embeddingExtension.setLaunchingActivityStack(options, token)
+    }
 
     companion object {
         const val DEBUG = true

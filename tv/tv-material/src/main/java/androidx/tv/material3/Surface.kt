@@ -16,6 +16,7 @@
 
 package androidx.tv.material3
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.indication
@@ -38,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -49,11 +51,13 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.debugInspectorInfo
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.tokens.Elevation
+import androidx.tv.material3.tokens.ShapeTokens
 import kotlinx.coroutines.launch
 
 /**
@@ -68,7 +72,8 @@ import kotlinx.coroutines.launch
  * @param colors Defines the background & content color to be used in this Surface.
  * See [NonInteractiveSurfaceDefaults.colors].
  * @param border Defines a border around the Surface.
- * @param glow Diffused shadow to be shown behind the Surface.
+ * @param glow Diffused shadow to be shown behind the Surface. Note that glow is disabled for API
+ * levels below 28 as it is not supported by the underlying OS
  * @param content defines the [Composable] content inside the surface
  */
 @ExperimentalTvMaterial3Api
@@ -108,6 +113,7 @@ fun Surface(
  * @param onClick callback to be called when the surface is clicked. Note: DPad Enter button won't
  * work if this value is null
  * @param modifier Modifier to be applied to the layout corresponding to the surface
+ * @param onLongClick callback to be called when the surface is long clicked (long-pressed).
  * @param enabled Controls the enabled state of the surface. When `false`, this Surface will not be
  * clickable or focusable.
  * @param tonalElevation When [color] is [ColorScheme.surface], a higher the elevation will result
@@ -117,7 +123,8 @@ fun Surface(
  * interaction states. See [ClickableSurfaceDefaults.colors].
  * @param scale Defines size of the Surface relative to its original size.
  * @param border Defines a border around the Surface.
- * @param glow Diffused shadow to be shown behind the Surface.
+ * @param glow Diffused shadow to be shown behind the Surface. Note that glow is disabled for API
+ * levels below 28 as it is not supported by the underlying OS
  * @param interactionSource the [MutableInteractionSource] representing the stream of [Interaction]s
  * for this Surface. You can create and pass in your own remembered [MutableInteractionSource] if
  * you want to observe [Interaction]s and customize the appearance / behavior of this Surface in
@@ -129,6 +136,7 @@ fun Surface(
 fun Surface(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
     enabled: Boolean = true,
     tonalElevation: Dp = 0.dp,
     shape: ClickableSurfaceShape = ClickableSurfaceDefaults.shape(),
@@ -145,6 +153,7 @@ fun Surface(
         modifier = modifier.tvClickable(
             enabled = enabled,
             onClick = onClick,
+            onLongClick = onLongClick,
             interactionSource = interactionSource,
         ),
         checked = false,
@@ -206,8 +215,10 @@ fun Surface(
  * To manually retrieve the content color inside a surface, use [LocalContentColor].
  *
  * @param checked whether or not this Surface is toggled on or off
- * @param onCheckedChange callback to be invoked when the toggleable Surface is clicked
- * @param modifier Modifier to be applied to the layout corresponding to the surface
+ * @param onCheckedChange callback to be invoked when the toggleable Surface is clicked.
+ * @param modifier [Modifier] to be applied to the layout corresponding to the surface
+ * @param onLongClick callback to be called when the toggleable surface is long clicked
+ * (long-pressed).
  * @param enabled Controls the enabled state of the surface. When `false`, this Surface will not be
  * clickable or focusable.
  * @param tonalElevation When [color] is [ColorScheme.surface], a higher the elevation will result
@@ -217,7 +228,8 @@ fun Surface(
  * interaction states. See [ToggleableSurfaceDefaults.colors].
  * @param scale Defines size of the Surface relative to its original size.
  * @param border Defines a border around the Surface.
- * @param glow Diffused shadow to be shown behind the Surface.
+ * @param glow Diffused shadow to be shown behind the Surface. Note that glow is disabled for API
+ * levels below 28 as it is not supported by the underlying OS
  * @param interactionSource the [MutableInteractionSource] representing the stream of [Interaction]s
  * for this Surface. You can create and pass in your own remembered [MutableInteractionSource] if
  * you want to observe [Interaction]s and customize the appearance / behavior of this Surface in
@@ -231,6 +243,7 @@ fun Surface(
     onCheckedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    onLongClick: (() -> Unit)? = null,
     tonalElevation: Dp = Elevation.Level0,
     shape: ToggleableSurfaceShape = ToggleableSurfaceDefaults.shape(),
     colors: ToggleableSurfaceColors = ToggleableSurfaceDefaults.colors(),
@@ -249,6 +262,7 @@ fun Surface(
             checked = checked,
             onCheckedChange = onCheckedChange,
             interactionSource = interactionSource,
+            onLongClick = onLongClick
         ),
         checked = checked,
         enabled = enabled,
@@ -327,9 +341,13 @@ private fun SurfaceImpl(
     )
 
     val absoluteElevation = LocalAbsoluteTonalElevation.current + tonalElevation
+    val contentColorAsAnim by animateColorAsState(
+        targetValue = contentColor,
+        label = "Surface.contentColor"
+    )
 
     CompositionLocalProvider(
-        LocalContentColor provides contentColor,
+        LocalContentColor provides contentColorAsAnim,
         LocalAbsoluteTonalElevation provides absoluteElevation
     ) {
         val zIndex by animateFloatAsState(
@@ -342,23 +360,25 @@ private fun SurfaceImpl(
             elevation = LocalAbsoluteTonalElevation.current
         )
 
+        val glowIndicationModifier = Modifier.indication(
+            interactionSource = interactionSource,
+            indication = rememberGlowIndication(
+                color = surfaceColorAtElevation(
+                    color = glow.elevationColor,
+                    elevation = glow.elevation
+                ),
+                shape = shape,
+                glowBlurRadius = glow.elevation
+            )
+        )
+
         Box(
             modifier = modifier
                 .indication(
                     interactionSource = interactionSource,
                     indication = remember(scale) { ScaleIndication(scale = scale) }
                 )
-                .indication(
-                    interactionSource = interactionSource,
-                    indication = rememberGlowIndication(
-                        color = surfaceColorAtElevation(
-                            color = glow.elevationColor,
-                            elevation = glow.elevation
-                        ),
-                        shape = shape,
-                        glowBlurRadius = glow.elevation
-                    )
-                )
+                .ifElse(API_28_OR_ABOVE, glowIndicationModifier)
                 // Increasing the zIndex of this Surface when it is in the focused state to
                 // avoid the glowIndication from being overlapped by subsequent items if
                 // this Surface is inside a list composable (like a Row/Column).
@@ -372,7 +392,12 @@ private fun SurfaceImpl(
                     if (border != Border.None) {
                         Modifier.indication(
                             interactionSource = interactionSource,
-                            indication = remember { BorderIndication(border = border) }
+                            indication = remember(border, shape) {
+                                val borderShape =
+                                    if (border.shape == ShapeTokens.BorderDefaultShape) shape
+                                    else border.shape
+                                BorderIndication(border = border.copy(shape = borderShape))
+                            }
                         )
                     } else Modifier
                 )
@@ -408,17 +433,20 @@ private fun SurfaceImpl(
 /**
  * This modifier handles click, press, and focus events for a TV composable.
  * @param enabled decides whether [onClick] is executed
- * @param onClick executes the provided lambda
+ * @param onClick executes the provided lambda on click.
+ * @param onLongClick executes the provided lambda on long press.
  * @param interactionSource used to emit [PressInteraction] events
  */
 private fun Modifier.tvClickable(
     enabled: Boolean,
     onClick: (() -> Unit)?,
+    onLongClick: (() -> Unit)?,
     interactionSource: MutableInteractionSource
 ) = handleDPadEnter(
     enabled = enabled,
     interactionSource = interactionSource,
-    onClick = onClick
+    onClick = onClick,
+    onLongClick = onLongClick
 )
     // We are not using "clickable" modifier here because if we set "enabled" to false
     // then the Surface won't be focusable as well. But, in TV use case, a disabled surface
@@ -432,6 +460,13 @@ private fun Modifier.tvClickable(
             }
             false
         }
+        onLongClick {
+            onLongClick?.let { nnOnLongClick ->
+                nnOnLongClick()
+                return@onLongClick true
+            }
+            false
+        }
         if (!enabled) {
             disabled()
         }
@@ -441,28 +476,39 @@ private fun Modifier.tvClickable(
  * This modifier handles click, press, and focus events for a TV composable.
  * @param enabled decides whether [onCheckedChange] is executed
  * @param checked differentiates whether the current item is checked or unchecked
- * @param onCheckedChange executes the provided lambda while returning the inverse state of
- * [checked]
+ * @param onCheckedChange executes the provided lambda on click, while returning the inverse state
+ * of [checked].
+ * @param onLongClick executes the provided lambda on long press.
+ * @param interactionSource used to emit [PressInteraction] events
  */
 private fun Modifier.tvToggleable(
     enabled: Boolean,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
+    onLongClick: (() -> Unit)?,
     interactionSource: MutableInteractionSource,
 ) = handleDPadEnter(
     enabled = enabled,
     interactionSource = interactionSource,
     checked = checked,
-    onCheckedChanged = onCheckedChange
+    onCheckedChanged = onCheckedChange,
+    onLongClick = onLongClick
 )
     // We are not using "toggleable" modifier here because if we set "enabled" to false
     // then the Surface won't be focusable as well. But, in TV use case, a disabled surface
     // should be focusable
-    .focusable(enabled = enabled, interactionSource = interactionSource)
+    .focusable(interactionSource = interactionSource)
     .semantics(mergeDescendants = true) {
         onClick {
             onCheckedChange(!checked)
             true
+        }
+        onLongClick {
+            onLongClick?.let { nnOnLongClick ->
+                nnOnLongClick()
+                return@onLongClick true
+            }
+            false
         }
         if (!enabled) {
             disabled()
@@ -475,6 +521,7 @@ private fun Modifier.tvToggleable(
  * @param enabled if this is false, the D-PAD enter event is ignored
  * @param interactionSource used to emit [PressInteraction] events
  * @param onClick this lambda will be triggered on D-PAD enter event
+ * @param onLongClick this lambda will be triggered when D-PAD enter is long pressed.
  * @param checked differentiates whether the current item is checked or unchecked
  * @param onCheckedChanged executes the provided lambda while returning the inverse state of
  * [checked]
@@ -483,6 +530,7 @@ private fun Modifier.handleDPadEnter(
     enabled: Boolean,
     interactionSource: MutableInteractionSource,
     onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
     checked: Boolean = false,
     onCheckedChanged: ((Boolean) -> Unit)? = null
 ) = composed(
@@ -491,40 +539,65 @@ private fun Modifier.handleDPadEnter(
         properties["enabled"] = enabled
         properties["interactionSource"] = interactionSource
         properties["onClick"] = onClick
+        properties["onLongClick"] = onLongClick
         properties["checked"] = checked
         properties["onCheckedChanged"] = onCheckedChanged
     }
 ) {
+    if (!enabled) return@composed this
+
     val coroutineScope = rememberCoroutineScope()
     val pressInteraction = remember { PressInteraction.Press(Offset.Zero) }
-    var isPressed by remember { mutableStateOf(false) }
-    onKeyEvent { keyEvent ->
-        if (AcceptableKeys.any { keyEvent.nativeKeyEvent.keyCode == it } && enabled) {
-            when (keyEvent.nativeKeyEvent.action) {
-                NativeKeyEvent.ACTION_DOWN -> {
-                    if (!isPressed) {
-                        isPressed = true
-                        coroutineScope.launch {
-                            interactionSource.emit(pressInteraction)
-                        }
-                    }
-                }
+    var isLongClick by remember { mutableStateOf(false) }
+    val isPressed by interactionSource.collectIsPressedAsState()
 
-                NativeKeyEvent.ACTION_UP -> {
-                    if (isPressed) {
-                        isPressed = false
-                        coroutineScope.launch {
-                            interactionSource.emit(PressInteraction.Release(pressInteraction))
-                        }
-                        onClick?.invoke()
-                        onCheckedChanged?.invoke(!checked)
-                    }
+    this
+        .onFocusChanged {
+            if (!it.isFocused && isPressed) {
+                coroutineScope.launch {
+                    interactionSource.emit(PressInteraction.Release(pressInteraction))
                 }
             }
-            return@onKeyEvent KeyEventPropagation.StopPropagation
         }
-        KeyEventPropagation.ContinuePropagation
-    }
+        .onKeyEvent { keyEvent ->
+            if (AcceptableKeys.contains(keyEvent.nativeKeyEvent.keyCode)) {
+                when (keyEvent.nativeKeyEvent.action) {
+                    NativeKeyEvent.ACTION_DOWN -> {
+                        when (keyEvent.nativeKeyEvent.repeatCount) {
+                            0 ->
+                                coroutineScope.launch {
+                                    interactionSource.emit(pressInteraction)
+                                }
+
+                            1 ->
+                                onLongClick?.let {
+                                    isLongClick = true
+                                    coroutineScope.launch {
+                                        interactionSource.emit(
+                                            PressInteraction.Release(
+                                                pressInteraction
+                                            )
+                                        )
+                                    }
+                                    it.invoke()
+                                }
+                        }
+                    }
+
+                    NativeKeyEvent.ACTION_UP -> {
+                        if (!isLongClick) {
+                            coroutineScope.launch {
+                                interactionSource.emit(PressInteraction.Release(pressInteraction))
+                            }
+                            onClick?.invoke()
+                            onCheckedChanged?.invoke(!checked)
+                        } else isLongClick = false
+                    }
+                }
+                return@onKeyEvent KeyEventPropagation.StopPropagation
+            }
+            KeyEventPropagation.ContinuePropagation
+        }
 }
 
 @Composable
@@ -572,8 +645,12 @@ internal const val EnabledContentAlpha = 1f
  * absolute elevation is a sum of all the previous elevations. Absolute elevation is only used for
  * calculating surface tonal colors, and is *not* used for drawing the shadow in a [SurfaceImpl].
  */
+@Suppress("OPT_IN_MARKER_ON_WRONG_TARGET")
+@ExperimentalTvMaterial3Api
+@get:ExperimentalTvMaterial3Api
 val LocalAbsoluteTonalElevation = compositionLocalOf { 0.dp }
-private val AcceptableKeys = listOf(
+
+private val AcceptableKeys = intArrayOf(
     NativeKeyEvent.KEYCODE_DPAD_CENTER,
     NativeKeyEvent.KEYCODE_ENTER,
     NativeKeyEvent.KEYCODE_NUMPAD_ENTER

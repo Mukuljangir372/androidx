@@ -91,7 +91,6 @@ public class WebViewFeature {
             WEB_VIEW_RENDERER_TERMINATE,
             WEB_VIEW_RENDERER_CLIENT_BASIC_USAGE,
             PROXY_OVERRIDE,
-            SUPPRESS_ERROR_PAGE,
             MULTI_PROCESS,
             FORCE_DARK,
             FORCE_DARK_STRATEGY,
@@ -103,6 +102,8 @@ public class WebViewFeature {
             ENTERPRISE_AUTHENTICATION_APP_LINK_POLICY,
             GET_COOKIE_INFO,
             REQUESTED_WITH_HEADER_ALLOW_LIST,
+            USER_AGENT_METADATA,
+            MULTI_PROFILE,
     })
     @Retention(RetentionPolicy.SOURCE)
     @Target({ElementType.PARAMETER, ElementType.METHOD})
@@ -350,10 +351,10 @@ public class WebViewFeature {
     /**
      * Feature for {@link #isFeatureSupported(String)}.
      * This feature covers
-     * {@link WebMessagePortCompat#postMessage(WebMessageCompat)} with ArrayBuffer type, and
-     * {@link WebViewCompat#postWebMessage(WebView, WebMessageCompat, Uri)} with ArrayBuffer type.
+     * {@link WebMessagePortCompat#postMessage(WebMessageCompat)} with ArrayBuffer type,
+     * {@link WebViewCompat#postWebMessage(WebView, WebMessageCompat, Uri)} with ArrayBuffer type,
+     * and {@link JavaScriptReplyProxy#postMessage(byte[])}.
      */
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public static final String WEB_MESSAGE_ARRAY_BUFFER = "WEB_MESSAGE_ARRAY_BUFFER";
 
     /**
@@ -433,17 +434,6 @@ public class WebViewFeature {
 
     /**
      * Feature for {@link #isFeatureSupported(String)}.
-     * This feature covers
-     * {@link WebSettingsCompat#willSuppressErrorPage(WebSettings)} and
-     * {@link WebSettingsCompat#setWillSuppressErrorPage(WebSettings, boolean)}.
-     *
-     * TODO(cricke): unhide
-     */
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-    public static final String SUPPRESS_ERROR_PAGE = "SUPPRESS_ERROR_PAGE";
-
-    /**
-     * Feature for {@link #isFeatureSupported(String)}.
      * This feature covers {@link WebViewCompat#isMultiProcessEnabled()}
      */
     public static final String MULTI_PROCESS = "MULTI_PROCESS";
@@ -484,10 +474,7 @@ public class WebViewFeature {
      * Feature for {@link #isFeatureSupported(String)}.
      * This feature covers {@link WebViewCompat#addDocumentStartJavaScript(android.webkit.WebView,
      * String, Set)}.
-     *
-     * TODO(swestphal): unhide when ready.
      */
-    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public static final String DOCUMENT_START_SCRIPT = "DOCUMENT_START_SCRIPT";
 
     /**
@@ -547,6 +534,35 @@ public class WebViewFeature {
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     public static final String REQUESTED_WITH_HEADER_ALLOW_LIST =
             "REQUESTED_WITH_HEADER_ALLOW_LIST";
+
+    /**
+     * Feature for {@link #isFeatureSupported(String)}.
+     * This feature covers
+     * {@link androidx.webkit.ServiceWorkerWebSettingsCompat#getUserAgentMetadata(WebSettings)}, and
+     * {@link androidx.webkit.ServiceWorkerWebSettingsCompat#setUserAgentMetadata(WebSettings, UserAgentMetadata)}.
+     *
+     * TODO(b/294183509): unhide
+     * @hide
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final String USER_AGENT_METADATA = "USER_AGENT_METADATA";
+
+    /**
+     * Feature for {@link #isFeatureSupported(String)}.
+     * This feature covers
+     * {@link Profile#getName()}.
+     * {@link Profile#getWebStorage()}.
+     * {@link Profile#getCookieManager()}.
+     * {@link Profile#getGeolocationPermissions()}.
+     * {@link Profile#getServiceWorkerController()}.
+     * {@link ProfileStore#getProfile(String)}.
+     * {@link ProfileStore#getOrCreateProfile(String)}.
+     * {@link ProfileStore#getAllProfileNames()}.
+     * {@link ProfileStore#deleteProfile(String)}.
+     * {@link ProfileStore#getInstance()}.
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final String MULTI_PROFILE = "MULTI_PROFILE";
 
     /**
      * Return whether a feature is supported at run-time. On devices running Android version {@link

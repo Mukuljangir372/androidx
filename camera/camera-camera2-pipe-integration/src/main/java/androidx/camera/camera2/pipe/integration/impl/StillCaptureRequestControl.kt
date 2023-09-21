@@ -141,7 +141,9 @@ class StillCaptureRequestControl @Inject constructor(
         // Prior to submitStillCaptures, wait until the pending flash mode session change is
         // completed. On some devices, AE preCapture triggered in submitStillCaptures may not
         // work properly if the repeating request to change the flash mode is not completed.
+        debug { "StillCaptureRequestControl: Waiting for flash control" }
         flashControl.updateSignal.join()
+        debug { "StillCaptureRequestControl: Issuing single capture" }
         val deferredList = camera.requestControl.issueSingleCaptureAsync(
             request.captureConfigs,
             request.captureMode,
@@ -152,7 +154,10 @@ class StillCaptureRequestControl @Inject constructor(
         return threads.sequentialScope.async {
             // requestControl.issueSingleCaptureAsync shouldn't be invoked from here directly,
             // because sequentialScope.async is may not be executed immediately
-            deferredList.awaitAll()
+            debug { "StillCaptureRequestControl: Waiting for deferred list from $request" }
+            deferredList.awaitAll().also {
+                debug { "StillCaptureRequestControl: Waiting for deferred list from $request done" }
+            }
         }
     }
 

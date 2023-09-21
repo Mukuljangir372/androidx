@@ -17,6 +17,8 @@
 package androidx.bluetooth.integration.testapp.ui.advertiser
 
 import androidx.bluetooth.AdvertiseParams
+import androidx.bluetooth.GattCharacteristic
+import androidx.bluetooth.GattService
 import androidx.lifecycle.ViewModel
 import java.util.UUID
 
@@ -30,7 +32,7 @@ class AdvertiserViewModel : ViewModel() {
     var includeDeviceName = false
     var connectable = false
     var discoverable = false
-    var timeoutMillis = 0
+    var durationMillis = 0
     var manufacturerDatas = mutableListOf<Pair<Int, ByteArray>>()
     var serviceDatas = mutableListOf<Pair<UUID, ByteArray>>()
     var serviceUuids = mutableListOf<UUID>()
@@ -54,11 +56,17 @@ class AdvertiserViewModel : ViewModel() {
             includeDeviceName,
             connectable,
             discoverable,
-            timeoutMillis,
+            durationMillis,
             manufacturerDatas.toMap(),
             serviceDatas.toMap(),
             serviceUuids
         )
+
+    private val _gattServerServices = mutableListOf<GattService>()
+    val gattServerServices: List<GattService> = _gattServerServices
+
+    private val gattServerServicesCharacteristicValueMap =
+        mutableMapOf<GattCharacteristic, ByteArray>()
 
     fun removeAdvertiseDataAtIndex(index: Int) {
         val manufacturerDataSize = manufacturerDatas.size
@@ -71,5 +79,27 @@ class AdvertiserViewModel : ViewModel() {
         } else {
             serviceUuids.removeAt(index - manufacturerDataSize - serviceDataSize)
         }
+    }
+
+    fun addGattService(gattService: GattService) {
+        _gattServerServices.add(gattService)
+    }
+
+    fun addGattCharacteristic(service: GattService, characteristic: GattCharacteristic) {
+        val index = _gattServerServices.indexOf(service)
+        if (index < 0) return;
+        _gattServerServices[index] = GattService(service.uuid,
+            service.characteristics.toMutableList().apply {
+                add(characteristic)
+            }
+        )
+    }
+
+    fun readGattCharacteristicValue(characteristic: GattCharacteristic): ByteArray {
+        return gattServerServicesCharacteristicValueMap[characteristic] ?: ByteArray(0)
+    }
+
+    fun updateGattCharacteristicValue(characteristic: GattCharacteristic, value: ByteArray) {
+        gattServerServicesCharacteristicValueMap[characteristic] = value
     }
 }

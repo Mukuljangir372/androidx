@@ -39,7 +39,6 @@ import androidx.annotation.RequiresApi
 import androidx.annotation.VisibleForTesting
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.pointer.util.VelocityTrackerAddPointsFix
 
 /**
  * Converts Android framework [MotionEvent]s into Compose [PointerInputEvent]s.
@@ -263,6 +262,7 @@ internal class MotionEventAdapter {
         val pressure = motionEvent.getPressure(index)
 
         var position = Offset(motionEvent.getX(index), motionEvent.getY(index))
+        val originalPositionEventPosition = position.copy()
         val rawPosition: Offset
         if (index == 0) {
             rawPosition = Offset(motionEvent.rawX, motionEvent.rawY)
@@ -288,13 +288,11 @@ internal class MotionEventAdapter {
                 val x = getHistoricalX(index, pos)
                 val y = getHistoricalY(index, pos)
                 if (x.isFinite() && y.isFinite()) {
+                    val originalEventPosition = Offset(x, y) // hit path will convert to local
                     val historicalChange = HistoricalChange(
                         getHistoricalEventTime(pos),
-                        if (VelocityTrackerAddPointsFix) {
-                            positionCalculator.screenToLocal(Offset(x, y))
-                        } else {
-                            Offset(x, y)
-                        }
+                        originalEventPosition,
+                        originalEventPosition
                     )
                     historical.add(historicalChange)
                 }
@@ -335,7 +333,8 @@ internal class MotionEventAdapter {
             toolType,
             issuesEnterExit,
             historical,
-            scrollDelta
+            scrollDelta,
+            originalPositionEventPosition,
         )
     }
 }

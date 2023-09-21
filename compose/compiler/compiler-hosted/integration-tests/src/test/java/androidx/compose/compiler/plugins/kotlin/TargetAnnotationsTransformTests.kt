@@ -17,12 +17,9 @@
 package androidx.compose.compiler.plugins.kotlin
 
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.junit.runners.JUnit4
 
-@RunWith(JUnit4::class)
 @Suppress("SpellCheckingInspection") // Expected strings can have partial words
-class TargetAnnotationsTransformTests : AbstractIrTransformTest(useFir = false) {
+class TargetAnnotationsTransformTests(useFir: Boolean) : AbstractIrTransformTest(useFir) {
     @Test
     fun testInferUIFromCall() = verify(
         """
@@ -455,54 +452,58 @@ class TargetAnnotationsTransformTests : AbstractIrTransformTest(useFir = false) 
             if (isTraceInProgress()) {
               traceEventStart(<>, %changed, -1, <>)
             }
-            OpenCustom(class <no name provided> : CustomComposable {
-              @Composable
-              @ComposableTarget(applier = "UI")
-              override fun call(%composer: Composer?, %changed: Int) {
-                %composer = %composer.startRestartGroup(<>)
-                sourceInformation(%composer, "C(call)<Text("...>:Test.kt")
-                if (%changed and 0b0001 !== 0 || !%composer.skipping) {
-                  if (isTraceInProgress()) {
-                    traceEventStart(<>, %changed, -1, <>)
+            OpenCustom(<block>{
+              class <no name provided> : CustomComposable {
+                @Composable
+                @ComposableTarget(applier = "UI")
+                override fun call(%composer: Composer?, %changed: Int) {
+                  %composer = %composer.startRestartGroup(<>)
+                  sourceInformation(%composer, "C(call)<Text("...>:Test.kt")
+                  if (%changed and 0b0001 !== 0 || !%composer.skipping) {
+                    if (isTraceInProgress()) {
+                      traceEventStart(<>, %changed, -1, <>)
+                    }
+                    Text("Test", %composer, 0b0110)
+                    if (isTraceInProgress()) {
+                      traceEventEnd()
+                    }
+                  } else {
+                    %composer.skipToGroupEnd()
                   }
-                  Text("Test", %composer, 0b0110)
-                  if (isTraceInProgress()) {
-                    traceEventEnd()
+                  val tmp0_rcvr = <this>
+                  %composer.endRestartGroup()?.updateScope { %composer: Composer?, %force: Int ->
+                    tmp0_rcvr.call(%composer, updateChangedFlags(%changed or 0b0001))
                   }
-                } else {
-                  %composer.skipToGroupEnd()
-                }
-                val tmp0_rcvr = <this>
-                %composer.endRestartGroup()?.updateScope { %composer: Composer?, %force: Int ->
-                  tmp0_rcvr.call(%composer, updateChangedFlags(%changed or 0b0001))
-                }
-              }
-            }
-            <no name provided>(), %composer, 0)
-            ClosedCustom(class <no name provided> : CustomComposable {
-              @Composable
-              @ComposableTarget(applier = "UI")
-              override fun call(%composer: Composer?, %changed: Int) {
-                %composer = %composer.startRestartGroup(<>)
-                sourceInformation(%composer, "C(call)<Text("...>:Test.kt")
-                if (%changed and 0b0001 !== 0 || !%composer.skipping) {
-                  if (isTraceInProgress()) {
-                    traceEventStart(<>, %changed, -1, <>)
-                  }
-                  Text("Test", %composer, 0b0110)
-                  if (isTraceInProgress()) {
-                    traceEventEnd()
-                  }
-                } else {
-                  %composer.skipToGroupEnd()
-                }
-                val tmp0_rcvr = <this>
-                %composer.endRestartGroup()?.updateScope { %composer: Composer?, %force: Int ->
-                  tmp0_rcvr.call(%composer, updateChangedFlags(%changed or 0b0001))
                 }
               }
-            }
-            <no name provided>(), %composer, 0)
+              <no name provided>()
+            }, %composer, 0)
+            ClosedCustom(<block>{
+              class <no name provided> : CustomComposable {
+                @Composable
+                @ComposableTarget(applier = "UI")
+                override fun call(%composer: Composer?, %changed: Int) {
+                  %composer = %composer.startRestartGroup(<>)
+                  sourceInformation(%composer, "C(call)<Text("...>:Test.kt")
+                  if (%changed and 0b0001 !== 0 || !%composer.skipping) {
+                    if (isTraceInProgress()) {
+                      traceEventStart(<>, %changed, -1, <>)
+                    }
+                    Text("Test", %composer, 0b0110)
+                    if (isTraceInProgress()) {
+                      traceEventEnd()
+                    }
+                  } else {
+                    %composer.skipToGroupEnd()
+                  }
+                  val tmp0_rcvr = <this>
+                  %composer.endRestartGroup()?.updateScope { %composer: Composer?, %force: Int ->
+                    tmp0_rcvr.call(%composer, updateChangedFlags(%changed or 0b0001))
+                  }
+                }
+              }
+              <no name provided>()
+            }, %composer, 0)
             if (isTraceInProgress()) {
               traceEventEnd()
             }
@@ -538,7 +539,7 @@ class TargetAnnotationsTransformTests : AbstractIrTransformTest(useFir = false) 
           }
           if (%dirty and 0b1011 !== 0b0010 || !%composer.skipping) {
             if (isTraceInProgress()) {
-              traceEventStart(<>, %changed, -1, <>)
+              traceEventStart(<>, %dirty, -1, <>)
             }
             val tmp0_safe_receiver = content
             val tmp1_group = when {
@@ -893,16 +894,13 @@ class TargetAnnotationsTransformTests : AbstractIrTransformTest(useFir = false) 
           }
           static val %stable: Int = 0
         }
-        val localBoxMeasurePolicy: MeasurePolicy = class <no name provided> : MeasurePolicy {
-          override fun measure(%this%MeasurePolicy: MeasureScope, <anonymous parameter 0>: List<Measurable>, constraints: Constraints): MeasureResult {
-            return %this%MeasurePolicy.layout(
-              width = constraints.minWidth,
-              height = constraints.minHeight
-            ) {
-            }
+        val localBoxMeasurePolicy: MeasurePolicy = MeasurePolicy { <unused var>: List<Measurable>, constraints: Constraints ->
+          %this%MeasurePolicy.layout(
+            width = constraints.minWidth,
+            height = constraints.minHeight
+          ) {
           }
         }
-        <no name provided>()
         @Composable
         @ComposableInferredTarget(scheme = "[androidx.compose.ui.UiComposable[androidx.compose.ui.UiComposable]]")
         fun LocalBox(modifier: Modifier?, content: @[ExtensionFunctionType] Function3<LocalBoxScope, Composer, Int, Unit>, %composer: Composer?, %changed: Int, %default: Int) {
@@ -986,12 +984,9 @@ class TargetAnnotationsTransformTests : AbstractIrTransformTest(useFir = false) 
               sourceInformationMarkerStart(%composer, <>, "C:Test.kt")
               Unit
               sourceInformationMarkerEnd(%composer)
-            }, null, class <no name provided> : MeasurePolicy {
-              override fun measure(%this%Layout: MeasureScope, <anonymous parameter 0>: List<Measurable>, <anonymous parameter 1>: Constraints): MeasureResult {
-                return error("")
-              }
-            }
-            <no name provided>(), %composer, 0, 0b0010)
+            }, null, MeasurePolicy { <unused var>: List<Measurable>, <unused var>: Constraints ->
+              error("")
+            }, %composer, 0b000110000000, 0b0010)
             if (isTraceInProgress()) {
               traceEventEnd()
             }
@@ -1015,12 +1010,9 @@ class TargetAnnotationsTransformTests : AbstractIrTransformTest(useFir = false) 
             if (isTraceInProgress()) {
               traceEventStart(<>, %dirty, -1, <>)
             }
-            Layout(content, null, class <no name provided> : MeasurePolicy {
-              override fun measure(%this%Layout: MeasureScope, <anonymous parameter 0>: List<Measurable>, <anonymous parameter 1>: Constraints): MeasureResult {
-                return error("")
-              }
-            }
-            <no name provided>(), %composer, 0b1110 and %dirty, 0b0010)
+            Layout(content, null, MeasurePolicy { <unused var>: List<Measurable>, <unused var>: Constraints ->
+              error("")
+            }, %composer, 0b000110000000 or 0b1110 and %dirty, 0b0010)
             if (isTraceInProgress()) {
               traceEventEnd()
             }
@@ -1103,7 +1095,7 @@ class TargetAnnotationsTransformTests : AbstractIrTransformTest(useFir = false) 
               } else {
                 %composer.skipToGroupEnd()
               }
-            }, %composer, 0b00111000)
+            }, %composer, 0b00110000 or ProvidedValue.%stable or 0)
             if (isTraceInProgress()) {
               traceEventEnd()
             }
@@ -1141,7 +1133,7 @@ class TargetAnnotationsTransformTests : AbstractIrTransformTest(useFir = false) 
               } else {
                 %composer.skipToGroupEnd()
               }
-            }, %composer, 0b00111000)
+            }, %composer, 0b00110000 or ProvidedValue.%stable or 0)
             if (isTraceInProgress()) {
               traceEventEnd()
             }

@@ -27,15 +27,15 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.SurfaceRequest
 import androidx.camera.core.impl.CameraInfoInternal
 import androidx.camera.core.impl.MutableStateObservable
+import androidx.camera.extensions.internal.ClientVersion
 import androidx.camera.extensions.internal.ExtensionVersion
 import androidx.camera.extensions.internal.VendorExtender
 import androidx.camera.extensions.internal.Version
-import androidx.camera.extensions.internal.VersionName
 import androidx.camera.extensions.util.ExtensionsTestUtil
 import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.testing.CameraUtil
-import androidx.camera.testing.fakes.FakeLifecycleOwner
-import androidx.camera.testing.fakes.FakeUseCase
+import androidx.camera.testing.impl.CameraUtil
+import androidx.camera.testing.impl.fakes.FakeLifecycleOwner
+import androidx.camera.testing.impl.fakes.FakeUseCase
 import androidx.camera.video.MediaSpec
 import androidx.camera.video.VideoCapture
 import androidx.camera.video.VideoOutput
@@ -117,7 +117,7 @@ class ExtensionsManagerTest(
         extensionsManager = ExtensionsManager.getInstanceAsync(
             context,
             cameraProvider,
-            VersionName("99.0.0")
+            ClientVersion("99.0.0")
         )[10000, TimeUnit.MILLISECONDS]
 
         assumeTrue(
@@ -132,7 +132,7 @@ class ExtensionsManagerTest(
         extensionsManager = ExtensionsManager.getInstanceAsync(
             context,
             cameraProvider,
-            VersionName("99.0.0")
+            ClientVersion("99.0.0")
         )[10000, TimeUnit.MILLISECONDS]
 
         assumeTrue(
@@ -280,6 +280,11 @@ class ExtensionsManagerTest(
             extensionsManager.extensionsAvailability
                 == ExtensionsManager.ExtensionsAvailability.LIBRARY_AVAILABLE
         )
+        // Skips the test when the extension version is 1.1 or below. It is the case that the
+        // device has its own implementation and ExtensionsInfo will directly return null to impact
+        // the test result.
+        assumeTrue(ExtensionVersion.getRuntimeVersion()!! >= Version.VERSION_1_2)
+
         val estimatedCaptureLatency = Range(100L, 1000L)
 
         val fakeVendorExtender = object : VendorExtender {
@@ -309,7 +314,7 @@ class ExtensionsManagerTest(
         extensionsManager = ExtensionsManager.getInstanceAsync(
             context,
             cameraProvider,
-            VersionName("99.0.0")
+            ClientVersion("99.0.0")
         )[10000, TimeUnit.MILLISECONDS]
 
         assumeTrue(
@@ -532,7 +537,7 @@ class ExtensionsManagerTest(
         extensionsManager = ExtensionsManager.getInstanceAsync(
             context,
             cameraProvider,
-            VersionName("99.0.0")
+            ClientVersion("99.0.0")
         )[10000, TimeUnit.MILLISECONDS]
 
         assumeTrue(

@@ -17,12 +17,11 @@
 package androidx.javascriptengine;
 
 import android.content.Context;
-import android.content.pm.PackageInfo;
-import android.webkit.WebView;
+import android.content.res.AssetFileDescriptor;
+import android.os.ParcelFileDescriptor;
 
 import androidx.annotation.GuardedBy;
 import androidx.annotation.NonNull;
-import androidx.core.content.pm.PackageInfoCompat;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.LargeTest;
@@ -38,6 +37,10 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Vector;
 import java.util.concurrent.CountDownLatch;
@@ -53,21 +56,16 @@ public class WebViewJavaScriptSandboxTest {
     // and should be much smaller (for the purposes of testing).
     private static final long REASONABLE_HEAP_SIZE = 100 * 1024 * 1024;
 
+    private static class InputStreamThrowsReadError extends InputStream {
+        @Override
+        public int read() throws IOException {
+            throw new IOException("Mock InputStream read error");
+        }
+    }
+
     @Before
     public void setUp() {
         Assume.assumeTrue(JavaScriptSandbox.isSupported());
-    }
-
-    // Get the current WebView provider version. In a versionCode of AAAABBBCD, AAAA is the build
-    // number and BBB is the patch number. C and D may usually be ignored.
-    //
-    // Strongly prefer using feature flags over version checks if possible.
-    public long getWebViewVersion() {
-        PackageInfo systemWebViewPackage = WebView.getCurrentWebViewPackage();
-        if (systemWebViewPackage == null) {
-            Assert.fail("No current WebView provider");
-        }
-        return PackageInfoCompat.getLongVersionCode(systemWebViewPackage);
     }
 
     @Test
@@ -298,6 +296,52 @@ public class WebViewJavaScriptSandboxTest {
             String result = resultFuture1.get(5, TimeUnit.SECONDS);
 
             Assert.assertEquals(provideString, result);
+        }
+    }
+
+    @Test
+    @MediumTest
+    public void testEvaluateJSFileAsAfd() throws Throwable {
+        Context context = ApplicationProvider.getApplicationContext();
+        try (AssetFileDescriptor afd = context.getAssets().openFd("print_hello.js")) {
+            ListenableFuture<JavaScriptSandbox> jsSandboxFuture =
+                    JavaScriptSandbox.createConnectedInstanceAsync(context);
+
+            try (JavaScriptSandbox jsSandbox = jsSandboxFuture.get(5, TimeUnit.SECONDS);
+                    JavaScriptIsolate jsIsolate = jsSandbox.createIsolate()) {
+                Assume.assumeTrue(jsSandbox.isFeatureSupported(
+                        JavaScriptSandbox.JS_FEATURE_EVALUATE_FROM_FD));
+                ListenableFuture<String> resultFuture = jsIsolate.evaluateJavaScriptAsync(afd);
+                String result = resultFuture.get(5, TimeUnit.SECONDS);
+                Assert.assertEquals("hello", result);
+            }
+        }
+    }
+
+    @Test
+    @MediumTest
+    public void testEvaluateJSFileAsPfd() throws Throwable {
+        Context context = ApplicationProvider.getApplicationContext();
+        String fileName  = "test_print_hello.js";
+        String fileContent = "function hello() { return 'hello'; } hello();";
+        try (FileOutputStream fos = context.openFileOutput(fileName, Context.MODE_PRIVATE)) {
+            fos.write(fileContent.getBytes(StandardCharsets.UTF_8));
+            File jsFile = new File(context.getFilesDir(), fileName);
+            try (ParcelFileDescriptor pfd = ParcelFileDescriptor.open(jsFile,
+                    ParcelFileDescriptor.MODE_READ_ONLY)) {
+                ListenableFuture<JavaScriptSandbox> jsSandboxFuture =
+                        JavaScriptSandbox.createConnectedInstanceAsync(context);
+                try (JavaScriptSandbox jsSandbox = jsSandboxFuture.get(5, TimeUnit.SECONDS);
+                        JavaScriptIsolate jsIsolate = jsSandbox.createIsolate()) {
+                    Assume.assumeTrue(jsSandbox.isFeatureSupported(
+                            JavaScriptSandbox.JS_FEATURE_EVALUATE_FROM_FD));
+                    ListenableFuture<String> resultFuture = jsIsolate.evaluateJavaScriptAsync(pfd);
+                    String result = resultFuture.get(5, TimeUnit.SECONDS);
+                    Assert.assertEquals("hello", result);
+                }
+            } finally {
+                jsFile.delete();
+            }
         }
     }
 
@@ -584,14 +628,6 @@ public class WebViewJavaScriptSandboxTest {
     @Test
     @LargeTest
     public void testHeapSizeEnforced() throws Throwable {
-        // WebView versions < 110.0.5438.0 do not contain OOM crashes to a single isolate and
-        // instead crash the whole sandbox process. This change is not tracked in a feature flag.
-        // Versions < 110.0.5438.0 are not considered to be broken, but their behavior is not
-        // of interest for this test.
-        // See Chromium change: https://chromium-review.googlesource.com/c/chromium/src/+/4047785
-        Assume.assumeTrue("WebView version does not support per-isolate OOM handling",
-                getWebViewVersion() >= 5438_000_00L);
-
         final long maxHeapSize = REASONABLE_HEAP_SIZE;
         // We need to beat the v8 optimizer to ensure it really allocates the required memory. Note
         // that we're allocating an array of elements - not bytes. Filling will ensure that the
@@ -608,9 +644,11 @@ public class WebViewJavaScriptSandboxTest {
         try (JavaScriptSandbox jsSandbox = jsSandboxFuture1.get(5, TimeUnit.SECONDS)) {
             Assume.assumeTrue(jsSandbox.isFeatureSupported(
                     JavaScriptSandbox.JS_FEATURE_ISOLATE_MAX_HEAP_SIZE));
-
             Assume.assumeTrue(
                     jsSandbox.isFeatureSupported(JavaScriptSandbox.JS_FEATURE_PROMISE_RETURN));
+            Assume.assumeTrue(
+                    jsSandbox.isFeatureSupported(JavaScriptSandbox.JS_FEATURE_ISOLATE_CLIENT));
+
             IsolateStartupParameters isolateStartupParameters = new IsolateStartupParameters();
             isolateStartupParameters.setMaxHeapSizeBytes(maxHeapSize);
             try (JavaScriptIsolate jsIsolate1 = jsSandbox.createIsolate(isolateStartupParameters);
@@ -625,8 +663,7 @@ public class WebViewJavaScriptSandboxTest {
                 // Wait for jsIsolate2 to fully initialize before using jsIsolate1.
                 jsIsolate2.evaluateJavaScriptAsync(stableCode).get(5, TimeUnit.SECONDS);
 
-                // Check that the heap limit is enforced and that it reports this was the evaluation
-                // that exceeded the limit.
+                // Check that the heap limit is enforced.
                 try {
                     // Use a generous timeout for OOM, as it may involve multiple rounds of garbage
                     // collection.
@@ -638,13 +675,22 @@ public class WebViewJavaScriptSandboxTest {
                     }
                 }
 
+                // Wait for termination, but don't close the isolate.
+                final CountDownLatch latch = new CountDownLatch(1);
+                jsIsolate1.addOnTerminatedCallback(Runnable::run, info -> {
+                    Assert.assertEquals(TerminationInfo.STATUS_MEMORY_LIMIT_EXCEEDED,
+                            info.getStatus());
+                    latch.countDown();
+                });
+                Assert.assertTrue(latch.await(5, TimeUnit.SECONDS));
+
                 // Check that the previously submitted (but unresolved) promise evaluation reports a
                 // crash
                 try {
                     earlyUnresolvedResultFuture.get(5, TimeUnit.SECONDS);
                     Assert.fail("Should have thrown.");
                 } catch (ExecutionException e) {
-                    if (!(e.getCause() instanceof IsolateTerminatedException)) {
+                    if (!(e.getCause() instanceof MemoryLimitExceededException)) {
                         throw e;
                     }
                 }
@@ -667,26 +713,25 @@ public class WebViewJavaScriptSandboxTest {
                     }
                 }
 
-                // Check that other pre-existing isolates can still be used.
+                // Check that other pre-existing isolate in the same sandbox can no longer be used.
+                // (That the sandbox as a whole is dead.)
                 ListenableFuture<String> otherIsolateResultFuture =
                         jsIsolate2.evaluateJavaScriptAsync(stableCode);
-                String otherIsolateResult = otherIsolateResultFuture.get(5, TimeUnit.SECONDS);
-                Assert.assertEquals(stableExpected, otherIsolateResult);
+                try {
+                    otherIsolateResultFuture.get(5, TimeUnit.SECONDS);
+                    Assert.fail("Should have thrown.");
+                } catch (ExecutionException e) {
+                    if (!(e.getCause() instanceof SandboxDeadException)) {
+                        throw e;
+                    }
+                }
             }
         }
     }
 
     @Test
     @LargeTest
-    public void testIsolateCreationAfterCrash() throws Throwable {
-        // WebView versions < 110.0.5438.0 do not contain OOM crashes to a single isolate and
-        // instead crash the whole sandbox process. This change is not tracked in a feature flag.
-        // Versions < 110.0.5438.0 are not considered to be broken, but their behavior is not
-        // of interest for this test.
-        // See Chromium change: https://chromium-review.googlesource.com/c/chromium/src/+/4047785
-        Assume.assumeTrue("WebView version does not support per-isolate OOM handling",
-                getWebViewVersion() >= 5438_000_00L);
-
+    public void testIsolateCreationAfterOom() throws Throwable {
         final long maxHeapSize = REASONABLE_HEAP_SIZE;
         // We need to beat the v8 optimizer to ensure it really allocates the required memory. Note
         // that we're allocating an array of elements - not bytes. Filling will ensure that the
@@ -704,14 +749,15 @@ public class WebViewJavaScriptSandboxTest {
                     JavaScriptSandbox.JS_FEATURE_ISOLATE_MAX_HEAP_SIZE));
             Assume.assumeTrue(
                     jsSandbox.isFeatureSupported(JavaScriptSandbox.JS_FEATURE_PROMISE_RETURN));
+            Assume.assumeTrue(
+                    jsSandbox.isFeatureSupported(JavaScriptSandbox.JS_FEATURE_ISOLATE_CLIENT));
             IsolateStartupParameters isolateStartupParameters = new IsolateStartupParameters();
             isolateStartupParameters.setMaxHeapSizeBytes(maxHeapSize);
             try (JavaScriptIsolate jsIsolate1 = jsSandbox.createIsolate(isolateStartupParameters)) {
                 ListenableFuture<String> oomResultFuture =
                         jsIsolate1.evaluateJavaScriptAsync(oomingCode);
 
-                // Check that the heap limit is enforced and that it reports this was the evaluation
-                // that exceeded the limit.
+                // Check that the heap limit is enforced.
                 try {
                     // Use a generous timeout for OOM, as it may involve multiple rounds of garbage
                     // collection.
@@ -723,28 +769,28 @@ public class WebViewJavaScriptSandboxTest {
                     }
                 }
 
-                // Check that other isolates can still be created and used (without closing
-                // jsIsolate1).
-                try (JavaScriptIsolate jsIsolate2 =
-                             jsSandbox.createIsolate(isolateStartupParameters)) {
-                    ListenableFuture<String> resultFuture =
-                            jsIsolate2.evaluateJavaScriptAsync(stableCode);
-                    String result = resultFuture.get(5, TimeUnit.SECONDS);
-                    Assert.assertEquals(stableExpected, result);
-                }
-            }
+                final CountDownLatch latch1 = new CountDownLatch(1);
+                jsIsolate1.addOnTerminatedCallback(Runnable::run, info -> {
+                    Assert.assertEquals(TerminationInfo.STATUS_MEMORY_LIMIT_EXCEEDED,
+                            info.getStatus());
+                    latch1.countDown();
+                });
+                Assert.assertTrue(latch1.await(5, TimeUnit.SECONDS));
 
-            // Check that other isolates can still be created and used (after closing jsIsolate1).
-            try (JavaScriptIsolate jsIsolate = jsSandbox.createIsolate(isolateStartupParameters)) {
-                ListenableFuture<String> resultFuture =
-                        jsIsolate.evaluateJavaScriptAsync(stableCode);
-                String result = resultFuture.get(5, TimeUnit.SECONDS);
-                Assert.assertEquals(stableExpected, result);
+                // Check that new isolates can still be created in the sandbox but are created dead.
+                final JavaScriptIsolate jsIsolate2 = jsSandbox.createIsolate();
+                final CountDownLatch latch2 = new CountDownLatch(1);
+                jsIsolate2.addOnTerminatedCallback(Runnable::run, info -> {
+                    Assert.assertEquals(TerminationInfo.STATUS_SANDBOX_DEAD,
+                            info.getStatus());
+                    latch2.countDown();
+                });
+                Assert.assertTrue(latch2.await(5, TimeUnit.SECONDS));
             }
         }
 
-        // Check that the old sandbox with the "crashed" isolate can be torn down and that a new
-        // sandbox and isolate can be spun up.
+        // Check that after the old OOMed sandbox is closed and torn down that a new sandbox and
+        // isolate can be spun up.
         ListenableFuture<JavaScriptSandbox> jsSandboxFuture2 =
                 JavaScriptSandbox.createConnectedInstanceAsync(context);
         try (JavaScriptSandbox jsSandbox = jsSandboxFuture2.get(5, TimeUnit.SECONDS);
@@ -752,6 +798,50 @@ public class WebViewJavaScriptSandboxTest {
             ListenableFuture<String> resultFuture = jsIsolate.evaluateJavaScriptAsync(stableCode);
             String result = resultFuture.get(5, TimeUnit.SECONDS);
             Assert.assertEquals(stableExpected, result);
+        }
+    }
+
+    @Test
+    @LargeTest
+    public void testIsolateCreationAfterDeath() throws Throwable {
+        Context context = ApplicationProvider.getApplicationContext();
+        ListenableFuture<JavaScriptSandbox> jsSandboxFuture =
+                JavaScriptSandbox.createConnectedInstanceAsync(context);
+        try (JavaScriptSandbox jsSandbox = jsSandboxFuture.get(5, TimeUnit.SECONDS)) {
+            jsSandbox.killImmediatelyOnThread();
+            try (JavaScriptIsolate jsIsolate = jsSandbox.createIsolate()) {
+                final CountDownLatch latch = new CountDownLatch(1);
+                jsIsolate.addOnTerminatedCallback(Runnable::run, info -> {
+                    Assert.assertEquals(TerminationInfo.STATUS_SANDBOX_DEAD,
+                            info.getStatus());
+                    Assert.assertEquals("sandbox was dead before call to createIsolate",
+                            info.getMessage());
+                    latch.countDown();
+                });
+                Assert.assertTrue(latch.await(5, TimeUnit.SECONDS));
+            }
+        }
+    }
+
+    @Test
+    @LargeTest
+    public void testIsolateCreationAfterUnbinding() throws Throwable {
+        Context context = ApplicationProvider.getApplicationContext();
+        ListenableFuture<JavaScriptSandbox> jsSandboxFuture =
+                JavaScriptSandbox.createConnectedInstanceAsync(context);
+        try (JavaScriptSandbox jsSandbox = jsSandboxFuture.get(5, TimeUnit.SECONDS)) {
+            jsSandbox.unbindService();
+            try (JavaScriptIsolate jsIsolate = jsSandbox.createIsolate()) {
+                final CountDownLatch latch = new CountDownLatch(1);
+                jsIsolate.addOnTerminatedCallback(Runnable::run, info -> {
+                    Assert.assertEquals(TerminationInfo.STATUS_SANDBOX_DEAD,
+                            info.getStatus());
+                    Assert.assertEquals("sandbox found dead during call to createIsolate",
+                            info.getMessage());
+                    latch.countDown();
+                });
+                Assert.assertTrue(latch.await(5, TimeUnit.SECONDS));
+            }
         }
     }
 
@@ -830,31 +920,6 @@ public class WebViewJavaScriptSandboxTest {
         final String code = ""
                 + "let " + longString + " = 0;"
                 + "\"PASS\"";
-        final String expected = "PASS";
-        Context context = ApplicationProvider.getApplicationContext();
-
-        ListenableFuture<JavaScriptSandbox> jsSandboxFuture =
-                JavaScriptSandbox.createConnectedInstanceAsync(context);
-        try (JavaScriptSandbox jsSandbox = jsSandboxFuture.get(5, TimeUnit.SECONDS)) {
-            Assume.assumeTrue(jsSandbox.isFeatureSupported(
-                    JavaScriptSandbox.JS_FEATURE_EVALUATE_WITHOUT_TRANSACTION_LIMIT));
-            try (JavaScriptIsolate jsIsolate = jsSandbox.createIsolate()) {
-                ListenableFuture<String> resultFuture = jsIsolate.evaluateJavaScriptAsync(code);
-                String result = resultFuture.get(10, TimeUnit.SECONDS);
-
-                Assert.assertEquals(expected, result);
-            }
-        }
-    }
-
-    @Test
-    @LargeTest
-    public void testLargeScriptByteArrayJsEvaluation() throws Throwable {
-        final String longString = Strings.repeat("a", 2000000);
-        final String codeString = ""
-                + "let " + longString + " = 0;"
-                + "\"PASS\"";
-        final byte[] code = codeString.getBytes(StandardCharsets.UTF_8);
         final String expected = "PASS";
         Context context = ApplicationProvider.getApplicationContext();
 
@@ -1167,6 +1232,82 @@ public class WebViewJavaScriptSandboxTest {
             final String result = resultFuture.get(5, TimeUnit.SECONDS);
             Assert.assertTrue(latch.await(2, TimeUnit.SECONDS));
             Assert.assertEquals(expected, result);
+        }
+    }
+
+    @Test
+    @LargeTest
+    public void testTerminationNotificationForSandboxDeath() throws Throwable {
+        final Context context = ApplicationProvider.getApplicationContext();
+        final ListenableFuture<JavaScriptSandbox> jsSandboxFuture =
+                JavaScriptSandbox.createConnectedInstanceAsync(context);
+        try (JavaScriptSandbox jsSandbox = jsSandboxFuture.get(5, TimeUnit.SECONDS)) {
+            try (JavaScriptIsolate jsIsolate = jsSandbox.createIsolate()) {
+                final ListenableFuture<String> loopFuture =
+                        jsIsolate.evaluateJavaScriptAsync("while(true);");
+
+                final CountDownLatch latch = new CountDownLatch(2);
+
+                final Runnable futureCallback = () -> {
+                    try {
+                        loopFuture.get();
+                        Assert.fail("Should have thrown.");
+                    } catch (ExecutionException e) {
+                        if (!(e.getCause() instanceof SandboxDeadException)) {
+                            Assert.fail("Wrong exception for evaluation: " + e);
+                        }
+                    } catch (InterruptedException e) {
+                        Assert.fail("Interrupted: " + e);
+                    }
+                    latch.countDown();
+                };
+                loopFuture.addListener(futureCallback, Runnable::run);
+
+                jsIsolate.addOnTerminatedCallback(Runnable::run, info -> {
+                    Assert.assertEquals(TerminationInfo.STATUS_SANDBOX_DEAD, info.getStatus());
+                    latch.countDown();
+                });
+
+                jsSandbox.killImmediatelyOnThread();
+
+                Assert.assertTrue(latch.await(5, TimeUnit.SECONDS));
+            }
+        }
+    }
+
+    @Test
+    @LargeTest
+    public void testOomOutsideOfEvaluation() throws Throwable {
+        final Context context = ApplicationProvider.getApplicationContext();
+        final ListenableFuture<JavaScriptSandbox> jsSandboxFuture =
+                JavaScriptSandbox.createConnectedInstanceAsync(context);
+        try (JavaScriptSandbox jsSandbox = jsSandboxFuture.get(5, TimeUnit.SECONDS)) {
+            Assume.assumeTrue(jsSandbox.isFeatureSupported(
+                    JavaScriptSandbox.JS_FEATURE_ISOLATE_MAX_HEAP_SIZE));
+            Assume.assumeTrue(
+                    jsSandbox.isFeatureSupported(JavaScriptSandbox.JS_FEATURE_ISOLATE_CLIENT));
+            IsolateStartupParameters isolateStartupParameters = new IsolateStartupParameters();
+            isolateStartupParameters.setMaxHeapSizeBytes(REASONABLE_HEAP_SIZE);
+            try (JavaScriptIsolate jsIsolate = jsSandbox.createIsolate(isolateStartupParameters)) {
+                // OOM should occur in a microtask, not during this evaluation, so we should
+                // never get a MemoryLimitExceededException from the evaluation future.
+                final String code = ""
+                        + "const bytes = [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];"
+                        + "WebAssembly.compile(new Uint8Array(bytes)).then(() => {"
+                        + "  this.array ="
+                        + "    Array(" + REASONABLE_HEAP_SIZE + ").fill(Math.random(), 0);"
+                        + "});"
+                        + "'PASS'";
+                jsIsolate.evaluateJavaScriptAsync(code).get(5, TimeUnit.SECONDS);
+
+                final CountDownLatch latch = new CountDownLatch(1);
+                jsIsolate.addOnTerminatedCallback(Runnable::run, info -> {
+                    Assert.assertEquals(
+                            TerminationInfo.STATUS_MEMORY_LIMIT_EXCEEDED, info.getStatus());
+                    latch.countDown();
+                });
+                Assert.assertTrue(latch.await(60, TimeUnit.SECONDS));
+            }
         }
     }
 }

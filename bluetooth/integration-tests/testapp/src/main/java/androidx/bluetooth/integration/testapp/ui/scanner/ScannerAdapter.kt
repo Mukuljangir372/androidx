@@ -17,21 +17,22 @@
 package androidx.bluetooth.integration.testapp.ui.scanner
 
 import android.annotation.SuppressLint
-import android.bluetooth.BluetoothDevice
-import android.bluetooth.le.ScanResult
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.TextView
+import androidx.bluetooth.BluetoothDevice
+import androidx.bluetooth.ScanResult
 import androidx.bluetooth.integration.testapp.R
 import androidx.core.view.isVisible
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 
-class ScannerAdapter(private val onClick: (BluetoothDevice) -> Unit) :
-    ListAdapter<ScanResult, ScannerAdapter.ViewHolder>(ScannerDiffCallback) {
+class ScannerAdapter(
+    private val onClick: (BluetoothDevice) -> Unit
+) : ListAdapter<ScanResult, ScannerAdapter.ViewHolder>(ScannerDiffCallback) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
         val view = LayoutInflater.from(parent.context)
@@ -44,8 +45,10 @@ class ScannerAdapter(private val onClick: (BluetoothDevice) -> Unit) :
         holder.bind(scanResult.device)
     }
 
-    inner class ViewHolder(itemView: View, private val onClick: (BluetoothDevice) -> Unit) :
-        RecyclerView.ViewHolder(itemView) {
+    inner class ViewHolder(
+        itemView: View,
+        private val onClick: (BluetoothDevice) -> Unit
+    ) : RecyclerView.ViewHolder(itemView) {
 
         private val textViewDeviceName: TextView = itemView.findViewById(R.id.text_view_device_name)
         private val textViewDeviceAddress: TextView =
@@ -63,7 +66,7 @@ class ScannerAdapter(private val onClick: (BluetoothDevice) -> Unit) :
         @SuppressLint("MissingPermission")
         fun bind(bluetoothDevice: BluetoothDevice) {
             currentBluetoothDevice = bluetoothDevice
-            textViewDeviceAddress.text = bluetoothDevice.address
+            textViewDeviceAddress.text = bluetoothDevice.id.toString()
             textViewDeviceName.text = bluetoothDevice.name
             textViewDeviceName.isVisible = bluetoothDevice.name.isNullOrEmpty().not()
         }

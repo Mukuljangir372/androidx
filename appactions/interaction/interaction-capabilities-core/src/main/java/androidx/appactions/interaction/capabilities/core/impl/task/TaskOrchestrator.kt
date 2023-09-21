@@ -154,10 +154,10 @@ internal class TaskOrchestrator<ArgumentsT, OutputT, ConfirmationT>(
         try {
             if (status == Status.DESTROYED) {
                 if (updateRequest.assistantRequest != null) {
-                    FulfillmentResult(ErrorStatusInternal.SESSION_ALREADY_DESTROYED)
+                    FulfillmentResult(ErrorStatusInternal.SESSION_NOT_FOUND)
                         .applyToCallback(updateRequest.assistantRequest.callbackInternal)
                 } else if (updateRequest.touchEventRequest != null && touchEventCallback != null) {
-                    touchEventCallback!!.onError(ErrorStatusInternal.SESSION_ALREADY_DESTROYED)
+                    touchEventCallback!!.onError(ErrorStatusInternal.SESSION_NOT_FOUND)
                 }
             } else if (updateRequest.assistantRequest != null) {
                 processAssistantUpdateRequest(updateRequest.assistantRequest)
@@ -181,7 +181,6 @@ internal class TaskOrchestrator<ArgumentsT, OutputT, ConfirmationT>(
     }
 
     /** Processes an assistant update request. */
-    @Suppress("DEPRECATION")
     private suspend fun processAssistantUpdateRequest(
         assistantUpdateRequest: AssistantUpdateRequest,
     ) = withUiHandleRegistered {
@@ -193,7 +192,6 @@ internal class TaskOrchestrator<ArgumentsT, OutputT, ConfirmationT>(
             ) {
                 FulfillmentRequest.Fulfillment.Type.SYNC ->
                     handleSyncStatus(argumentsWrapper)
-                FulfillmentRequest.Fulfillment.Type.CONFIRM -> handleConfirm()
                 FulfillmentRequest.Fulfillment.Type.CANCEL -> {
                     terminate()
                     FulfillmentResult(FulfillmentResponse.getDefaultInstance())

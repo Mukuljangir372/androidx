@@ -103,12 +103,7 @@ public class MainActivity extends AppCompatActivity {
         // Get extra option for checking whether it needs to be implemented with PreviewView
         Bundle bundle = getIntent().getExtras();
         if (bundle != null) {
-            final String viewTypeString = bundle.getString(INTENT_FRAGMENT_TYPE);
-            if (PREVIEW_VIEW_FRAGMENT.equalsIgnoreCase(viewTypeString)) {
-                mFragmentType = FragmentType.PREVIEW_VIEW;
-            } else if (COMPOSE_UI_FRAGMENT.equalsIgnoreCase(viewTypeString)) {
-                mFragmentType = FragmentType.COMPOSE_UI;
-            }
+            parseFragmentType(bundle);
             // Update the app UI according to the e2e test case.
             String testItem = bundle.getString(INTENT_EXTRA_E2E_TEST_CASE);
             if (testItem != null) {
@@ -206,6 +201,15 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         return true;
+    }
+
+    private void parseFragmentType(@NonNull Bundle bundle) {
+        final String viewTypeString = bundle.getString(INTENT_FRAGMENT_TYPE);
+        if (PREVIEW_VIEW_FRAGMENT.equalsIgnoreCase(viewTypeString)) {
+            mFragmentType = FragmentType.PREVIEW_VIEW;
+        } else if (COMPOSE_UI_FRAGMENT.equalsIgnoreCase(viewTypeString)) {
+            mFragmentType = FragmentType.COMPOSE_UI;
+        }
     }
 
     private void startFragment() {

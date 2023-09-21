@@ -32,6 +32,7 @@ import android.view.Display;
 import android.view.ViewConfiguration;
 import android.view.accessibility.AccessibilityEvent;
 
+import androidx.annotation.NonNull;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.filters.SdkSuppress;
 import androidx.test.uiautomator.By;
@@ -687,27 +688,9 @@ public class UiObject2Test extends BaseTest {
         assertFalse(mDevice.hasObject(By.res(TEST_APP, "bottom_text")));
 
         UiObject2 scrollView = mDevice.findObject(By.res(TEST_APP, "scroll_view"));
-        // Scroll for the event condition that occurs early before scrolling to the end.
-        Integer result = scrollView.scrollUntil(Direction.DOWN,
-                new EventCondition<Integer>() {
-                    private Integer mResult = null;
-                    @Override
-                    public Integer getResult() {
-                        return mResult;
-                    }
-
-                    @Override
-                    public boolean accept(AccessibilityEvent event) {
-                        if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
-                            mResult = event.getEventType();
-                            return true;
-                        }
-                        return false;
-                    }
-                });
-        assertEquals(result, (Integer) AccessibilityEvent.TYPE_VIEW_SCROLLED);
-        // We haven't scrolled to the end.
-        assertFalse(mDevice.hasObject(By.res(TEST_APP, "bottom_text")));
+        // Scroll to the end.
+        assertTrue(scrollView.scrollUntil(Direction.DOWN, Until.scrollFinished(Direction.DOWN)));
+        assertTrue(mDevice.hasObject(By.res(TEST_APP, "bottom_text")));
     }
 
     @Test
@@ -733,6 +716,12 @@ public class UiObject2Test extends BaseTest {
                             return true;
                         }
                         return false;
+                    }
+
+                    @NonNull
+                    @Override
+                    public String toString() {
+                        return "EventCondition[LONG_CLICK]";
                     }
                 });
         assertNull(result);

@@ -20,7 +20,6 @@ import static androidx.camera.core.impl.utils.Threads.checkMainThread;
 import static androidx.camera.core.impl.utils.executor.CameraXExecutors.directExecutor;
 import static androidx.camera.core.impl.utils.executor.CameraXExecutors.mainThreadExecutor;
 import static androidx.camera.core.impl.utils.futures.Futures.transform;
-import static androidx.camera.view.CameraController.OutputSize.UNASSIGNED_ASPECT_RATIO;
 import static androidx.core.content.ContextCompat.getMainExecutor;
 
 import android.Manifest;
@@ -29,6 +28,7 @@ import android.content.Context;
 import android.graphics.Matrix;
 import android.hardware.camera2.CaptureResult;
 import android.os.Build;
+import android.util.Range;
 import android.util.Size;
 
 import androidx.annotation.DoNotInline;
@@ -50,6 +50,7 @@ import androidx.camera.core.CameraInfo;
 import androidx.camera.core.CameraInfoUnavailableException;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.CameraUnavailableException;
+import androidx.camera.core.DynamicRange;
 import androidx.camera.core.FocusMeteringAction;
 import androidx.camera.core.FocusMeteringResult;
 import androidx.camera.core.ImageAnalysis;
@@ -59,6 +60,7 @@ import androidx.camera.core.InitializationException;
 import androidx.camera.core.Logger;
 import androidx.camera.core.MeteringPoint;
 import androidx.camera.core.MeteringPointFactory;
+import androidx.camera.core.MirrorMode;
 import androidx.camera.core.Preview;
 import androidx.camera.core.TorchState;
 import androidx.camera.core.UseCase;
@@ -66,23 +68,23 @@ import androidx.camera.core.UseCaseGroup;
 import androidx.camera.core.ViewPort;
 import androidx.camera.core.ZoomState;
 import androidx.camera.core.impl.ImageOutputConfig;
+import androidx.camera.core.impl.StreamSpec;
 import androidx.camera.core.impl.utils.Threads;
 import androidx.camera.core.impl.utils.futures.FutureCallback;
 import androidx.camera.core.impl.utils.futures.Futures;
+import androidx.camera.core.resolutionselector.ResolutionSelector;
+import androidx.camera.core.resolutionselector.ResolutionStrategy;
 import androidx.camera.lifecycle.ProcessCameraProvider;
-import androidx.camera.video.FallbackStrategy;
 import androidx.camera.video.FileDescriptorOutputOptions;
 import androidx.camera.video.FileOutputOptions;
 import androidx.camera.video.MediaStoreOutputOptions;
 import androidx.camera.video.OutputOptions;
 import androidx.camera.video.PendingRecording;
-import androidx.camera.video.Quality;
 import androidx.camera.video.QualitySelector;
 import androidx.camera.video.Recorder;
 import androidx.camera.video.Recording;
 import androidx.camera.video.VideoCapture;
 import androidx.camera.video.VideoRecordEvent;
-import androidx.camera.view.transform.OutputTransform;
 import androidx.camera.view.video.AudioConfig;
 import androidx.core.content.PermissionChecker;
 import androidx.core.util.Consumer;
@@ -227,6 +229,8 @@ public abstract class CameraController {
 
     @Nullable
     OutputSize mPreviewTargetSize;
+    @Nullable
+    ResolutionSelector mPreviewResolutionSelector;
 
     // Synthetic access
     @SuppressWarnings("WeakerAccess")
@@ -235,6 +239,8 @@ public abstract class CameraController {
 
     @Nullable
     OutputSize mImageCaptureTargetSize;
+    @Nullable
+    ResolutionSelector mImageCaptureResolutionSelector;
 
     @Nullable
     Executor mImageCaptureIoExecutor;
@@ -253,6 +259,8 @@ public abstract class CameraController {
 
     @Nullable
     OutputSize mImageAnalysisTargetSize;
+    @Nullable
+    ResolutionSelector mImageAnalysisResolutionSelector;
 
     @NonNull
     VideoCapture<Recorder> mVideoCapture;
@@ -263,8 +271,17 @@ public abstract class CameraController {
     @NonNull
     Map<Consumer<VideoRecordEvent>, Recording> mRecordingMap = new HashMap<>();
 
-    @Nullable
-    Quality mVideoCaptureQuality;
+    @NonNull
+    QualitySelector mVideoCaptureQualitySelector = Recorder.DEFAULT_QUALITY_SELECTOR;
+
+    @MirrorMode.Mirror
+    private int mVideoCaptureMirrorMode = MirrorMode.MIRROR_MODE_OFF;
+
+    @NonNull
+    private DynamicRange mVideoCaptureDynamicRange = DynamicRange.UNSPECIFIED;
+
+    @NonNull
+    private Range<Integer> mVideoCaptureTargetFrameRate = StreamSpec.FRAME_RATE_RANGE_UNSPECIFIED;
 
     // The latest bound camera.
     // Synthetic access
@@ -352,18 +369,6 @@ public abstract class CameraController {
             mImageCapture.setTargetRotation(rotation);
             mVideoCapture.setTargetRotation(rotation);
         };
-    }
-
-    private static Recorder generateVideoCaptureRecorder(Quality videoQuality) {
-        Recorder.Builder builder = new Recorder.Builder();
-        if (videoQuality != null) {
-            builder.setQualitySelector(QualitySelector.from(
-                    videoQuality,
-                    FallbackStrategy.lowerQualityOrHigherThan(videoQuality)
-            ));
-        }
-
-        return builder.build();
     }
 
     /**
@@ -494,6 +499,17 @@ public abstract class CameraController {
     }
 
     /**
+     * Sets the {@link ResolutionSelector} on the config.
+     */
+    private void setResolutionSelector(@NonNull ImageOutputConfig.Builder<?> builder,
+            @Nullable ResolutionSelector resolutionSelector) {
+        if (resolutionSelector == null) {
+            return;
+        }
+        builder.setResolutionSelector(resolutionSelector);
+    }
+
+    /**
      * Sets the target aspect ratio or target resolution based on {@link OutputSize}.
      */
     private void setTargetOutputSize(@NonNull ImageOutputConfig.Builder<?> builder,
@@ -503,7 +519,7 @@ public abstract class CameraController {
         }
         if (outputSize.getResolution() != null) {
             builder.setTargetResolution(outputSize.getResolution());
-        } else if (outputSize.getAspectRatio() != UNASSIGNED_ASPECT_RATIO) {
+        } else if (outputSize.getAspectRatio() != OutputSize.UNASSIGNED_ASPECT_RATIO) {
             builder.setTargetAspectRatio(outputSize.getAspectRatio());
         } else {
             Logger.e(TAG, "Invalid target surface size. " + outputSize);
@@ -583,8 +599,10 @@ public abstract class CameraController {
      * @param targetSize the intended output size for {@link Preview}.
      * @see Preview.Builder#setTargetAspectRatio(int)
      * @see Preview.Builder#setTargetResolution(Size)
+     * @deprecated Use {@link #setPreviewResolutionSelector(ResolutionSelector)} instead.
      */
     @MainThread
+    @Deprecated
     public void setPreviewTargetSize(@Nullable OutputSize targetSize) {
         checkMainThread();
         if (isOutputSizeEqual(mPreviewTargetSize, targetSize)) {
@@ -598,12 +616,54 @@ public abstract class CameraController {
     /**
      * Returns the intended output size for {@link Preview} set by
      * {@link #setPreviewTargetSize(OutputSize)}, or null if not set.
+     *
+     * @deprecated Use {@link #getPreviewResolutionSelector()} instead.
      */
     @MainThread
+    @Deprecated
     @Nullable
     public OutputSize getPreviewTargetSize() {
         checkMainThread();
         return mPreviewTargetSize;
+    }
+
+    /**
+     * Sets the {@link ResolutionSelector} for {@link Preview}.
+     *
+     * <p>CameraX uses this value as a hint to select the resolution for preview. The actual
+     * output may differ from the requested value due to device constraints. When set to null,
+     * CameraX will use the default config of {@link Preview}. By default, the selected resolution
+     * will be limited by the {@code PREVIEW} size which is defined as the best size match to the
+     * device's screen resolution, or to 1080p (1920x1080), whichever is smaller.
+     *
+     * <p>Changing the value will reconfigure the camera which will cause additional latency. To
+     * avoid this, set the value before controller is bound to lifecycle.
+     *
+     * @see Preview.Builder#setResolutionSelector(ResolutionSelector)
+     */
+    @MainThread
+    public void setPreviewResolutionSelector(@Nullable ResolutionSelector resolutionSelector) {
+        checkMainThread();
+        if (mPreviewResolutionSelector == resolutionSelector) {
+            return;
+        }
+        mPreviewResolutionSelector = resolutionSelector;
+        unbindPreviewAndRecreate();
+        startCameraAndTrackStates();
+    }
+
+    /**
+     * Returns the {@link ResolutionSelector} for {@link Preview}.
+     *
+     * <p>This method returns the value set by
+     * {@link #setPreviewResolutionSelector(ResolutionSelector)}. It returns {@code null} if
+     * the value has not been set.
+     */
+    @Nullable
+    @MainThread
+    public ResolutionSelector getPreviewResolutionSelector() {
+        checkMainThread();
+        return mPreviewResolutionSelector;
     }
 
     /**
@@ -615,6 +675,7 @@ public abstract class CameraController {
         }
         Preview.Builder builder = new Preview.Builder();
         setTargetOutputSize(builder, mPreviewTargetSize);
+        setResolutionSelector(builder, mPreviewResolutionSelector);
         mPreview = builder.build();
     }
 
@@ -666,12 +727,16 @@ public abstract class CameraController {
     /**
      * Captures a new still image and saves to a file along with application specified metadata.
      *
-     * <p> The callback will be called only once for every invocation of this method.
+     * <p>The callback will be called only once for every invocation of this method.
      *
-     * <p> By default, the saved image is mirrored to match the output of the preview if front
+     * <p>By default, the saved image is mirrored to match the output of the preview if front
      * camera is used. To override this behavior, the app needs to explicitly set the flag to
      * {@code false} using {@link ImageCapture.Metadata#setReversedHorizontal} and
      * {@link ImageCapture.OutputFileOptions.Builder#setMetadata}.
+     *
+     * <p>The saved image is cropped to match the aspect ratio of the {@link PreviewView}. To
+     * take a picture with the maximum available resolution, make sure that the
+     * {@link PreviewView}'s aspect ratio is 4:3.
      *
      * @param outputFileOptions  Options to store the newly captured image.
      * @param executor           The executor in which the callback methods will be run.
@@ -776,8 +841,10 @@ public abstract class CameraController {
      * To avoid this, set the value before controller is bound to lifecycle.
      *
      * @param targetSize the intended image size for {@link ImageCapture}.
+     * @deprecated Use {@link #setImageCaptureResolutionSelector(ResolutionSelector)} instead.
      */
     @MainThread
+    @Deprecated
     public void setImageCaptureTargetSize(@Nullable OutputSize targetSize) {
         checkMainThread();
         if (isOutputSizeEqual(mImageCaptureTargetSize, targetSize)) {
@@ -791,12 +858,54 @@ public abstract class CameraController {
     /**
      * Returns the intended output size for {@link ImageCapture} set by
      * {@link #setImageCaptureTargetSize(OutputSize)}, or null if not set.
+     *
+     * @deprecated Use {@link #getImageCaptureResolutionSelector()} instead.
      */
+    @Deprecated
     @MainThread
     @Nullable
     public OutputSize getImageCaptureTargetSize() {
         checkMainThread();
         return mImageCaptureTargetSize;
+    }
+
+    /**
+     * Sets the {@link ResolutionSelector} for {@link ImageCapture}.
+     *
+     * <p>CameraX uses this value as a hint to select the resolution for captured images. The actual
+     * output may differ from the requested value due to device constraints. When set to null,
+     * CameraX will use the default config of {@link ImageCapture}. The default resolution
+     * strategy for ImageCapture is {@link ResolutionStrategy#HIGHEST_AVAILABLE_STRATEGY}, which
+     * will select the largest available resolution to use.
+     *
+     * <p>Changing the value will reconfigure the camera which will cause additional latency. To
+     * avoid this, set the value before controller is bound to lifecycle.
+     *
+     * @see ImageCapture.Builder#setResolutionSelector(ResolutionSelector)
+     */
+    @MainThread
+    public void setImageCaptureResolutionSelector(@Nullable ResolutionSelector resolutionSelector) {
+        checkMainThread();
+        if (mImageCaptureResolutionSelector == resolutionSelector) {
+            return;
+        }
+        mImageCaptureResolutionSelector = resolutionSelector;
+        unbindImageCaptureAndRecreate(getImageCaptureMode());
+        startCameraAndTrackStates();
+    }
+
+    /**
+     * Returns the {@link ResolutionSelector} for {@link ImageCapture}.
+     *
+     * <p>This method returns the value set by
+     * {@link #setImageCaptureResolutionSelector} (ResolutionSelector)}. It returns {@code null} if
+     * the value has not been set.
+     */
+    @MainThread
+    @Nullable
+    public ResolutionSelector getImageCaptureResolutionSelector() {
+        checkMainThread();
+        return mImageCaptureResolutionSelector;
     }
 
     /**
@@ -842,6 +951,7 @@ public abstract class CameraController {
         }
         ImageCapture.Builder builder = new ImageCapture.Builder().setCaptureMode(imageCaptureMode);
         setTargetOutputSize(builder, mImageCaptureTargetSize);
+        setResolutionSelector(builder, mImageCaptureResolutionSelector);
         if (mImageCaptureIoExecutor != null) {
             builder.setIoExecutor(mImageCaptureIoExecutor);
         }
@@ -1023,8 +1133,10 @@ public abstract class CameraController {
      * @param targetSize the intended output size for {@link ImageAnalysis}.
      * @see ImageAnalysis.Builder#setTargetAspectRatio(int)
      * @see ImageAnalysis.Builder#setTargetResolution(Size)
+     * @deprecated Use {@link #setImageAnalysisResolutionSelector(ResolutionSelector)} instead.
      */
     @MainThread
+    @Deprecated
     public void setImageAnalysisTargetSize(@Nullable OutputSize targetSize) {
         checkMainThread();
         if (isOutputSizeEqual(mImageAnalysisTargetSize, targetSize)) {
@@ -1040,12 +1152,57 @@ public abstract class CameraController {
     /**
      * Returns the intended output size for {@link ImageAnalysis} set by
      * {@link #setImageAnalysisTargetSize(OutputSize)}, or null if not set.
+     *
+     * @deprecated Use {@link #getImageAnalysisResolutionSelector()} instead.
      */
     @MainThread
     @Nullable
+    @Deprecated
     public OutputSize getImageAnalysisTargetSize() {
         checkMainThread();
         return mImageAnalysisTargetSize;
+    }
+
+    /**
+     * Sets the {@link ResolutionSelector} for {@link ImageAnalysis}.
+     *
+     * <p>CameraX uses this value as a hint to select the resolution for images. The actual
+     * output may differ from the requested value due to device constraints. When set to null,
+     * CameraX will use the default config of {@link ImageAnalysis}. ImageAnalysis has a default
+     * {@link ResolutionStrategy} with bound size as 640x480 and fallback rule of
+     * {@link ResolutionStrategy#FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER}.
+     *
+     * <p>Changing the value will reconfigure the camera which will cause additional latency. To
+     * avoid this, set the value before controller is bound to lifecycle.
+     *
+     * @see ImageAnalysis.Builder#setResolutionSelector(ResolutionSelector)
+     */
+    @MainThread
+    public void setImageAnalysisResolutionSelector(
+            @Nullable ResolutionSelector resolutionSelector) {
+        checkMainThread();
+        if (mImageAnalysisResolutionSelector == resolutionSelector) {
+            return;
+        }
+        mImageAnalysisResolutionSelector = resolutionSelector;
+        unbindImageAnalysisAndRecreate(
+                mImageAnalysis.getBackpressureStrategy(),
+                mImageAnalysis.getImageQueueDepth());
+        startCameraAndTrackStates();
+    }
+
+    /**
+     * Returns the {@link ResolutionSelector} for {@link ImageAnalysis}.
+     *
+     * <p>This method returns the value set by
+     * {@link #setImageAnalysisResolutionSelector(ResolutionSelector)}. It returns {@code null} if
+     * the value has not been set.
+     */
+    @MainThread
+    @Nullable
+    public ResolutionSelector getImageAnalysisResolutionSelector() {
+        checkMainThread();
+        return mImageAnalysisResolutionSelector;
     }
 
     /**
@@ -1097,6 +1254,7 @@ public abstract class CameraController {
                 .setBackpressureStrategy(strategy)
                 .setImageQueueDepth(imageQueueDepth);
         setTargetOutputSize(builder, mImageAnalysisTargetSize);
+        setResolutionSelector(builder, mImageAnalysisResolutionSelector);
         if (mAnalysisBackgroundExecutor != null) {
             builder.setBackgroundExecutor(mAnalysisBackgroundExecutor);
         }
@@ -1108,16 +1266,14 @@ public abstract class CameraController {
 
     @OptIn(markerClass = {TransformExperimental.class})
     @MainThread
-    void updatePreviewViewTransform(@Nullable OutputTransform outputTransform) {
+    void updatePreviewViewTransform(@Nullable Matrix matrix) {
         checkMainThread();
         if (mAnalysisAnalyzer == null) {
             return;
         }
-        if (outputTransform == null) {
-            mAnalysisAnalyzer.updateTransform(null);
-        } else if (mAnalysisAnalyzer.getTargetCoordinateSystem()
+        if (mAnalysisAnalyzer.getTargetCoordinateSystem()
                 == COORDINATE_SYSTEM_VIEW_REFERENCED) {
-            mAnalysisAnalyzer.updateTransform(outputTransform.getMatrix());
+            mAnalysisAnalyzer.updateTransform(matrix);
         }
     }
 
@@ -1391,42 +1547,138 @@ public abstract class CameraController {
     }
 
     /**
-     * Sets the intended video quality for {@code VideoCapture}.
+     * Sets the {@link QualitySelector} for {@link #VIDEO_CAPTURE}.
      *
-     * <p> The value is used as a hint when determining the resolution of the video.
-     * The actual output may differ from the requested value due to device constraints.
-     * The {@link FallbackStrategy#lowerQualityOrHigherThan(Quality)} fallback strategy
-     * will be applied when the quality is not supported.
+     * <p>The provided quality selector is used to select the resolution of the recording
+     * depending on the resolutions supported by the camera and codec capabilities.
      *
-     * <p> When set to null, the output will be based on the default config of {@link
-     * Recorder#DEFAULT_QUALITY_SELECTOR}.
+     * <p>If no quality selector is provided, the default is
+     * {@link Recorder#DEFAULT_QUALITY_SELECTOR}.
      *
-     * <p> Changing the value will reconfigure the camera which will cause video
-     * capture to stop. To avoid this, set the value before controller is bound to
-     * lifecycle.
+     * <p>Changing the value will reconfigure the camera which will cause video capture to stop.
+     * To avoid this, set the value before controller is bound to lifecycle.
      *
-     * @param targetQuality the intended video quality for {@code VideoCapture}.
+     * @param qualitySelector the quality selector for {@link #VIDEO_CAPTURE}.
+     * @see QualitySelector
      */
     @MainThread
-    public void setVideoCaptureTargetQuality(@Nullable Quality targetQuality) {
+    public void setVideoCaptureQualitySelector(@NonNull QualitySelector qualitySelector) {
         checkMainThread();
-        if (targetQuality == mVideoCaptureQuality) {
-            return;
-        }
-        mVideoCaptureQuality = targetQuality;
+        mVideoCaptureQualitySelector = qualitySelector;
         unbindVideoAndRecreate();
         startCameraAndTrackStates();
     }
 
     /**
-     * Returns the intended quality for {@code VideoCapture} set by
-     * {@link #setVideoCaptureTargetQuality(Quality)}, or null if not set.
+     * Returns the {@link QualitySelector} for {@link #VIDEO_CAPTURE}.
+     *
+     * @return the {@link QualitySelector} provided to
+     * {@link #setVideoCaptureQualitySelector(QualitySelector)} or the default value of
+     * {@link Recorder#DEFAULT_QUALITY_SELECTOR} if no quality selector was provided.
      */
     @MainThread
-    @Nullable
-    public Quality getVideoCaptureTargetQuality() {
+    @NonNull
+    public QualitySelector getVideoCaptureQualitySelector() {
         checkMainThread();
-        return mVideoCaptureQuality;
+        return mVideoCaptureQualitySelector;
+    }
+
+    /**
+     * Sets the mirror mode for video capture.
+     *
+     * <p>Valid values include: {@link MirrorMode#MIRROR_MODE_OFF},
+     * {@link MirrorMode#MIRROR_MODE_ON} and {@link MirrorMode#MIRROR_MODE_ON_FRONT_ONLY}.
+     * If not set, it defaults to {@link MirrorMode#MIRROR_MODE_OFF}.
+     *
+     * @see VideoCapture.Builder#setMirrorMode(int)
+     */
+    @MainThread
+    public void setVideoCaptureMirrorMode(@MirrorMode.Mirror int mirrorMode) {
+        checkMainThread();
+        mVideoCaptureMirrorMode = mirrorMode;
+        unbindVideoAndRecreate();
+        startCameraAndTrackStates();
+    }
+
+    /**
+     * Gets the mirror mode for video capture.
+     */
+    @MainThread
+    @MirrorMode.Mirror
+    public int getVideoCaptureMirrorMode() {
+        checkMainThread();
+        return mVideoCaptureMirrorMode;
+    }
+
+    /**
+     * Sets the {@link DynamicRange} for video capture.
+     *
+     * <p>The dynamic range specifies how the range of colors, highlights and shadows that
+     * are captured by the video producer are displayed on a display. Some dynamic ranges will
+     * allow the video to make full use of the extended range of brightness of a display when
+     * the video is played back.
+     *
+     * <p>The supported dynamic ranges for video capture can be queried through the
+     * {@link androidx.camera.video.VideoCapabilities} returned by
+     * {@link Recorder#getVideoCapabilities(CameraInfo)} via
+     * {@link androidx.camera.video.VideoCapabilities#getSupportedDynamicRanges()}.
+     *
+     * <p>It is possible to choose a high dynamic range (HDR) with unspecified encoding by providing
+     * {@link DynamicRange#HDR_UNSPECIFIED_10_BIT}.
+     *
+     * <p>If the dynamic range is not provided, the default value is {@link DynamicRange#SDR}.
+     *
+     * @see VideoCapture.Builder#setDynamicRange(DynamicRange)
+     */
+    @MainThread
+    public void setVideoCaptureDynamicRange(@NonNull DynamicRange dynamicRange) {
+        checkMainThread();
+        mVideoCaptureDynamicRange = dynamicRange;
+        unbindVideoAndRecreate();
+        startCameraAndTrackStates();
+    }
+
+    /**
+     * Gets the {@link DynamicRange} for video capture.
+     */
+    @MainThread
+    @NonNull
+    public DynamicRange getVideoCaptureDynamicRange() {
+        checkMainThread();
+        return mVideoCaptureDynamicRange;
+    }
+
+    /**
+     * Sets the target frame rate range in frames per second for video capture.
+     *
+     * <p>This target will be used as a part of the heuristics for the algorithm that determines
+     * the final frame rate range and resolution of all concurrently bound use cases.
+     *
+     * <p>It is not guaranteed that this target frame rate will be the final range,
+     * as other use cases as well as frame rate restrictions of the device may affect the
+     * outcome of the algorithm that chooses the actual frame rate.
+     *
+     * <p>By default, the value is {@link StreamSpec#FRAME_RATE_RANGE_UNSPECIFIED}. For supported
+     * frame rates, see {@link CameraInfo#getSupportedFrameRateRanges()}.
+     *
+     * @see VideoCapture.Builder#setTargetFrameRate(Range)
+     */
+    @MainThread
+    public void setVideoCaptureTargetFrameRate(@NonNull Range<Integer> targetFrameRate) {
+        checkMainThread();
+        mVideoCaptureTargetFrameRate = targetFrameRate;
+        unbindVideoAndRecreate();
+        startCameraAndTrackStates();
+    }
+
+    /**
+     * Gets the target frame rate in frames per second for video capture.
+     */
+    @MainThread
+    @NonNull
+    public Range<Integer> getVideoCaptureTargetFrameRate() {
+        checkMainThread();
+        return mVideoCaptureTargetFrameRate;
     }
 
     /**
@@ -1440,7 +1692,13 @@ public abstract class CameraController {
     }
 
     private VideoCapture<Recorder> createNewVideoCapture() {
-        return VideoCapture.withOutput(generateVideoCaptureRecorder(mVideoCaptureQuality));
+        Recorder videoRecorder = new Recorder.Builder().setQualitySelector(
+                mVideoCaptureQualitySelector).build();
+        return new VideoCapture.Builder<>(videoRecorder)
+                .setTargetFrameRate(mVideoCaptureTargetFrameRate)
+                .setMirrorMode(mVideoCaptureMirrorMode)
+                .setDynamicRange(mVideoCaptureDynamicRange)
+                .build();
     }
 
     // -----------------
@@ -1788,8 +2046,8 @@ public abstract class CameraController {
      * <p>Valid zoom values range from {@link ZoomState#getMinZoomRatio()} to
      * {@link ZoomState#getMaxZoomRatio()}.
      *
-     * <p> No-ops if the camera is not ready. The {@link ListenableFuture} completes successfully
-     * in this case.
+     * <p>If the value is set before the camera is ready, {@link CameraController} waits for the
+     * camera to be ready and then sets the zoom ratio.
      *
      * @param zoomRatio The requested zoom ratio.
      * @return a {@link ListenableFuture} which is finished when camera is set to the given ratio.
@@ -1812,13 +2070,13 @@ public abstract class CameraController {
     /**
      * Sets current zoom by a linear zoom value ranging from 0f to 1.0f.
      *
-     * <p> LinearZoom 0f represents the minimum zoom while linearZoom 1.0f represents the maximum
+     * <p>LinearZoom 0f represents the minimum zoom while linearZoom 1.0f represents the maximum
      * zoom. The advantage of linearZoom is that it ensures the field of view (FOV) varies
      * linearly with the linearZoom value, for use with slider UI elements (while
      * {@link #setZoomRatio(float)} works well for pinch-zoom gestures).
      *
-     * <p> No-ops if the camera is not ready. The {@link ListenableFuture} completes successfully
-     * in this case.
+     * <p>If the value is set before the camera is ready, {@link CameraController} waits for the
+     * camera to be ready and then sets the linear zoom.
      *
      * @return a {@link ListenableFuture} which is finished when camera is set to the given ratio.
      * It fails with {@link CameraControl.OperationCanceledException} if there is newer value
@@ -1855,8 +2113,8 @@ public abstract class CameraController {
     /**
      * Enable the torch or disable the torch.
      *
-     * <p> No-ops if the camera is not ready. The {@link ListenableFuture} completes successfully
-     * in this case.
+     * <p>If the value is set before the camera is ready, {@link CameraController} waits for the
+     * camera to be ready and then enables the torch.
      *
      * @param torchEnabled true to turn on the torch, false to turn it off.
      * @return A {@link ListenableFuture} which is successful when the torch was changed to the
@@ -2042,7 +2300,9 @@ public abstract class CameraController {
      * @see #setImageAnalysisTargetSize(OutputSize)
      * @see #setPreviewTargetSize(OutputSize)
      * @see #setImageCaptureTargetSize(OutputSize)
+     * @deprecated Use {@link ResolutionSelector} instead.
      */
+    @Deprecated
     @RequiresApi(21) // TODO(b/200306659): Remove and replace with annotation on package-info.java
     public static final class OutputSize {
 

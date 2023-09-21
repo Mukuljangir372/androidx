@@ -28,6 +28,7 @@ dependencies {
     api(libs.kotlinStdlib)
 
     def composeVersion = '1.4.3'
+    def composeBetaVersion = "1.5.0-beta01"
 
     api("androidx.compose.animation:animation:$composeVersion")
     api("androidx.compose.material:material-icons-core:$composeVersion")
@@ -42,6 +43,7 @@ dependencies {
     androidTestImplementation(project(":compose:ui:ui-test-junit4"))
     androidTestImplementation(project(":compose:test-utils"))
     androidTestImplementation(project(":test:screenshot:screenshot"))
+    androidTestImplementation(project(":compose:material:material-icons-core"))
     androidTestImplementation(libs.testRunner)
 
     samples(project(":tv:tv-samples"))

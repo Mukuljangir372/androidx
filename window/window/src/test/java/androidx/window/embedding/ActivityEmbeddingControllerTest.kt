@@ -18,12 +18,16 @@ package androidx.window.embedding
 
 import android.app.Activity
 import android.content.Context
+import android.os.Binder
+import androidx.window.core.ExperimentalWindowApi
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 
 /**
@@ -55,5 +59,40 @@ class ActivityEmbeddingControllerTest {
         whenever(mockEmbeddingBackend.isActivityEmbedded(mockActivity)).thenReturn(false)
 
         assertFalse(activityEmbeddingController.isActivityEmbedded(mockActivity))
+    }
+
+    @Test
+    @OptIn(ExperimentalWindowApi::class)
+    fun testGetActivityStack() {
+        val activityStack = ActivityStack(listOf(), true, Binder())
+        whenever(mockEmbeddingBackend.getActivityStack(mockActivity)).thenReturn(activityStack)
+
+        assertEquals(activityStack, activityEmbeddingController.getActivityStack(mockActivity))
+    }
+
+    @Test
+    @OptIn(ExperimentalWindowApi::class)
+    fun testFinishActivityStacks() {
+        val activityStacks: Set<ActivityStack> = mock()
+        activityEmbeddingController.finishActivityStacks(activityStacks)
+
+        verify(mockEmbeddingBackend).finishActivityStacks(activityStacks)
+    }
+
+    @Test
+    @OptIn(ExperimentalWindowApi::class)
+    fun testGetInstance() {
+        EmbeddingBackend.overrideDecorator(object : EmbeddingBackendDecorator {
+            override fun decorate(embeddingBackend: EmbeddingBackend): EmbeddingBackend =
+                mockEmbeddingBackend
+        })
+        val controller = ActivityEmbeddingController.getInstance(mockActivity)
+        val activityStacks: Set<ActivityStack> = mock()
+
+        controller.finishActivityStacks(activityStacks)
+
+        verify(mockEmbeddingBackend).finishActivityStacks(activityStacks)
+
+        EmbeddingBackend.reset()
     }
 }

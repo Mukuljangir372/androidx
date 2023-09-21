@@ -18,6 +18,7 @@ package androidx.bluetooth
 
 import java.util.UUID
 import junit.framework.TestCase.assertEquals
+import junit.framework.TestCase.assertNotNull
 import junit.framework.TestCase.assertNull
 import kotlin.test.assertFailsWith
 import org.junit.Test
@@ -44,7 +45,8 @@ class ScanFilterTest {
 
     @Test
     fun constructor() {
-        val deviceAddress = BluetoothAddress("00:01:02:03:04:05", AddressType.ADDRESS_TYPE_PUBLIC)
+        val deviceAddress = BluetoothAddress("00:01:02:03:04:05",
+            BluetoothAddress.ADDRESS_TYPE_PUBLIC)
         val manufacturerId = 1
         val manufacturerData = "AA".toByteArray()
         val manufacturerDataMask = "AB".toByteArray()
@@ -74,6 +76,8 @@ class ScanFilterTest {
         assertEquals(serviceDataMask, scanFilter.serviceDataMask)
         assertEquals(serviceUuid, scanFilter.serviceUuid)
         assertEquals(serviceUuidMask, scanFilter.serviceUuidMask)
+
+        assertNotNull(scanFilter.fwkScanFilter)
     }
 
     @Test

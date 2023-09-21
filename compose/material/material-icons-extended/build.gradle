@@ -16,6 +16,7 @@
 
 import androidx.build.KmpPlatformsKt
 import androidx.build.LibraryType
+import androidx.build.PlatformIdentifier
 import androidx.build.RunApiTasks
 import androidx.compose.material.icons.generator.tasks.IconGenerationTask
 
@@ -32,11 +33,11 @@ IconGenerationTask.registerExtendedIconMainProject(
         android
 )
 
-apply from: "shared-dependencies.gradle"
-
 androidXMultiplatform {
     android()
     if (desktopEnabled) desktop()
+
+    defaultPlatform(PlatformIdentifier.ANDROID)
 
     sourceSets {
         commonMain {
@@ -87,7 +88,7 @@ androidXMultiplatform {
             }
         }
 
-        androidAndroidTest {
+        androidInstrumentedTest {
             dependsOn(jvmTest)
             dependencies {
                 implementation(project(":compose:foundation:foundation"))
@@ -107,7 +108,7 @@ androidXMultiplatform {
             }
         }
 
-        androidTest {
+        androidUnitTest {
             dependsOn(jvmTest)
             dependencies {
             }
@@ -116,28 +117,11 @@ androidXMultiplatform {
         if (desktopEnabled) {
             desktopTest {
                 dependsOn(jvmTest)
-                dependsOn(desktopMain)
                 dependencies {
                 }
             }
         }
     }
-}
-
-configurations {
-    embedThemesDebug {
-        attributes {
-            attribute(iconExportAttr, "true")
-            attribute(iconBuildTypeAttr, "debug")
-        }
-    }
-    embedThemesRelease {
-        attributes {
-            attribute(iconExportAttr, "true")
-            attribute(iconBuildTypeAttr, "release")
-        }
-    }
-
 }
 
 IconGenerationTask.registerExtendedIconThemeProject(project, android)

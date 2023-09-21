@@ -40,7 +40,7 @@ import kotlin.math.roundToInt
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun rememberPagerMeasurePolicy(
-    itemProvider: PagerLazyLayoutItemProvider,
+    itemProviderLambda: () -> PagerLazyLayoutItemProvider,
     state: PagerState,
     contentPadding: PaddingValues,
     reverseLayout: Boolean,
@@ -52,15 +52,14 @@ internal fun rememberPagerMeasurePolicy(
     verticalAlignment: Alignment.Vertical?,
     pageCount: () -> Int,
 ) = remember<LazyLayoutMeasureScope.(Constraints) -> MeasureResult>(
-    contentPadding,
-    pageSpacing,
-    pageSize,
     state,
     contentPadding,
     reverseLayout,
     orientation,
     horizontalAlignment,
     verticalAlignment,
+    pageSpacing,
+    pageSize,
     pageCount,
 ) {
     { containerConstraints ->
@@ -138,11 +137,13 @@ internal fun rememberPagerMeasurePolicy(
                 pageAvailableSize
             }
         )
+        val itemProvider = itemProviderLambda()
 
         val firstVisiblePage: Int
         val firstVisiblePageOffset: Int
         Snapshot.withoutReadObservation {
-            firstVisiblePage = state.firstVisiblePage
+            firstVisiblePage =
+                state.matchScrollPositionWithKey(itemProvider, state.firstVisiblePage)
             firstVisiblePageOffset = if (state.layoutInfo == EmptyLayoutInfo) {
                 (state.initialPageOffsetFraction * pageAvailableSize).roundToInt()
             } else {

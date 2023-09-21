@@ -16,6 +16,8 @@
 
 package androidx.compose.runtime.lint
 
+import com.android.tools.lint.detector.api.AnnotationInfo
+import com.android.tools.lint.detector.api.AnnotationUsageInfo
 import com.android.tools.lint.detector.api.AnnotationUsageType
 import com.android.tools.lint.detector.api.Category
 import com.android.tools.lint.detector.api.Detector
@@ -27,7 +29,6 @@ import com.android.tools.lint.detector.api.Scope
 import com.android.tools.lint.detector.api.Severity
 import com.android.tools.lint.detector.api.SourceCodeScanner
 import com.android.tools.lint.detector.api.UastLintUtils
-import com.intellij.psi.PsiMethod
 import java.util.EnumSet
 import org.jetbrains.uast.UAnnotation
 import org.jetbrains.uast.UElement
@@ -49,26 +50,21 @@ class AutoboxingStateValuePropertyDetector : Detector(), SourceCodeScanner {
         return listOf("androidx.compose.runtime.snapshots.AutoboxingStateValueProperty")
     }
 
+    override fun isApplicableAnnotationUsage(type: AnnotationUsageType): Boolean {
+        return type == AnnotationUsageType.FIELD_REFERENCE
+    }
+
     override fun visitAnnotationUsage(
         context: JavaContext,
-        usage: UElement,
-        type: AnnotationUsageType,
-        annotation: UAnnotation,
-        qualifiedName: String,
-        method: PsiMethod?,
-        annotations: List<UAnnotation>,
-        allMemberAnnotations: List<UAnnotation>,
-        allClassAnnotations: List<UAnnotation>,
-        allPackageAnnotations: List<UAnnotation>
+        element: UElement,
+        annotationInfo: AnnotationInfo,
+        usageInfo: AnnotationUsageInfo
     ) {
-        if (type != AnnotationUsageType.FIELD_REFERENCE) {
-            return
-        }
+        val resolvedPropertyName = element.identifier ?: "<unknown identifier>"
+        val preferredPropertyName =
+            annotationInfo.annotation.preferredPropertyName ?: "<unknown replacement>"
 
-        val resolvedPropertyName = usage.identifier ?: "<unknown identifier>"
-        val preferredPropertyName = annotation.preferredPropertyName ?: "<unknown replacement>"
-
-        val accessKind = when (usage.resolvedName?.takeWhile { it.isLowerCase() }) {
+        val accessKind = when (element.resolvedName?.takeWhile { it.isLowerCase() }) {
             "get" -> "Reading"
             "set" -> "Assigning"
             else -> "Accessing"
@@ -76,8 +72,8 @@ class AutoboxingStateValuePropertyDetector : Detector(), SourceCodeScanner {
 
         context.report(
             AutoboxingStateValueProperty,
-            usage,
-            context.getLocation(usage),
+            element,
+            context.getLocation(element),
             "$accessKind `$resolvedPropertyName` will cause an autoboxing operation. " +
                 "Use `$preferredPropertyName` to avoid unnecessary allocations.",
             createPropertyReplacementQuickFix(

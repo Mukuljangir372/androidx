@@ -175,6 +175,9 @@ public class Fragment implements ComponentCallbacks, OnCreateContextMenuListener
     // If set this fragment is being removed from its activity.
     boolean mRemoving;
 
+    // If set this fragment is transitioning via a back gesture
+    boolean mTransitioning;
+
     boolean mBeingSaved;
 
     // Set to true if this fragment was instantiated from a layout file.
@@ -2919,7 +2922,9 @@ public class Fragment implements ComponentCallbacks, OnCreateContextMenuListener
                 mHost.getHandler().post(new Runnable() {
                     @Override
                     public void run() {
-                        controller.executePendingOperations();
+                        if (controller.isPendingExecute()) {
+                            controller.executePendingOperations();
+                        }
                     }
                 });
             } else {

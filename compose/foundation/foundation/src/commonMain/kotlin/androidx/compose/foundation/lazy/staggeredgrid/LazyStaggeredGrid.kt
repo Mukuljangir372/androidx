@@ -28,10 +28,9 @@ import androidx.compose.foundation.lazy.layout.LazyLayoutItemProvider
 import androidx.compose.foundation.lazy.layout.lazyLayoutSemantics
 import androidx.compose.foundation.overscroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -43,7 +42,7 @@ internal fun LazyStaggeredGrid(
     /** The layout orientation of the grid */
     orientation: Orientation,
     /** Cross axis positions and sizes of slots per line, e.g. the columns for vertical grid. */
-    slots: Density.(Constraints) -> LazyStaggeredGridSlots,
+    slots: LazyGridStaggeredGridSlotsProvider,
     /** Modifier to be applied for the inner layout */
     modifier: Modifier = Modifier,
     /** The inner padding to be added for the whole content (not for each individual item) */
@@ -63,27 +62,29 @@ internal fun LazyStaggeredGrid(
 ) {
     val overscrollEffect = ScrollableDefaults.overscrollEffect()
 
-    val itemProvider = rememberStaggeredGridItemProvider(state, content)
+    val itemProviderLambda = rememberStaggeredGridItemProviderLambda(state, content)
+    val coroutineScope = rememberCoroutineScope()
     val measurePolicy = rememberStaggeredGridMeasurePolicy(
         state,
-        itemProvider,
+        itemProviderLambda,
         contentPadding,
         reverseLayout,
         orientation,
         mainAxisSpacing,
         crossAxisSpacing,
+        coroutineScope,
         slots,
     )
     val semanticState = rememberLazyStaggeredGridSemanticState(state, reverseLayout)
 
-    ScrollPositionUpdater(itemProvider, state)
+    ScrollPositionUpdater(itemProviderLambda, state)
 
     LazyLayout(
         modifier = modifier
             .then(state.remeasurementModifier)
             .then(state.awaitLayoutModifier)
             .lazyLayoutSemantics(
-                itemProvider = itemProvider,
+                itemProviderLambda = itemProviderLambda,
                 state = semanticState,
                 orientation = orientation,
                 userScrollEnabled = userScrollEnabled,
@@ -110,7 +111,7 @@ internal fun LazyStaggeredGrid(
                 enabled = userScrollEnabled
             ),
         prefetchState = state.prefetchState,
-        itemProvider = itemProvider,
+        itemProvider = itemProviderLambda,
         measurePolicy = measurePolicy
     )
 }
@@ -119,15 +120,16 @@ internal fun LazyStaggeredGrid(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ScrollPositionUpdater(
-    itemProvider: LazyLayoutItemProvider,
+    itemProviderLambda: () -> LazyLayoutItemProvider,
     state: LazyStaggeredGridState
 ) {
+    val itemProvider = itemProviderLambda()
     if (itemProvider.itemCount > 0) {
         state.updateScrollPositionIfTheFirstItemWasMoved(itemProvider)
     }
 }
 
-/** Slot configuration of staggered grid **/
+/** Slot configuration of staggered grid */
 internal class LazyStaggeredGridSlots(
     val positions: IntArray,
     val sizes: IntArray

@@ -23,6 +23,8 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.RemoteViews
 import androidx.annotation.LayoutRes
+import androidx.annotation.RestrictTo
+import androidx.annotation.RestrictTo.Scope
 import androidx.compose.runtime.Composable
 import androidx.glance.GlanceComposable
 import androidx.glance.GlanceId
@@ -47,7 +49,7 @@ import kotlinx.coroutines.CancellationException
  */
 abstract class GlanceAppWidget(
     @LayoutRes
-    internal val errorUiLayout: Int = R.layout.glance_error_layout,
+    internal open val errorUiLayout: Int = R.layout.glance_error_layout,
 ) {
     private val sessionManager: SessionManager = GlanceSessionManager
 
@@ -57,7 +59,24 @@ abstract class GlanceAppWidget(
      * This is a good place to load any data needed to render the Composable. Use
      * [provideContent] to provide the Composable once the data is ready.
      *
+     * [provideGlance] is run in the background as a [androidx.work.CoroutineWorker] in response to
+     * calls to [update] and [updateAll], as well as requests from the Launcher. Before
+     * `provideContent` is called, `provideGlance` is subject to the typical
+     * [androidx.work.WorkManager] time limit (currently ten minutes). After `provideContent` is
+     * called, the composition continues to run and recompose for about 45 seconds. When UI
+     * interactions or update requests are received, additional time is added to process these
+     * requests.
+     *
+     * Note: [update] and [updateAll] do not restart `provideGlance` if it is already running. As a
+     * result, you should load initial data before calling `provideContent`, and then observe your
+     * sources of data within the composition (e.g. [androidx.compose.runtime.collectAsState]). This
+     * ensures that your widget will continue to update while the composition is active. When you
+     * update your data source from elsewhere in the app, make sure to call `update` in case a
+     * Worker for this widget is not currently running.
+     *
      * @sample androidx.glance.appwidget.samples.provideGlanceSample
+     *
+     * @sample androidx.glance.appwidget.samples.provideGlancePeriodicWorkSample
      */
     abstract suspend fun provideGlance(
         context: Context,
@@ -88,7 +107,7 @@ abstract class GlanceAppWidget(
         context: Context,
         id: GlanceId
     ) {
-        require(id is AppWidgetId)
+        require(id is AppWidgetId) { "Invalid Glance ID" }
         update(context, id.appWidgetId)
     }
 
@@ -177,7 +196,8 @@ abstract class GlanceAppWidget(
     }
 }
 
-internal data class AppWidgetId(val appWidgetId: Int) : GlanceId
+@RestrictTo(Scope.LIBRARY_GROUP)
+data class AppWidgetId(val appWidgetId: Int) : GlanceId
 
 /** Update all App Widgets managed by the [GlanceAppWidget] class. */
 suspend fun GlanceAppWidget.updateAll(@Suppress("ContextFirst") context: Context) {

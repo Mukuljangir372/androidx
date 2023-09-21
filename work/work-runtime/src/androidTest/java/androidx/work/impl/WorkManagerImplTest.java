@@ -531,7 +531,7 @@ public class WorkManagerImplTest {
             throws ExecutionException, InterruptedException {
 
         OneTimeWorkRequest work = new OneTimeWorkRequest.Builder(TestWorker.class).build();
-        assertThat(work.getWorkSpec().lastEnqueueTime, is(0L));
+        assertThat(work.getWorkSpec().lastEnqueueTime, is(-1L));
 
         long beforeEnqueueTime = System.currentTimeMillis();
 
@@ -549,7 +549,7 @@ public class WorkManagerImplTest {
                 PeriodicWorkRequest.MIN_PERIODIC_INTERVAL_MILLIS,
                 MILLISECONDS)
                 .build();
-        assertThat(periodicWork.getWorkSpec().lastEnqueueTime, is(0L));
+        assertThat(periodicWork.getWorkSpec().lastEnqueueTime, is(-1L));
         // Disable the greedy scheduler in this test. This is because sometimes the Worker
         // finishes instantly after enqueue(), and the periodStartTime gets updated.
         doNothing().when(mScheduler).schedule(any(WorkSpec.class));
@@ -1910,41 +1910,6 @@ public class WorkManagerImplTest {
     }
 
     @Test
-    @LargeTest
-    @SuppressWarnings("unchecked")
-    @SdkSuppress(maxSdkVersion = 33) // b/262909049: Failing on SDK 34
-    public void testCancelAllWork_updatesLastCancelAllTimeLiveData() throws InterruptedException {
-        if (Build.VERSION.SDK_INT == 33 && !"REL".equals(Build.VERSION.CODENAME)) {
-            return; // b/262909049: Do not run this test on pre-release Android U.
-        }
-
-        PreferenceUtils preferenceUtils = new PreferenceUtils(mWorkManagerImpl.getWorkDatabase());
-        preferenceUtils.setLastCancelAllTimeMillis(0L);
-
-        TestLifecycleOwner testLifecycleOwner = new TestLifecycleOwner();
-        LiveData<Long> cancelAllTimeLiveData =
-                mWorkManagerImpl.getLastCancelAllTimeMillisLiveData();
-        Observer<Long> mockObserver = mock(Observer.class);
-        cancelAllTimeLiveData.observe(testLifecycleOwner, mockObserver);
-
-        ArgumentCaptor<Long> captor = ArgumentCaptor.forClass(Long.class);
-        verify(mockObserver).onChanged(captor.capture());
-        assertThat(captor.getValue(), is(0L));
-
-        OneTimeWorkRequest work = new OneTimeWorkRequest.Builder(TestWorker.class).build();
-        insertWorkSpecAndTags(work);
-
-        clearInvocations(mockObserver);
-        CancelWorkRunnable.forAll(mWorkManagerImpl).run();
-
-        Thread.sleep(1000L);
-        verify(mockObserver).onChanged(captor.capture());
-        assertThat(captor.getValue(), is(greaterThan(0L)));
-
-        cancelAllTimeLiveData.removeObservers(testLifecycleOwner);
-    }
-
-    @Test
     @MediumTest
     public void pruneFinishedWork() throws InterruptedException, ExecutionException {
         OneTimeWorkRequest enqueuedWork = new OneTimeWorkRequest.Builder(TestWorker.class).build();
@@ -2126,6 +2091,13 @@ public class WorkManagerImplTest {
                         eq(PackageManager.DONT_KILL_APP));
 
         reset(packageManager);
+
+        // Scheduling work involved enabling RescheduleReceiver.class.
+        // Mark the component state as enabled (so we can check for disablement).
+        // This is necessary because we are using a PackageManager mock here.
+        when(packageManager.getComponentEnabledSetting(eq(componentName)))
+                .thenReturn(PackageManager.COMPONENT_ENABLED_STATE_ENABLED);
+
         mWorkManagerImpl.cancelWorkById(stopAwareWorkRequest.getId())
                 .getResult()
                 .get();

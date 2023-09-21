@@ -18,18 +18,19 @@ package androidx.compose.foundation.lazy.layout
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.runtime.Stable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.Constraints
 
 /**
  * State for lazy items prefetching, used by lazy layouts to instruct the prefetcher.
+ *
+ * Note: this class is a part of [LazyLayout] harness that allows for building custom lazy
+ * layouts. LazyLayout and all corresponding APIs are still under development and are subject to
+ * change.
  */
 @ExperimentalFoundationApi
 @Stable
 class LazyLayoutPrefetchState {
-    internal var prefetcher: Prefetcher? by mutableStateOf(null)
+    internal var prefetcher: Prefetcher? = null
 
     /**
      * Schedules precomposition and premeasure for the new item.
@@ -51,55 +52,6 @@ class LazyLayoutPrefetchState {
 
     internal interface Prefetcher {
         fun schedulePrefetch(index: Int, constraints: Constraints): PrefetchHandle
-
-        val timeTracker: AverageTimeTracker
-    }
-
-    internal abstract class AverageTimeTracker {
-
-        /**
-         * Average time the prefetching operations takes. Keeping it allows us to not start the work
-         * if in this frame we are most likely not going to finish the work in time to not delay the
-         * next frame.
-         */
-        var compositionTimeNs: Long = 0
-            private set
-        var measurementTimeNs: Long = 0
-            private set
-
-        abstract fun currentTime(): Long
-
-        inline fun <T> trackComposition(block: () -> T): T {
-            val beforeTimeNs = currentTime()
-            val returnValue = block()
-            compositionTimeNs = calculateAverageTime(
-                currentTime() - beforeTimeNs,
-                compositionTimeNs
-            )
-            return returnValue
-        }
-
-        inline fun <T> trackMeasurement(block: () -> T): T {
-            val beforeTimeNs = currentTime()
-            val returnValue = block()
-            measurementTimeNs = calculateAverageTime(
-                currentTime() - beforeTimeNs,
-                measurementTimeNs
-            )
-            return returnValue
-        }
-
-        private fun calculateAverageTime(new: Long, current: Long): Long {
-            // Calculate a weighted moving average of time taken to compose an item. We use weighted
-            // moving average to bias toward more recent measurements, and to minimize storage /
-            // computation cost. (the idea is taken from RecycledViewPool)
-            return if (current == 0L) {
-                new
-            } else {
-                // dividing first to avoid a potential overflow
-                current / 4 * 3 + new / 4
-            }
-        }
     }
 }
 

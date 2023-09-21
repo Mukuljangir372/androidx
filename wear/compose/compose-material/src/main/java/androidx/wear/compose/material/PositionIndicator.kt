@@ -16,14 +16,12 @@
 
 package androidx.wear.compose.material
 
+import androidx.annotation.FloatRange
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
-import androidx.compose.animation.core.AnimationVector
-import androidx.compose.animation.core.AnimationVector2D
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.TwoWayConverter
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ScrollState
@@ -36,19 +34,16 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
-import androidx.compose.runtime.State
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.lerp
@@ -56,7 +51,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.LayoutModifier
 import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasureResult
@@ -70,18 +65,18 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import androidx.wear.compose.foundation.lazy.ScalingLazyColumn as ScalingLazyColumn
-import androidx.wear.compose.foundation.lazy.ScalingLazyListAnchorType as ScalingLazyListAnchorType
-import androidx.wear.compose.foundation.lazy.ScalingLazyListItemInfo as ScalingLazyListItemInfo
-import androidx.wear.compose.foundation.lazy.ScalingLazyListState as ScalingLazyListState
+import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
+import androidx.wear.compose.foundation.lazy.ScalingLazyListAnchorType
+import androidx.wear.compose.foundation.lazy.ScalingLazyListItemInfo
+import androidx.wear.compose.foundation.lazy.ScalingLazyListState
+import androidx.wear.compose.materialcore.isRoundDevice
 import kotlin.math.PI
 import kotlin.math.asin
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 /**
@@ -127,9 +122,7 @@ interface PositionIndicatorState {
      * Position of the indicator in the range [0f,1f]. 0f means it is at the top|start, 1f means
      * it is positioned at the bottom|end.
      */
-//    @FloatRange(
-//        fromInclusive = true, from = 0.0, toInclusive = true, to = 1.0
-//    )
+    @get:FloatRange(from = 0.0, to = 1.0)
     val positionFraction: Float
 
     /**
@@ -139,10 +132,11 @@ interface PositionIndicatorState {
      * in pixels depending on orientation of the indicator, (height for vertical, width for
      * horizontal)
      */
-//    @FloatRange(
-//        fromInclusive = true, from = 0.0, toInclusive = true, to = 1.0
-//    )
-    fun sizeFraction(scrollableContainerSizePx: Float): Float
+    @FloatRange(from = 0.0, to = 1.0)
+    fun sizeFraction(
+        @FloatRange(from = 0.0)
+        scrollableContainerSizePx: Float
+    ): Float
 
     /**
      * Should we show the Position Indicator
@@ -151,7 +145,10 @@ interface PositionIndicatorState {
      * in pixels depending on orientation of the indicator, (height for vertical, width for
      * horizontal)
      */
-    fun visibility(scrollableContainerSizePx: Float): PositionIndicatorVisibility
+    fun visibility(
+        @FloatRange(from = 0.0)
+        scrollableContainerSizePx: Float
+    ): PositionIndicatorVisibility
 }
 
 /**
@@ -223,9 +220,11 @@ public fun PositionIndicator(
  * @param reverseDirection Reverses direction of PositionIndicator if true
  */
 @Suppress("DEPRECATION")
-@Deprecated("This overload is provided for backwards compatibility with Compose for Wear OS 1.1." +
+@Deprecated(
+    "This overload is provided for backwards compatibility with Compose for Wear OS 1.1." +
         "A newer overload is available which uses ScalingLazyListState from " +
-        "androidx.wear.compose.foundation.lazy package", level = DeprecationLevel.WARNING)
+        "androidx.wear.compose.foundation.lazy package", level = DeprecationLevel.WARNING
+)
 @Composable
 public fun PositionIndicator(
     scalingLazyListState: androidx.wear.compose.material.ScalingLazyListState,
@@ -403,57 +402,19 @@ public fun PositionIndicator(
     val isScreenRound = isRoundDevice()
     val layoutDirection = LocalLayoutDirection.current
     val leftyMode = isLeftyModeEnabled()
-    val actuallyVisible = remember { mutableStateOf(false) }
+
     var containerSize by remember { mutableStateOf(IntSize.Zero) }
 
-    val displayState by remember(state) {
-        derivedStateOf {
-            DisplayState(
-                state.positionFraction,
-                state.sizeFraction(containerSize.height.toFloat())
-            )
-        }
-    }
+    var positionIndicatorAlpha by remember { mutableFloatStateOf(0f) }
 
-    val highlightAlpha = remember { Animatable(0f) }
-    val animatedDisplayState = customAnimateValueAsState(
-        displayState,
-        DisplayStateTwoWayConverter,
-        animationSpec = tween(
+    val positionFractionAnimatable = remember { Animatable(0f) }
+    val sizeFractionAnimatable = remember { Animatable(0f) }
+
+    val indicatorChangeAnimationSpec: AnimationSpec<Float> = remember {
+        tween(
             durationMillis = 500,
             easing = CubicBezierEasing(0f, 0f, 0f, 1f)
         )
-    ) { _, _ ->
-        launch {
-            highlightAlpha.animateTo(
-                0.33f,
-                animationSpec = tween(
-                    durationMillis = 150,
-                    easing = CubicBezierEasing(0f, 0f, 0.2f, 1f) // Standard In
-                )
-            )
-            highlightAlpha.animateTo(
-                0f,
-                animationSpec = tween(
-                    durationMillis = 500,
-                    easing = CubicBezierEasing(0.25f, 0f, 0.75f, 1f)
-                )
-            )
-        }
-    }
-
-    val visibility by remember(state) { derivedStateOf {
-        state.visibility(containerSize.height.toFloat())
-    } }
-    when (visibility) {
-        PositionIndicatorVisibility.Show -> actuallyVisible.value = true
-        PositionIndicatorVisibility.Hide -> actuallyVisible.value = false
-        PositionIndicatorVisibility.AutoHide -> if (actuallyVisible.value) {
-            LaunchedEffect(true) {
-                delay(2000)
-                actuallyVisible.value = false
-            }
-        }
     }
 
     val indicatorOnTheRight = when (position) {
@@ -469,7 +430,7 @@ public fun PositionIndicator(
             ((if (isScreenRound) {
                 // r is the distance from the center of the container to the arc we draw the
                 // position indicator on (the center of the arc, which is indicatorWidth wide).
-                val r = containerSize.width / 2 - paddingHorizontal.toPx() -
+                val r = containerSize.width.toFloat() / 2 - paddingHorizontal.toPx() -
                     indicatorWidth.toPx() / 2
                 // The sqrt is the size of the projection on the x axis of line between center of
                 // the container and the point where we start the arc.
@@ -477,10 +438,11 @@ public fun PositionIndicator(
                 r - sqrt((sqr(r) - sqr(indicatorHeight.toPx() / 2)).coerceAtLeast(0f))
             } else 0f) +
                 paddingHorizontal.toPx() + indicatorWidth.toPx()
-            ).roundToInt(),
+                ).roundToInt(),
             (indicatorHeight.toPx() + indicatorWidth.toPx()).roundToInt()
         )
     }
+
     val boundsOffset: Density.() -> IntOffset = {
         // Note that indicators are on right or left, centered vertically.
         val indicatorSize = boundsSize()
@@ -490,21 +452,58 @@ public fun PositionIndicator(
         )
     }
 
-    // Using same animation spec as AnimatedVisibility's fadeIn and fadeOut
-    val positionIndicatorAlpha by animateFloatAsState(
-        targetValue = if (actuallyVisible.value) 1f else 0f,
-        spring(stiffness = Spring.StiffnessMediumLow)
-    )
+    LaunchedEffect(state) {
+        var beforeFirstAnimation = true
+        snapshotFlow {
+            DisplayState(
+                state.positionFraction,
+                state.sizeFraction(containerSize.height.toFloat()),
+                state.visibility(containerSize.height.toFloat())
+            )
+        }.collectLatest {
+            if (beforeFirstAnimation) {
+                sizeFractionAnimatable.snapTo(it.size)
+                positionFractionAnimatable.snapTo(it.position)
+                beforeFirstAnimation = false
+            } else {
+                launch {
+                    sizeFractionAnimatable
+                        .animateTo(it.size, animationSpec = indicatorChangeAnimationSpec)
+                }
+                launch {
+                    positionFractionAnimatable
+                        .animateTo(it.position, animationSpec = indicatorChangeAnimationSpec)
+                }
+            }
+
+            when (it.visibility) {
+                PositionIndicatorVisibility.Show -> positionIndicatorAlpha = 1f
+                PositionIndicatorVisibility.Hide -> positionIndicatorAlpha = 0f
+                else -> {
+                    // Waiting for 2000ms and animating alpha to 0f
+                    delay(2000)
+                    animate(
+                        initialValue = positionIndicatorAlpha,
+                        targetValue = 0f,
+                        animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
+                    ) { value, _ ->
+                        positionIndicatorAlpha = value
+                    }
+                }
+            }
+        }
+    }
 
     BoundsLimiter(boundsOffset, boundsSize, modifier, onSizeChanged = {
-            containerSize = it
-        }
-    ) {
+        containerSize = it
+    }) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .alpha(positionIndicatorAlpha)
-                .drawWithContent {
+                .graphicsLayer {
+                    alpha = positionIndicatorAlpha
+                }
+                .drawWithCache {
                     // We need to invert reverseDirection when the screen is round and we are on
                     // the left.
                     val actualReverseDirection =
@@ -515,99 +514,65 @@ public fun PositionIndicator(
                         }
 
                     val indicatorPosition = if (actualReverseDirection) {
-                        1 - animatedDisplayState.value.position
+                        1 - positionFractionAnimatable.value
                     } else {
-                        animatedDisplayState.value.position
+                        positionFractionAnimatable.value
                     }
 
                     val indicatorWidthPx = indicatorWidth.toPx()
 
                     // We want position = 0 be the indicator aligned at the top of its area and
                     // position = 1 be aligned at the bottom of the area.
-                    val indicatorStart =
-                        indicatorPosition * (1 - animatedDisplayState.value.size)
+                    val indicatorStart = indicatorPosition * (1 - sizeFractionAnimatable.value)
 
-                    val diameter = max(containerSize.width, containerSize.height)
+                    val diameter =
+                        max(containerSize.width.toFloat(), containerSize.height.toFloat())
 
                     val paddingHorizontalPx = paddingHorizontal.toPx()
+                    onDrawWithContent {
+                        if (isScreenRound) {
+                            val usableHalf = diameter / 2f - paddingHorizontalPx
+                            val sweepDegrees =
+                                (2 * asin((indicatorHeight.toPx() / 2) / usableHalf)).toDegrees()
 
-                    if (isScreenRound) {
-                        val usableHalf = diameter / 2f - paddingHorizontalPx
-                        val sweepDegrees =
-                            (2 * asin((indicatorHeight.toPx() / 2) / usableHalf)).toDegrees()
-
-                        drawCurvedIndicator(
-                            color,
-                            background,
-                            paddingHorizontalPx,
-                            indicatorOnTheRight,
-                            sweepDegrees,
-                            indicatorWidthPx,
-                            indicatorStart,
-                            animatedDisplayState.value.size,
-                            highlightAlpha.value
-                        )
-                    } else {
-                        drawStraightIndicator(
-                            color,
-                            background,
-                            paddingHorizontalPx,
-                            indicatorOnTheRight,
-                            indicatorWidthPx,
-                            indicatorHeightPx = indicatorHeight.toPx(),
-                            indicatorStart,
-                            animatedDisplayState.value.size,
-                            highlightAlpha.value
-                        )
+                            drawCurvedIndicator(
+                                color,
+                                background,
+                                paddingHorizontalPx,
+                                indicatorOnTheRight,
+                                sweepDegrees,
+                                indicatorWidthPx,
+                                indicatorStart,
+                                sizeFractionAnimatable.value,
+                            )
+                        } else {
+                            drawStraightIndicator(
+                                color,
+                                background,
+                                paddingHorizontalPx,
+                                indicatorOnTheRight,
+                                indicatorWidthPx,
+                                indicatorHeight.toPx(),
+                                indicatorStart,
+                                sizeFractionAnimatable.value,
+                            )
+                        }
                     }
                 }
         )
     }
 }
 
-// Copy of animateValueAsState, changing the listener to be notified before the animation starts,
-// so we can link this animation with another one.
-@Composable
-internal fun <T, V : AnimationVector> customAnimateValueAsState(
-    targetValue: T,
-    typeConverter: TwoWayConverter<T, V>,
-    animationSpec: AnimationSpec<T>,
-    changeListener: (CoroutineScope.(T, T) -> Unit)? = null
-): State<T> {
-    val animatable = remember { Animatable(targetValue, typeConverter) }
-    val listener by rememberUpdatedState(changeListener)
-    val animSpec by rememberUpdatedState(animationSpec)
-    val channel = remember { Channel<T>(Channel.CONFLATED) }
-    SideEffect {
-        channel.trySend(targetValue)
-    }
-    LaunchedEffect(channel) {
-        for (target in channel) {
-            // This additional poll is needed because when the channel suspends on receive and
-            // two values are produced before consumers' dispatcher resumes, only the first value
-            // will be received.
-            // It may not be an issue elsewhere, but in animation we want to avoid being one
-            // frame late.
-            val newTarget = channel.tryReceive().getOrNull() ?: target
-            launch {
-                if (newTarget != animatable.targetValue) {
-                    listener?.invoke(this, animatable.value, newTarget)
-                    animatable.animateTo(newTarget, animSpec)
-                }
-            }
-        }
-    }
-    return animatable.asState()
-}
-
 @Immutable
 internal class DisplayState(
     val position: Float,
-    val size: Float
+    val size: Float,
+    val visibility: PositionIndicatorVisibility
 ) {
     override fun hashCode(): Int {
         var result = position.hashCode()
         result = 31 * result + size.hashCode()
+        result = 31 * result + visibility.hashCode()
         return result
     }
 
@@ -620,20 +585,11 @@ internal class DisplayState(
 
         if (position != other.position) return false
         if (size != other.size) return false
+        if (visibility != other.visibility) return false
 
         return true
     }
 }
-
-internal val DisplayStateTwoWayConverter: TwoWayConverter<DisplayState, AnimationVector2D> =
-    TwoWayConverter(
-        convertToVector = { ds ->
-            AnimationVector2D(ds.position, ds.size)
-        },
-        convertFromVector = { av ->
-            DisplayState(av.v1, av.v2)
-        }
-    )
 
 /**
  * An implementation of [PositionIndicatorState] to display a value that is being incremented or
@@ -687,11 +643,10 @@ internal class ScrollStateAdapter(private val scrollState: ScrollState) : Positi
 
     override fun visibility(scrollableContainerSizePx: Float) = if (scrollState.maxValue == 0) {
         PositionIndicatorVisibility.Hide
-    } else if (scrollState.isScrollInProgress) {
+    } else if (scrollState.isScrollInProgress)
         PositionIndicatorVisibility.Show
-    } else {
+    else
         PositionIndicatorVisibility.AutoHide
-    }
 
     override fun equals(other: Any?): Boolean {
         return (other as? ScrollStateAdapter)?.scrollState == scrollState
@@ -775,7 +730,7 @@ internal class ScalingLazyColumnStateAdapter(
         if (state.layoutInfo.visibleItemsInfo.isEmpty()) return 0f
         val firstItem = state.layoutInfo.visibleItemsInfo.first()
         val firstItemStartOffset = firstItem.startOffset(state.layoutInfo.anchorType)
-        val viewportStartOffset = - (state.layoutInfo.viewportSize.height / 2f)
+        val viewportStartOffset = -(state.layoutInfo.viewportSize.height / 2f)
         // Coerce item size to at least 1 to avoid divide by zero for zero height items
         val firstItemInvisibleFraction =
             ((viewportStartOffset - firstItemStartOffset) /
@@ -859,7 +814,7 @@ internal class MaterialScalingLazyColumnStateAdapter(
         if (state.layoutInfo.visibleItemsInfo.isEmpty()) return 0f
         val firstItem = state.layoutInfo.visibleItemsInfo.first()
         val firstItemStartOffset = firstItem.startOffset(state.anchorType.value!!)
-        val viewportStartOffset = - (state.viewportHeightPx.value!! / 2f)
+        val viewportStartOffset = -(state.viewportHeightPx.value!! / 2f)
         // Coerce item size to at least 1 to avoid divide by zero for zero height items
         val firstItemInvisibleFraction =
             ((viewportStartOffset - firstItemStartOffset) /
@@ -905,11 +860,10 @@ internal abstract class BaseScalingLazyColumnStateAdapter : PositionIndicatorSta
             (decimalFirstItemIndex() > 0 ||
                 decimalLastItemIndex() < totalItemsCount())
         return if (canScroll) {
-            if (isScrollInProgress()) {
+            if (isScrollInProgress())
                 PositionIndicatorVisibility.Show
-            } else {
+            else
                 PositionIndicatorVisibility.AutoHide
-            }
         } else {
             PositionIndicatorVisibility.Hide
         }
@@ -970,11 +924,10 @@ internal class LazyColumnStateAdapter(
 
     override fun visibility(scrollableContainerSizePx: Float): PositionIndicatorVisibility {
         return if (sizeFraction(scrollableContainerSizePx) < 0.999f) {
-            if (state.isScrollInProgress) {
+            if (state.isScrollInProgress)
                 PositionIndicatorVisibility.Show
-            } else {
+            else
                 PositionIndicatorVisibility.AutoHide
-            }
         } else {
             PositionIndicatorVisibility.Hide
         }
@@ -1019,8 +972,7 @@ private fun ContentDrawScope.drawCurvedIndicator(
     sweepDegrees: Float,
     indicatorWidthPx: Float,
     indicatorStart: Float,
-    indicatorSize: Float,
-    highlightAlpha: Float
+    indicatorSize: Float
 ) {
     val diameter = max(size.width, size.height)
     val arcSize = Size(
@@ -1042,7 +994,7 @@ private fun ContentDrawScope.drawCurvedIndicator(
         style = Stroke(width = indicatorWidthPx, cap = StrokeCap.Round)
     )
     drawArc(
-        lerp(color, Color.White, highlightAlpha),
+        color = color,
         startAngle = startAngleOffset + sweepDegrees * (-0.5f + indicatorStart),
         sweepAngle = sweepDegrees * indicatorSize,
         useCenter = false,
@@ -1060,8 +1012,7 @@ private fun ContentDrawScope.drawStraightIndicator(
     indicatorWidthPx: Float,
     indicatorHeightPx: Float,
     indicatorStart: Float,
-    indicatorSize: Float,
-    highlightAlpha: Float
+    indicatorSize: Float
 ) {
     val x = if (indicatorOnTheRight) {
         size.width - paddingHorizontalPx - indicatorWidthPx / 2
@@ -1078,7 +1029,7 @@ private fun ContentDrawScope.drawStraightIndicator(
         cap = StrokeCap.Round
     )
     drawLine(
-        lerp(color, Color.White, highlightAlpha),
+        color,
         lerp(lineTop, lineBottom, indicatorStart),
         lerp(lineTop, lineBottom, indicatorStart + indicatorSize),
         strokeWidth = indicatorWidthPx,
@@ -1115,7 +1066,8 @@ private fun BoundsLimiter(
         modifier
             .transparentSizeModifier(size)
             .absoluteOffset { -offset() }, content = content,
-        contentAlignment = AbsoluteAlignment.TopLeft)
+        contentAlignment = AbsoluteAlignment.TopLeft
+    )
 }
 
 // Sets the size of this element, but lets the child measure using the constraints

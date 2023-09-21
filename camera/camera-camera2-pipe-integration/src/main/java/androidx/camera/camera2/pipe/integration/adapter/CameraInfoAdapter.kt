@@ -20,6 +20,8 @@ package androidx.camera.camera2.pipe.integration.adapter
 
 import android.annotation.SuppressLint
 import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraCharacteristics.CONTROL_VIDEO_STABILIZATION_MODE_ON
+import android.hardware.camera2.CameraCharacteristics.CONTROL_VIDEO_STABILIZATION_MODE_PREVIEW_STABILIZATION
 import android.hardware.camera2.CameraMetadata
 import android.hardware.camera2.params.DynamicRangeProfiles
 import android.os.Build
@@ -40,6 +42,7 @@ import androidx.camera.camera2.pipe.integration.impl.DeviceInfoLogger
 import androidx.camera.camera2.pipe.integration.impl.FocusMeteringControl
 import androidx.camera.camera2.pipe.integration.interop.Camera2CameraInfo
 import androidx.camera.camera2.pipe.integration.interop.ExperimentalCamera2Interop
+import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.CameraState
 import androidx.camera.core.DynamicRange
@@ -81,6 +84,12 @@ class CameraInfoAdapter @Inject constructor(
     private val streamConfigurationMapCompat: StreamConfigurationMapCompat,
 ) : CameraInfoInternal {
     init { DeviceInfoLogger.logDeviceInfo(cameraProperties) }
+
+    private val isLegacyDevice by lazy {
+        cameraProperties.metadata[
+            CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL
+        ] == CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY
+    }
 
     @OptIn(ExperimentalCamera2Interop::class)
     internal val camera2CameraInfo: Camera2CameraInfo by lazy {
@@ -137,7 +146,9 @@ class CameraInfoAdapter @Inject constructor(
     override fun removeSessionCaptureCallback(callback: CameraCaptureCallback) =
         cameraCallbackMap.removeCaptureCallback(callback)
 
-    override fun getImplementationType(): String = "CameraPipe"
+    override fun getImplementationType(): String =
+        if (isLegacyDevice) CameraInfo.IMPLEMENTATION_TYPE_CAMERA2_LEGACY
+        else CameraInfo.IMPLEMENTATION_TYPE_CAMERA2
 
     override fun getEncoderProfilesProvider(): EncoderProfilesProvider {
         return encoderProfilesProviderAdapter
@@ -199,6 +210,22 @@ class CameraInfoAdapter @Inject constructor(
             }
         }
         return setOf(SDR)
+    }
+
+    override fun isPreviewStabilizationSupported(): Boolean {
+        val availableVideoStabilizationModes = cameraProperties.metadata[
+            CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES]
+        return availableVideoStabilizationModes != null &&
+            availableVideoStabilizationModes.contains(
+            CONTROL_VIDEO_STABILIZATION_MODE_PREVIEW_STABILIZATION)
+    }
+
+    override fun isVideoStabilizationSupported(): Boolean {
+        val availableVideoStabilizationModes = cameraProperties.metadata[
+            CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES]
+        return availableVideoStabilizationModes != null &&
+            availableVideoStabilizationModes.contains(
+            CONTROL_VIDEO_STABILIZATION_MODE_ON)
     }
 
     private fun profileSetToDynamicRangeSet(profileSet: Set<Long>): Set<DynamicRange> {

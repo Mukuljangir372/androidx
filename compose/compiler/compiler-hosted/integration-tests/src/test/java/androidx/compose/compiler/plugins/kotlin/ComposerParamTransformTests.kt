@@ -20,15 +20,16 @@ import org.intellij.lang.annotations.Language
 import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
 import org.jetbrains.kotlin.ir.declarations.IrValueParameter
+import org.jetbrains.kotlin.ir.expressions.IrCall
 import org.jetbrains.kotlin.ir.expressions.IrGetValue
+import org.jetbrains.kotlin.ir.types.classFqName
+import org.jetbrains.kotlin.ir.util.fqNameForIrSerialization
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitorVoid
+import org.jetbrains.kotlin.ir.visitors.acceptChildrenVoid
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.junit.runners.JUnit4
 
-@RunWith(JUnit4::class)
-class ComposerParamTransformTests : AbstractIrTransformTest(useFir = false) {
+class ComposerParamTransformTests(useFir: Boolean) : AbstractIrTransformTest(useFir) {
     private fun composerParam(
         @Language("kotlin")
         source: String,
@@ -281,6 +282,69 @@ class ComposerParamTransformTests : AbstractIrTransformTest(useFir = false) {
         """
     )
 
+    // Regression test for b/286132194
+    @Test
+    fun testStableVarargParams(): Unit = composerParam(
+        """
+            @Composable
+            fun B(vararg values: Int) {
+                print(values)
+            }
+
+            @NonRestartableComposable
+            @Composable
+            fun Test() {
+                B(0, 1, 2, 3)
+            }
+        """,
+        """
+            @Composable
+            fun B(values: IntArray, %composer: Composer?, %changed: Int) {
+              %composer = %composer.startRestartGroup(<>)
+              sourceInformation(%composer, "C(B):Test.kt#2487m")
+              val %dirty = %changed
+              %composer.startMovableGroup(<>, values.size)
+              val <iterator> = values.iterator()
+              while (<iterator>.hasNext()) {
+                val value = <iterator>.next()
+                %dirty = %dirty or if (%composer.changed(value)) 0b0100 else 0
+              }
+              %composer.endMovableGroup()
+              if (%dirty and 0b1110 === 0) {
+                %dirty = %dirty or 0b0010
+              }
+              if (%dirty and 0b1011 !== 0b0010 || !%composer.skipping) {
+                if (isTraceInProgress()) {
+                  traceEventStart(<>, %dirty, -1, <>)
+                }
+                print(values)
+                if (isTraceInProgress()) {
+                  traceEventEnd()
+                }
+              } else {
+                %composer.skipToGroupEnd()
+              }
+              %composer.endRestartGroup()?.updateScope { %composer: Composer?, %force: Int ->
+                B(*values, %composer, updateChangedFlags(%changed or 0b0001))
+              }
+            }
+            @NonRestartableComposable
+            @Composable
+            fun Test(%composer: Composer?, %changed: Int) {
+              %composer.startReplaceableGroup(<>)
+              sourceInformation(%composer, "C(Test)<B(0,>:Test.kt#2487m")
+              if (isTraceInProgress()) {
+                traceEventStart(<>, %changed, -1, <>)
+              }
+              B(0, 1, 2, 3, %composer, 0)
+              if (isTraceInProgress()) {
+                traceEventEnd()
+              }
+              %composer.endReplaceableGroup()
+            }
+        """
+    )
+
     @Test
     fun testNonComposableCode(): Unit = composerParam(
         """
@@ -323,8 +387,10 @@ class ComposerParamTransformTests : AbstractIrTransformTest(useFir = false) {
                     return 123
                   }
               }
-              val g = object {
-                fun H() { }
+              val g = <block>{
+                object {
+                  fun H() { }
+                }
               }
             }
             fun I(block: Function0<Unit>) {
@@ -527,7 +593,7 @@ class ComposerParamTransformTests : AbstractIrTransformTest(useFir = false) {
                   }
                   if (%dirty and 0b1011 !== 0b0010 || !%composer.skipping) {
                     if (isTraceInProgress()) {
-                      traceEventStart(<>, %changed, -1, <>)
+                      traceEventStart(<>, %dirty, -1, <>)
                     }
                     used(text)
                     if (isTraceInProgress()) {
@@ -550,7 +616,7 @@ class ComposerParamTransformTests : AbstractIrTransformTest(useFir = false) {
                   }
                   if (%dirty and 0b1011 !== 0b0010 || !%composer.skipping) {
                     if (isTraceInProgress()) {
-                      traceEventStart(<>, %changed, -1, <>)
+                      traceEventStart(<>, %dirty, -1, <>)
                     }
                     %composer.startMovableGroup(<>, value)
                     sourceInformation(%composer, "<Wrappe...>")
@@ -967,4 +1033,178 @@ class ComposerParamTransformTests : AbstractIrTransformTest(useFir = false) {
             }
         """
     )
+
+    @Test
+    fun validateNoComposableFunctionSymbolCalls() = composerParam(
+        source = """
+            fun abc0(l: @Composable () -> Unit) {
+                val hc = l.hashCode()
+            }
+            fun abc1(l: @Composable (String) -> Unit) {
+                val hc = l.hashCode()
+            }
+            fun abc2(l: @Composable (String, Int) -> Unit) {
+                val hc = l.hashCode()
+            }
+            fun abc3(
+                l: @Composable (Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any) -> Any
+            ) {
+                val hc = l.hashCode()
+            }
+        """.trimIndent(),
+        expectedTransformed = """
+            fun abc0(l: Function2<Composer, Int, Unit>) {
+              val hc = l.hashCode()
+            }
+            fun abc1(l: Function3<String, Composer, Int, Unit>) {
+              val hc = l.hashCode()
+            }
+            fun abc2(l: Function4<String, Int, Composer, Int, Unit>) {
+              val hc = l.hashCode()
+            }
+            fun abc3(l: Function15<Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Any, Composer, Int, Int, Any>) {
+              val hc = l.hashCode()
+            }
+        """.trimIndent(),
+        validator = {
+            val expectedArity = listOf(2, 3, 4, 15)
+            var i = 0 // to iterate over `hashCode` calls
+            it.acceptChildrenVoid(object : IrElementVisitorVoid {
+                override fun visitElement(element: IrElement) {
+                    element.acceptChildrenVoid(this)
+                }
+
+                override fun visitCall(expression: IrCall) {
+                    if (expression.symbol.owner.name.asString() == "hashCode") {
+                        assertEquals(
+                            "kotlin.Function${expectedArity[i]}.hashCode",
+                            expression.symbol.owner.fqNameForIrSerialization.asString())
+                        i++
+                    }
+                }
+            })
+        }
+    )
+
+    @Test
+    fun validateNoComposableFunctionReferencesInOverriddenSymbols() =
+        verifyCrossModuleComposeIrTransform(
+            dependencySource = """
+            package dependency
+
+            import androidx.compose.runtime.Composable
+
+            interface Content {
+                fun setContent(c: @Composable () -> Unit)
+            }
+        """.trimIndent(),
+            source = """
+            package test
+
+            import androidx.compose.runtime.Composable
+            import dependency.Content
+
+            class ContentImpl : Content {
+                override fun setContent(c: @Composable () -> Unit) {}
+            }
+        """.trimIndent(),
+            validator = {
+                it.acceptChildrenVoid(object : IrElementVisitorVoid {
+                    override fun visitElement(element: IrElement) {
+                        element.acceptChildrenVoid(this)
+                    }
+
+                    private val targetFqName = "test.ContentImpl.setContent"
+
+                    override fun visitSimpleFunction(declaration: IrSimpleFunction) {
+                        if (declaration.fqNameForIrSerialization.asString() == targetFqName) {
+                            assertEquals(1, declaration.overriddenSymbols.size)
+                            val firstParameterOfOverridden =
+                                declaration.overriddenSymbols.first().owner.valueParameters.first()
+                                    .takeIf { it.name.asString() == "c" }!!
+                            assertEquals(
+                                "kotlin.Function2",
+                                firstParameterOfOverridden.type.classFqName?.asString()
+                            )
+                        }
+                    }
+                })
+            },
+            expectedTransformed = """
+            @StabilityInferred(parameters = 0)
+            class ContentImpl : Content {
+              override fun setContent(c: Function2<Composer, Int, Unit>) { }
+              static val %stable: Int = 0
+            }
+        """.trimIndent()
+        )
+
+    @Test
+    fun validateNoComposableFunctionReferencesInCalleeOverriddenSymbols() =
+        verifyCrossModuleComposeIrTransform(
+            dependencySource = """
+            package dependency
+
+            import androidx.compose.runtime.Composable
+
+            interface Content {
+                fun setContent(c: @Composable () -> Unit = {})
+            }
+            class ContentImpl : Content {
+                override fun setContent(c: @Composable () -> Unit) {}
+            }
+        """.trimIndent(),
+            source = """
+            package test
+
+            import androidx.compose.runtime.Composable
+            import androidx.compose.runtime.NonRestartableComposable
+            import dependency.ContentImpl
+
+            @Composable
+            @NonRestartableComposable
+            fun Foo() {
+                ContentImpl().setContent()
+            }
+        """.trimIndent(),
+            validator = {
+                it.acceptChildrenVoid(object : IrElementVisitorVoid {
+                    override fun visitElement(element: IrElement) {
+                        element.acceptChildrenVoid(this)
+                    }
+
+                    private val targetFqName = "dependency.ContentImpl.setContent"
+
+                    override fun visitCall(expression: IrCall) {
+                        val callee = expression.symbol.owner
+                        if (callee.fqNameForIrSerialization.asString() == targetFqName) {
+                            val firstParameterOfOverridden =
+                                callee.overriddenSymbols.first().owner.valueParameters.first()
+                                    .takeIf { it.name.asString() == "c" }!!
+                            assertEquals(
+                                "kotlin.Function2",
+                                firstParameterOfOverridden.type.classFqName?.asString()
+                            )
+                        }
+                        super.visitCall(expression)
+                    }
+                })
+            },
+            expectedTransformed = """
+            @Composable
+            @NonRestartableComposable
+            fun Foo(%composer: Composer?, %changed: Int) {
+              %composer.startReplaceableGroup(<>)
+              sourceInformation(%composer, "C(Foo):Test.kt#2487m")
+              if (isTraceInProgress()) {
+                traceEventStart(<>, %changed, -1, <>)
+              }
+              ContentImpl().setContent()
+              if (isTraceInProgress()) {
+                traceEventEnd()
+              }
+              %composer.endReplaceableGroup()
+            }
+        """.trimIndent()
+        )
 }

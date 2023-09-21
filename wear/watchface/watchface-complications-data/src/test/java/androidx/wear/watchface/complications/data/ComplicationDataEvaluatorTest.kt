@@ -23,18 +23,16 @@ import android.support.wearable.complications.ComplicationText as WireComplicati
 import android.util.Log
 import androidx.wear.protolayout.expression.AppDataKey
 import androidx.wear.protolayout.expression.DynamicBuilders.DynamicFloat
-import androidx.wear.protolayout.expression.DynamicBuilders.DynamicInstant
 import androidx.wear.protolayout.expression.DynamicBuilders.DynamicString
 import androidx.wear.protolayout.expression.DynamicDataBuilders.DynamicDataValue
+import androidx.wear.protolayout.expression.PlatformHealthSources
+import androidx.wear.protolayout.expression.pipeline.PlatformDataProvider
 import androidx.wear.protolayout.expression.pipeline.StateStore
-import androidx.wear.protolayout.expression.pipeline.TimeGateway
 import androidx.wear.watchface.complications.data.ComplicationDataEvaluator.Companion.INVALID_DATA
 import com.google.common.truth.Expect
 import com.google.common.truth.Truth.assertThat
-import java.time.Instant
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.firstOrNull
@@ -83,7 +81,7 @@ class ComplicationDataEvaluatorTest {
      */
     enum class DataWithExpressionScenario(
         val expressed: WireComplicationData,
-        val states: List<Map<AppDataKey<*>, DynamicDataValue>>,
+        val states: List<Map<AppDataKey<*>, DynamicDataValue<*>>>,
         val evaluated: List<WireComplicationData>,
     ) {
         SET_IMMEDIATELY_WHEN_ALL_DATA_AVAILABLE(
@@ -327,33 +325,38 @@ class ComplicationDataEvaluatorTest {
 
     @Test
     fun evaluate_cancelled_cleansUp() = runBlocking {
+        // Arrange
         val expressed =
             WireComplicationData.Builder(TYPE_NO_DATA)
-                .setRangedDynamicValue(
-                    // Uses TimeGateway, which needs cleaning up.
-                    DynamicInstant.withSecondsPrecision(Instant.EPOCH)
-                        .durationUntil(DynamicInstant.platformTimeWithSecondsPrecision())
-                        .secondsPart
-                        .asFloat()
-                )
+                .setRangedDynamicValue(PlatformHealthSources.heartRateBpm())
                 .build()
-        val timeGateway = mock<TimeGateway>()
-        val evaluator = ComplicationDataEvaluator(timeGateway = timeGateway)
+
+        val provider = mock<PlatformDataProvider>()
+        val evaluator = ComplicationDataEvaluator(
+            platformDataProviders = mapOf(
+                provider to setOf(PlatformHealthSources.Keys.HEART_RATE_BPM)
+            )
+        )
         val flow = evaluator.evaluate(expressed)
 
-        // Validity check - TimeGateway not used until Flow collection.
-        verifyNoInteractions(timeGateway)
-        val job = launch(Dispatchers.Main.immediate) { flow.collect {} }
+        // Validity check - Platform provider not used until Flow collection.
+        verifyNoInteractions(provider)
+        val job = launch(dispatcher) { flow.collect {} }
         try {
-            // Validity check - TimeGateway registered while collection is in progress.
-            verify(timeGateway).registerForUpdates(any(), any())
-            verifyNoMoreInteractions(timeGateway)
+            advanceUntilIdle()
+            // Validity check - Platform provider registered while collection is in progress.
+            verify(provider).setReceiver(any(), any())
+            verifyNoMoreInteractions(provider)
         } finally {
+            // Act
             job.cancel()
+            advanceUntilIdle()
         }
 
-        verify(timeGateway).unregisterForUpdates(any())
-        verifyNoMoreInteractions(timeGateway)
+        // Assert
+        advanceUntilIdle()
+        verify(provider).clearReceiver()
+        verifyNoMoreInteractions(provider)
     }
 
     @Test

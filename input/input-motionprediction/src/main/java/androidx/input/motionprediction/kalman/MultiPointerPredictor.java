@@ -59,11 +59,13 @@ public class MultiPointerPredictor implements KalmanPredictor {
         int actionIndex = event.getActionIndex();
         int pointerId = event.getPointerId(actionIndex);
         if (action == MotionEvent.ACTION_DOWN || action == MotionEvent.ACTION_POINTER_DOWN) {
-            SinglePointerPredictor predictor = new SinglePointerPredictor();
+            SinglePointerPredictor predictor = new SinglePointerPredictor(
+                    pointerId,
+                    event.getToolType(actionIndex)
+            );
             if (mReportRateMs > 0) {
                 predictor.setReportRate(mReportRateMs);
             }
-            predictor.initStrokePrediction(pointerId, event.getToolType(actionIndex));
             predictor.onTouchEvent(event);
             mPredictorMap.put(pointerId, predictor);
         } else if (action == MotionEvent.ACTION_UP) {
@@ -123,9 +125,6 @@ public class MultiPointerPredictor implements KalmanPredictor {
             pointerIds[i] = mPredictorMap.keyAt(i);
             SinglePointerPredictor predictor = mPredictorMap.valueAt(i);
             singlePointerEvents[i] = predictor.predict(predictionTargetMs);
-            // If predictor consumer expect more sample, generate sample where position and
-            // pressure are constant
-            singlePointerEvents[i] = predictor.appendPredictedEvent(singlePointerEvents[i]);
         }
 
         // Compute minimal history size for every predicted single pointer MotionEvent

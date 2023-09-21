@@ -44,6 +44,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -107,7 +109,7 @@ import kotlinx.coroutines.yield
 fun Carousel(
     itemCount: Int,
     modifier: Modifier = Modifier,
-    carouselState: CarouselState = remember { CarouselState() },
+    carouselState: CarouselState = rememberCarouselState(),
     autoScrollDurationMillis: Long = CarouselDefaults.TimeToDisplayItemMillis,
     contentTransformStartToEnd: ContentTransform = CarouselDefaults.contentTransform,
     contentTransformEndToStart: ContentTransform = CarouselDefaults.contentTransform,
@@ -224,6 +226,10 @@ private fun AutoScrollSideEffect(
     doAutoScroll: Boolean,
     onAutoScrollChange: (isAutoScrollActive: Boolean) -> Unit = {},
 ) {
+    if (autoScrollDurationMillis == Long.MAX_VALUE || autoScrollDurationMillis < 0) {
+        return
+    }
+
     // Needed to ensure that the code within LaunchedEffect receives updates to the itemCount.
     val updatedItemCount by rememberUpdatedState(newValue = itemCount)
     if (doAutoScroll) {
@@ -256,6 +262,7 @@ private fun Modifier.handleKeyEvents(
         carouselState.moveToPreviousItem(itemCount)
         outerBoxFocusRequester.requestFocus()
     }
+
     fun showNextItem() {
         carouselState.moveToNextItem(itemCount)
         outerBoxFocusRequester.requestFocus()
@@ -284,11 +291,13 @@ private fun Modifier.handleKeyEvents(
                     KeyEventPropagation.StopPropagation
                 }
 
-            !focusManager.moveFocus(direction) -> {
+            !focusManager.moveFocus(direction) &&
+                currentCarouselBoxFocusState()?.hasFocus == true -> {
                 // if focus search was unsuccessful, interpret as input for slide change
                 updateItemBasedOnLayout(direction, isLtr)
                 KeyEventPropagation.StopPropagation
             }
+
             else -> KeyEventPropagation.StopPropagation
         }
 
@@ -311,6 +320,7 @@ private fun Modifier.handleKeyEvents(
         when {
             shouldFocusExitCarousel(it, carouselState, itemCount, isLtr) ->
                 FocusRequester.Default
+
             else -> FocusRequester.Cancel
         }
     }
@@ -342,6 +352,22 @@ private fun CarouselStateUpdater(carouselState: CarouselState, itemCount: Int) {
         if (itemCount != 0) {
             carouselState.activeItemIndex = floorMod(carouselState.activeItemIndex, itemCount)
         }
+    }
+}
+
+/**
+ * Creates a [CarouselState] that is remembered across compositions.
+ *
+ * Changes to the provided initial values will **not** result in the state being recreated or
+ * changed in any way if it has already been created.
+ *
+ * @param initialActiveItemIndex the index of the first active item
+ */
+@ExperimentalTvMaterial3Api
+@Composable
+fun rememberCarouselState(initialActiveItemIndex: Int = 0): CarouselState {
+    return rememberSaveable(saver = CarouselState.Saver) {
+        CarouselState(initialActiveItemIndex)
     }
 }
 
@@ -405,6 +431,16 @@ class CarouselState(initialActiveItemIndex: Int = 0) {
 
         // Go to next item
         activeItemIndex = floorMod(activeItemIndex + 1, itemCount)
+    }
+
+    companion object {
+        /**
+         * The default [Saver] implementation for [CarouselState].
+         */
+        val Saver: Saver<CarouselState, *> = Saver(
+            save = { it.activeItemIndex },
+            restore = { CarouselState(it) }
+        )
     }
 }
 
@@ -471,7 +507,6 @@ object CarouselDefaults {
      * @param spacing spacing between the indicator dots
      * @param indicator indicator dot representing each item in the carousel
      */
-    @ExperimentalTvMaterial3Api
     @Composable
     fun IndicatorRow(
         itemCount: Int,
@@ -498,7 +533,7 @@ object CarouselDefaults {
         ) {
             repeat(itemCount) {
                 val isActive = it == activeItemIndex
-                indicator(isActive = isActive)
+                indicator(isActive)
             }
         }
     }

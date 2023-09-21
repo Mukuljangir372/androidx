@@ -23,12 +23,14 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.OnBackPressedDispatcherOwner
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.animation.core.AnimationConstants.DefaultDurationMillis
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material.Button
+import androidx.compose.material.Scaffold
 import androidx.compose.material.Text
 import androidx.compose.material.TextField
 import androidx.compose.runtime.CompositionLocalProvider
@@ -922,6 +924,53 @@ class NavHostTest {
     }
 
     @Test
+    fun testNavHostAnimationsBackInterrupt() {
+        lateinit var navController: NavHostController
+
+        composeTestRule.setContent {
+            navController = rememberNavController()
+            NavHost(navController, startDestination = first) {
+                composable(first) {
+                    Scaffold {
+                        NavHost(rememberNavController(), startDestination = "one") {
+                            composable("one") {
+                                BasicText("one")
+                                viewModel<TestViewModel>()
+                            }
+                        }
+                    }
+                }
+                composable(second) { }
+            }
+        }
+
+        val firstEntry = navController.currentBackStackEntry
+
+        composeTestRule.runOnIdle {
+            assertThat(firstEntry?.lifecycle?.currentState)
+                .isEqualTo(Lifecycle.State.RESUMED)
+        }
+
+        composeTestRule.runOnIdle {
+            navController.navigate(second)
+        }
+
+        val secondEntry = navController.currentBackStackEntry
+
+        composeTestRule.runOnIdle {
+            navController.popBackStack()
+            navController.popBackStack()
+        }
+
+        composeTestRule.runOnIdle {
+            assertThat(firstEntry?.lifecycle?.currentState)
+                .isEqualTo(Lifecycle.State.DESTROYED)
+            assertThat(secondEntry?.lifecycle?.currentState)
+                .isEqualTo(Lifecycle.State.DESTROYED)
+        }
+    }
+
+    @Test
     fun testNavHostDeeplink() {
         lateinit var navController: NavHostController
 
@@ -1161,7 +1210,7 @@ class NavHostTest {
         composeTestRule.runOnIdle {
             assertThat(onBackPressedDispatcher.hasEnabledCallbacks()).isFalse()
             innerNavController.navigate("innerSecond")
-            assertThat(onBackPressedDispatcher.hasEnabledCallbacks()).isTrue()
+            assertThat(onBackPressedDispatcher.hasEnabledCallbacks()).isFalse()
         }
 
         // Now navigate to a second destination in the outer NavHost
@@ -1228,6 +1277,49 @@ class NavHostTest {
         }
     }
 
+    @Test
+    fun testPopWithBackHandler() {
+        lateinit var navController: NavHostController
+        var lifecycleOwner = TestLifecycleOwner(Lifecycle.State.RESUMED)
+        var backPressedDispatcher: OnBackPressedDispatcher? = null
+        var count = 0
+        var wasCalled = false
+        composeTestRule.setContent {
+            navController = rememberNavController()
+            backPressedDispatcher =
+                LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
+            CompositionLocalProvider(LocalLifecycleOwner provides lifecycleOwner) {
+                BackHandler { wasCalled = true }
+                NavHost(navController, startDestination = "first") {
+                    composable("first") {
+                        BackHandler { count++ }
+                    }
+                }
+            }
+        }
+
+        composeTestRule.runOnUiThread {
+            backPressedDispatcher?.onBackPressed()
+            assertThat(count).isEqualTo(1)
+        }
+
+        // move to the back ground to unregister the BackHandlers
+        composeTestRule.runOnIdle {
+            lifecycleOwner.currentState = Lifecycle.State.CREATED
+        }
+
+        // register the BackHandlers again
+        composeTestRule.runOnIdle {
+            lifecycleOwner.currentState = Lifecycle.State.RESUMED
+        }
+
+        composeTestRule.runOnUiThread {
+            backPressedDispatcher?.onBackPressed()
+            assertThat(count).isEqualTo(2)
+            assertThat(wasCalled).isFalse()
+        }
+    }
+
     private fun createNavController(context: Context): TestNavHostController {
         val navController = TestNavHostController(context)
         val navigator = TestNavigator()
@@ -1238,6 +1330,7 @@ class NavHostTest {
 
 private const val first = "first"
 private const val second = "second"
+private const val third = "third"
 
 class TestViewModel : ViewModel() {
     var value: String = "nothing"

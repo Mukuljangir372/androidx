@@ -17,7 +17,7 @@
 package androidx.appactions.interaction.capabilities.productivity
 
 import android.util.SizeF
-import androidx.appactions.builtintypes.experimental.types.Timer
+import androidx.appactions.builtintypes.types.Timer
 import androidx.appactions.interaction.capabilities.core.ExecutionCallback
 import androidx.appactions.interaction.capabilities.core.ExecutionResult
 import androidx.appactions.interaction.capabilities.core.HostProperties
@@ -49,7 +49,7 @@ class StopTimerTest {
         val argsDeferred = CompletableDeferred<Arguments>()
         val capability = StopTimer.CapabilityBuilder()
             .setId("stop timer")
-            .setTimerProperty(Property.Builder<Timer>().setRequired(true).build())
+            .setTimerProperty(Property<Timer>(isRequiredForExecution = true))
             .setExecutionCallback(
                 ExecutionCallback {
                     argsDeferred.complete(it)
@@ -80,7 +80,9 @@ class StopTimerTest {
         assertThat(argsDeferred.awaitSync())
             .isEqualTo(
                 Arguments.Builder()
-                    .setTimerList(listOf(TimerValue(Timer.Builder().setIdentifier("abc").build())))
+                    .setTimerList(
+                        listOf(TimerReference(Timer.Builder().setIdentifier("abc").build()))
+                    )
                     .build()
             )
     }

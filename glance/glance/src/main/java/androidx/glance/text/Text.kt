@@ -1,4 +1,3 @@
-
 /*
  * Copyright 2021 The Android Open Source Project
  *
@@ -21,6 +20,7 @@ import androidx.annotation.RestrictTo
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.glance.Emittable
+import androidx.glance.EmittableWithText
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceNode
 import androidx.glance.text.TextDefaults.defaultTextStyle
@@ -58,13 +58,9 @@ object TextDefaults {
     val defaultTextStyle: TextStyle = TextStyle(color = defaultTextColor)
 }
 
-/** @suppress */
 @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
-class EmittableText : Emittable {
+class EmittableText : EmittableWithText() {
     override var modifier: GlanceModifier = GlanceModifier
-    var text: String = ""
-    var style: TextStyle? = null
-    var maxLines: Int = Int.MAX_VALUE
 
     override fun copy(): Emittable = EmittableText().also {
         it.modifier = modifier

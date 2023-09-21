@@ -15,12 +15,15 @@
  */
 
 package androidx.glance.appwidget.lazy
+import android.os.Bundle
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.ui.unit.Dp
 import androidx.glance.Emittable
+import androidx.glance.EmittableLazyItemWithChildren
 import androidx.glance.EmittableWithChildren
+import androidx.glance.ExperimentalGlanceApi
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceNode
 import androidx.glance.layout.Alignment
@@ -51,6 +54,43 @@ fun LazyVerticalGrid(
             this.set(gridCells) { this.gridCells = it }
             this.set(modifier) { this.modifier = it }
             this.set(horizontalAlignment) { this.horizontalAlignment = it }
+        },
+        content = applyVerticalGridScope(
+            Alignment(horizontalAlignment, Alignment.Vertical.CenterVertically),
+            content
+        )
+    )
+}
+
+/**
+ * The DSL implementation of a lazy grid layout. It composes only visible rows of the grid.
+ *
+ * @param gridCells the number of columns in the grid.
+ * @param activityOptions Additional options built from an [android.app.ActivityOptions] to apply to
+ * an activity start.
+ * @param modifier the modifier to apply to this layout
+ * @param horizontalAlignment the horizontal alignment applied to the items.
+ * @param content a block which describes the content. Inside this block you can use methods like
+ * [LazyVerticalGridScope.item] to add a single item or [LazyVerticalGridScope.items] to add a list
+ * of items. If the item has more than one top-level child, they will be automatically wrapped in a
+ * Box.
+ */
+@ExperimentalGlanceApi
+@Composable
+fun LazyVerticalGrid(
+    gridCells: GridCells,
+    activityOptions: Bundle,
+    modifier: GlanceModifier = GlanceModifier,
+    horizontalAlignment: Alignment.Horizontal = Alignment.Start,
+    content: LazyVerticalGridScope.() -> Unit
+) {
+    GlanceNode(
+        factory = ::EmittableLazyVerticalGrid,
+        update = {
+            this.set(gridCells) { this.gridCells = it }
+            this.set(modifier) { this.modifier = it }
+            this.set(horizontalAlignment) { this.horizontalAlignment = it }
+            this.set(activityOptions) { this.activityOptions = it }
         },
         content = applyVerticalGridScope(
             Alignment(horizontalAlignment, Alignment.Vertical.CenterVertically),
@@ -239,25 +279,21 @@ EmittableWithChildren(resetsDepthForChildren = true) {
     override var modifier: GlanceModifier = GlanceModifier
     var horizontalAlignment: Alignment.Horizontal = Alignment.Start
     var gridCells: GridCells = GridCells.Fixed(1)
+    var activityOptions: Bundle? = null
 
     override fun toString(): String =
         "EmittableLazyVerticalGridList(modifier=$modifier, " +
         "horizontalAlignment=$horizontalAlignment, " +
         "numColumn=$gridCells, " +
+        "activityOptions=$activityOptions, " +
         "children=[\n${childrenToString()}\n])"
 }
 
-internal class EmittableLazyVerticalGridListItem : EmittableWithChildren() {
-    override var modifier: GlanceModifier
-        get() = children.singleOrNull()?.modifier
-            ?: GlanceModifier.wrapContentHeight().fillMaxWidth()
-        set(_) {
-            throw IllegalAccessError(
-              "You cannot set the modifier of an EmittableLazyVerticalGridListItem"
-            )
-        }
+internal class EmittableLazyVerticalGridListItem : EmittableLazyItemWithChildren() {
+    // Fill max width of the grid cell so that item contents can be aligned per the horizontal
+    // alignment.
+    override var modifier: GlanceModifier = GlanceModifier.wrapContentHeight().fillMaxWidth()
     var itemId: Long = 0
-    var alignment: Alignment = Alignment.CenterStart
 
     override fun copy(): Emittable = EmittableLazyVerticalGridListItem().also {
         it.itemId = itemId
@@ -277,6 +313,7 @@ internal class EmittableLazyVerticalGrid : EmittableLazyVerticalGridList() {
         it.modifier = modifier
         it.horizontalAlignment = horizontalAlignment
         it.gridCells = gridCells
+        it.activityOptions = activityOptions
         it.children.addAll(children.map { it.copy() })
     }
 }

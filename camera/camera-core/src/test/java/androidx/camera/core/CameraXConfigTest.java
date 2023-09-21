@@ -105,4 +105,14 @@ public class CameraXConfigTest {
                 .build();
         assertThat(cameraXConfig.getAvailableCamerasLimiter(null)).isEqualTo(cameraSelector);
     }
+
+    @Test
+    public void canGetCameraOpenRetryMaxTimeoutInMsWhileOccupied() {
+        CameraXConfig cameraXConfig = new CameraXConfig.Builder()
+                .setCameraOpenRetryMaxTimeoutInMsWhileResuming(1000L)
+                .build();
+
+        assertThat(cameraXConfig.getCameraOpenRetryMaxTimeoutInMsWhileResuming(-1L))
+                .isEqualTo(1000L);
+    }
 }

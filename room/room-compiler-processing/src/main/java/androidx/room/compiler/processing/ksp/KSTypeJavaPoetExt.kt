@@ -96,25 +96,21 @@ private fun KSDeclaration.asJTypeName(
     // KSP may improve that later and if not, we can improve it in Room
     // TODO: https://issuetracker.google.com/issues/168639183
     val qualified = qualifiedName?.asString() ?: return ERROR_JTYPE_NAME
+    val pkg = getNormalizedPackageName()
 
     // Note: To match KAPT behavior, a type annotated with @JvmInline is only replaced with the
     // underlying type if the inline type is used directly (e.g. MyInlineType) rather than in the
     // type args of another type, (e.g. List<MyInlineType>).
-    val isInline = isAnnotationPresent(JvmInline::class) || modifiers.contains(Modifier.INLINE)
-    val isOriginalType =
-        typeResolutionContext.originalType?.declaration?.qualifiedName?.asString() == qualified
-    if (!isInline || isOriginalType) {
-        resolver.mapToJvmSignature(this).let { jvmSignature ->
-            if (!jvmSignature.isNullOrBlank()) {
-                return jvmSignature.typeNameFromJvmSignature()
-            }
+    val isInlineUsedDirectly =
+        (isAnnotationPresent(JvmInline::class) || modifiers.contains(Modifier.INLINE)) &&
+            typeResolutionContext.originalType?.declaration?.qualifiedName?.asString() == qualified
+    if (pkg == "kotlin" || pkg.startsWith("kotlin.") || isInlineUsedDirectly) {
+        val jvmSignature = resolver.mapToJvmSignature(this)
+        if (!jvmSignature.isNullOrBlank()) {
+            return jvmSignature.typeNameFromJvmSignature()
         }
     }
 
-    // fallback to custom generation, it is very likely that this is an unresolved type
-    // get the package name first, it might throw for invalid types, hence we use
-    // safeGetPackageName
-    val pkg = getNormalizedPackageName()
     // using qualified name and pkg, figure out the short names.
     val shortNames = if (pkg == "") {
         qualified
@@ -183,7 +179,10 @@ private fun KSType.asJTypeName(
 ): JTypeName {
     return if (declaration is KSTypeAlias) {
         replaceTypeAliases(resolver).asJTypeName(resolver, typeResolutionContext)
-    } else if (this.arguments.isNotEmpty() && !resolver.isJavaRawType(this)) {
+    } else if (this.arguments.isNotEmpty() && !resolver.isJavaRawType(this) &&
+            // Excluding generic value classes otherwise we may generate something
+            // like `Object<String>`.
+            !declaration.isValueClass()) {
         val args: Array<JTypeName> = this.arguments
             .map { typeArg -> typeArg.asJTypeName(resolver, typeResolutionContext) }
             .map { it.tryBox() }

@@ -31,8 +31,8 @@ abstract class AbstractMetricsTransformTest(useFir: Boolean) : AbstractIrTransfo
         compileToIr(
             files,
             registerExtensions = { configuration ->
-                ComposeComponentRegistrar.registerCommonExtensions(this)
-                val extension = ComposeComponentRegistrar.createComposeIrExtension(configuration)
+                ComposePluginRegistrar.registerCommonExtensions(this)
+                val extension = ComposePluginRegistrar.createComposeIrExtension(configuration)
                 extension.metrics = metrics
                 IrGenerationExtension.registerExtension(this, extension)
             }

@@ -4,6 +4,7 @@ import androidx.appsearch.app.AppSearchSchema;
 import androidx.appsearch.app.DocumentClassFactory;
 import androidx.appsearch.app.GenericDocument;
 import androidx.appsearch.exceptions.AppSearchException;
+import java.lang.Class;
 import java.lang.Override;
 import java.lang.String;
 import java.util.ArrayList;
@@ -48,6 +49,13 @@ public final class $$__AppSearch__Gift implements DocumentClassFactory<Gift> {
             .setShouldIndexNestedProperties(false)
             .build())
           .build();
+  }
+
+  @Override
+  public List<Class<?>> getDependencyDocumentClasses() throws AppSearchException {
+    List<Class<?>> classSet = new ArrayList<Class<?>>();
+    classSet.add(GiftContent.class);
+    return classSet;
   }
 
   @Override
@@ -103,8 +111,8 @@ public final class $$__AppSearch__Gift implements DocumentClassFactory<Gift> {
 
   @Override
   public Gift fromGenericDocument(GenericDocument genericDoc) throws AppSearchException {
-    String idConv = genericDoc.getId();
     String namespaceConv = genericDoc.getNamespace();
+    String idConv = genericDoc.getId();
     GenericDocument[] giftContentsCollectionCopy = genericDoc.getPropertyDocumentArray("giftContentsCollection");
     List<GiftContent> giftContentsCollectionConv = null;
     if (giftContentsCollectionCopy != null) {

@@ -121,6 +121,9 @@ constructor(
     @ComplicationDisplayPolicy public val displayPolicy: Int,
     public val dynamicValueInvalidationFallback: ComplicationData?,
 ) {
+    /** Throws [IllegalArgumentException] if the [ComplicationData] is invalid. */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP) open fun validate() {}
+
     /**
      * [tapAction] which is a [PendingIntent] unfortunately can't be serialized. This property is
      * 'true' if tapAction has been lost due to serialization (typically because it has been cached
@@ -187,10 +190,7 @@ constructor(
     override fun equals(other: Any?): Boolean =
         other is ComplicationData && asWireComplicationData() == other.asWireComplicationData()
 
-    /**
-     * Similar to [equals], but avoids comparing evaluated fields (if dynamic values exist).
-     *
-     */
+    /** Similar to [equals], but avoids comparing evaluated fields (if dynamic values exist). */
     @RestrictTo(RestrictTo.Scope.LIBRARY)
     infix fun equalsUnevaluated(other: ComplicationData): Boolean =
         asWireComplicationData() equalsUnevaluated other.asWireComplicationData()
@@ -246,7 +246,8 @@ constructor(
         }
 
         /**
-         * Sets the complication's fallback, used in case any dynamic value has been invalidated.
+         * Sets the complication's fallback, used in case any dynamic value cannot be evaluated,
+         * e.g. when a data source is not available.
          *
          * IMPORTANT: This is only used when the system supports dynamic values. See each dynamic
          * value field's fallback companion field for the situation where the system does not
@@ -328,7 +329,6 @@ internal constructor(
             "persistencePolicy=$persistencePolicy, displayPolicy=$displayPolicy)"
     }
 
-    /** @hide */
     public companion object {
         /** The [ComplicationType] corresponding to objects of this type. */
         @JvmField public val TYPE: ComplicationType = ComplicationType.NO_DATA
@@ -357,7 +357,6 @@ public class EmptyComplicationData :
         return "EmptyComplicationData()"
     }
 
-    /** @hide */
     public companion object {
         /** The [ComplicationType] corresponding to objects of this type. */
         @JvmField public val TYPE: ComplicationType = ComplicationType.EMPTY
@@ -387,7 +386,6 @@ public class NotConfiguredComplicationData :
         return "NotConfiguredComplicationData()"
     }
 
-    /** @hide */
     public companion object {
         /** The [ComplicationType] corresponding to objects of this type. */
         @JvmField public val TYPE: ComplicationType = ComplicationType.NOT_CONFIGURED
@@ -577,7 +575,6 @@ internal constructor(
         }
     }
 
-    /** @hide */
     public companion object {
         /** The [ComplicationType] corresponding to objects of this type. */
         @JvmField public val TYPE: ComplicationType = ComplicationType.SHORT_TEXT
@@ -761,7 +758,6 @@ internal constructor(
         }
     }
 
-    /** @hide */
     public companion object {
         /** The [ComplicationType] corresponding to objects of this type. */
         @JvmField public val TYPE: ComplicationType = ComplicationType.LONG_TEXT
@@ -791,7 +787,8 @@ public class ColorRamp(
     @ColorInt val colors: IntArray,
     @get:JvmName("isInterpolated") val interpolated: Boolean
 ) {
-    init {
+    /** Throws [IllegalArgumentException] if the [ColorRamp] is invalid. */
+    internal fun validate() {
         require(colors.size <= 7) { "colors can have no more than seven entries" }
     }
 
@@ -838,7 +835,7 @@ public class ColorRamp(
  * data in its manifest (NB the value is a comma separated list):
  * ```
  * <meta-data android:name="android.support.wearable.complications.SUPPORTED_TYPES"
- *    android:value="GOAL_PROGRESS"/>
+ *    android:value="RANGED_VALUE"/>
  * ```
  *
  * @property value The [Float] value of this complication which is >= [min] and <= [max] or equal to
@@ -885,7 +882,7 @@ public class ColorRamp(
 public class RangedValueComplicationData
 internal constructor(
     public val value: Float,
-    public val dynamicValue: DynamicFloat?,
+    @get:RequiresApi(Build.VERSION_CODES.TIRAMISU) public val dynamicValue: DynamicFloat?,
     public val min: Float,
     public val max: Float,
     public val monochromaticImage: MonochromaticImage?,
@@ -914,16 +911,19 @@ internal constructor(
         dynamicValueInvalidationFallback = dynamicValueInvalidationFallback,
     ) {
 
-    init {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    override fun validate() {
+        super.validate()
         require(min <= max) { "min must be lower than or equal to max" }
-        require(value == PLACEHOLDER || value in min..max) { "value must be between min and max" }
+        require(value == PLACEHOLDER || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            value in min..max) { "From T API onwards, value must be between min and max" }
         require(max != Float.MAX_VALUE) { "Float.MAX_VALUE is reserved and can't be used for max" }
         require(monochromaticImage != null || smallImage != null || text != null || title != null) {
             "At least one of monochromaticImage, smallImage, text or title must be set"
         }
         if (valueType == TYPE_PERCENTAGE) {
-            require(min == 0f)
-            require(max == 100f)
+            require(min == 0f) { "min must be 0 for TYPE_PERCENTAGE" }
+            require(max == 100f) { "max must be 100 for TYPE_PERCENTAGE" }
         }
     }
 
@@ -978,8 +978,8 @@ internal constructor(
          *   semantic meaning of value can be specified via [setValueType].
          *
          *   IMPORTANT: This is only used when the system does not support dynamic values _at all_.
-         *   See [setDynamicValueInvalidationFallback] for the situation where the dynamic value has
-         *   been invalidated.
+         *   See [setDynamicValueInvalidationFallback] for the situation where the dynamic value
+         *   cannot be evaluated, e.g. when a data source is not available.
          *
          * @param min The minimum value. For [TYPE_PERCENTAGE] this must be 0f.
          * @param max The maximum value. This must be less than [Float.MAX_VALUE]. For
@@ -989,7 +989,7 @@ internal constructor(
          *   complications do not have textual representation this attribute can be used for
          *   providing such. Please do not include the word 'complication' in the description.
          */
-        @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+        @RequiresApi(Build.VERSION_CODES.TIRAMISU)
         public constructor(
             dynamicValue: DynamicFloat,
             fallbackValue: Float,
@@ -1143,7 +1143,6 @@ internal constructor(
         }
     }
 
-    /** @hide */
     public companion object {
         /** The [ComplicationType] corresponding to objects of this type. */
         @JvmField public val TYPE: ComplicationType = ComplicationType.RANGED_VALUE
@@ -1248,7 +1247,7 @@ internal constructor(
 public class GoalProgressComplicationData
 internal constructor(
     public val value: Float,
-    public val dynamicValue: DynamicFloat?,
+    @get:RequiresApi(Build.VERSION_CODES.TIRAMISU) public val dynamicValue: DynamicFloat?,
     public val targetValue: Float,
     public val monochromaticImage: MonochromaticImage?,
     public val smallImage: SmallImage?,
@@ -1275,13 +1274,16 @@ internal constructor(
         dynamicValueInvalidationFallback = dynamicValueInvalidationFallback,
     ) {
 
-    init {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    override fun validate() {
+        super.validate()
         require(targetValue != Float.MAX_VALUE) {
             "Float.MAX_VALUE is reserved and can't be used for target"
         }
         require(monochromaticImage != null || smallImage != null || text != null || title != null) {
             "At least one of monochromaticImage, smallImage, text or title must be set"
         }
+        colorRamp?.validate()
     }
 
     /**
@@ -1324,8 +1326,8 @@ internal constructor(
          *   systems that don't support dynamic values, and should be >= 0.
          *
          *   IMPORTANT: This is only used when the system does not support dynamic values _at all_.
-         *   See [setDynamicValueInvalidationFallback] for the situation where the dynamic value has
-         *   been invalidated.
+         *   See [setDynamicValueInvalidationFallback] for the situation where the dynamic value
+         *   cannot be evaluated, e.g. when a data source is not available.
          *
          * @param targetValue The target value. This must be less than [Float.MAX_VALUE].
          * @param contentDescription Defines localized text that briefly describes content of the
@@ -1333,6 +1335,7 @@ internal constructor(
          *   complications do not have textual representation this attribute can be used for
          *   providing such. Please do not include the word 'complication' in the description.
          */
+        @RequiresApi(Build.VERSION_CODES.TIRAMISU)
         public constructor(
             dynamicValue: DynamicFloat,
             fallbackValue: Float,
@@ -1470,7 +1473,6 @@ internal constructor(
         }
     }
 
-    /** @hide */
     public companion object {
         /** The [ComplicationType] corresponding to objects of this type. */
         @JvmField public val TYPE: ComplicationType = ComplicationType.GOAL_PROGRESS
@@ -1575,9 +1577,14 @@ internal constructor(
         dynamicValueInvalidationFallback = dynamicValueInvalidationFallback,
     ) {
 
-    init {
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    override fun validate() {
+        super.validate()
         require(monochromaticImage != null || smallImage != null || text != null || title != null) {
             "At least one of monochromaticImage, smallImage, text or title must be set"
+        }
+        for (element in elements) {
+            element.validate()
         }
     }
     /**
@@ -1596,7 +1603,8 @@ internal constructor(
         @FloatRange(from = 0.0, fromInclusive = false) val weight: Float,
         @ColorInt val color: Int
     ) {
-        init {
+        /** Throws [IllegalArgumentException] if the [Element] is invalid. */
+        internal fun validate() {
             require(weight > 0) { "The weight must be > 0" }
         }
 
@@ -1914,7 +1922,6 @@ internal constructor(
             "dynamicValueInvalidationFallback=$dynamicValueInvalidationFallback)"
     }
 
-    /** @hide */
     public companion object {
         /** The [ComplicationType] corresponding to objects of this type. */
         @JvmField public val TYPE: ComplicationType = ComplicationType.MONOCHROMATIC_IMAGE
@@ -2034,7 +2041,6 @@ internal constructor(
 
     override fun hasPlaceholderFields() = smallImage.isPlaceholder()
 
-    /** @hide */
     public companion object {
         /** The [ComplicationType] corresponding to objects of this type. */
         @JvmField public val TYPE: ComplicationType = ComplicationType.SMALL_IMAGE
@@ -2160,7 +2166,6 @@ internal constructor(
 
     override fun hasPlaceholderFields() = photoImage.isPlaceholder()
 
-    /** @hide */
     public companion object {
         /** The [ComplicationType] corresponding to objects of this type. */
         @JvmField public val TYPE: ComplicationType = ComplicationType.PHOTO_IMAGE
@@ -2287,7 +2292,6 @@ internal constructor(
         }
     }
 
-    /** @hide */
     public companion object {
         /** The [ComplicationType] corresponding to objects of this type. */
         @JvmField public val TYPE: ComplicationType = ComplicationType.NO_PERMISSION
@@ -2452,15 +2456,17 @@ private fun WireComplicationData.toApiComplicationData(
                         } else {
                             val elementWeights = this.elementWeights!!
                             val elementColors = this.elementColors!!
-                            require(elementWeights.size == elementColors.size) {
-                                "elementWeights and elementColors must have the same size"
+                            if (elementWeights.size != elementColors.size) {
+                                Log.e(
+                                    TAG,
+                                    "elementWeights and elementColors must have the same size"
+                                )
                             }
                             elementWeights
-                                .mapIndexed { index, weight ->
-                                    WeightedElementsComplicationData.Element(
-                                        weight,
-                                        elementColors[index]
-                                    )
+                                .asSequence()
+                                .zip(elementColors.asSequence())
+                                .map { (weight, color) ->
+                                    WeightedElementsComplicationData.Element(weight, color)
                                 }
                                 .toList()
                         },

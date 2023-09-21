@@ -282,6 +282,7 @@ package androidx.fragment.app {
     method public final void clearFragmentResultListener(String);
     method public void dump(String, java.io.FileDescriptor?, java.io.PrintWriter, String![]?);
     method @Deprecated public static void enableDebugLogging(boolean);
+    method @SuppressCompatibility @androidx.fragment.app.PredictiveBackControl public static void enablePredictiveBack(boolean);
     method @MainThread public boolean executePendingTransactions();
     method public static <F extends androidx.fragment.app.Fragment> F findFragment(android.view.View);
     method public androidx.fragment.app.Fragment? findFragmentById(@IdRes int);
@@ -450,21 +451,28 @@ package androidx.fragment.app {
     ctor public FragmentTransitionImpl();
     method public abstract void addTarget(Object, android.view.View);
     method public abstract void addTargets(Object, java.util.ArrayList<android.view.View!>);
+    method public void animateToEnd(Object);
+    method public Runnable! animateToStart(Object, android.view.ViewGroup, Runnable);
     method public abstract void beginDelayedTransition(android.view.ViewGroup, Object?);
     method protected static void bfsAddViewChildren(java.util.List<android.view.View!>!, android.view.View!);
     method public abstract boolean canHandle(Object);
     method public abstract Object! cloneTransition(Object?);
+    method public Object? controlDelayedTransition(android.view.ViewGroup, Object);
     method protected void getBoundsOnScreen(android.view.View!, android.graphics.Rect!);
     method protected static boolean isNullOrEmpty(java.util.List!);
+    method public boolean isSeekingSupported();
+    method public boolean isSeekingSupported(Object);
     method public abstract Object! mergeTransitionsInSequence(Object?, Object?, Object?);
     method public abstract Object! mergeTransitionsTogether(Object?, Object?, Object?);
     method public abstract void removeTarget(Object, android.view.View);
     method public abstract void replaceTargets(Object, java.util.ArrayList<android.view.View!>!, java.util.ArrayList<android.view.View!>!);
     method public abstract void scheduleHideFragmentView(Object, android.view.View, java.util.ArrayList<android.view.View!>);
     method public abstract void scheduleRemoveTargets(Object, Object?, java.util.ArrayList<android.view.View!>?, Object?, java.util.ArrayList<android.view.View!>?, Object?, java.util.ArrayList<android.view.View!>?);
+    method public void setCurrentPlayTime(Object, float);
     method public abstract void setEpicenter(Object, android.graphics.Rect);
     method public abstract void setEpicenter(Object, android.view.View?);
     method public void setListenerForTransitionEnd(androidx.fragment.app.Fragment, Object, androidx.core.os.CancellationSignal, Runnable);
+    method public void setListenerForTransitionEnd(androidx.fragment.app.Fragment, Object, androidx.core.os.CancellationSignal, Runnable?, Runnable);
     method public abstract void setSharedElementTargets(Object, android.view.View, java.util.ArrayList<android.view.View!>);
     method public abstract void swapSharedElementTargets(Object?, java.util.ArrayList<android.view.View!>?, java.util.ArrayList<android.view.View!>?);
     method public abstract Object! wrapTransitionInSet(Object?);
@@ -483,6 +491,9 @@ package androidx.fragment.app {
     method public void setListShown(boolean);
     method public void setListShownNoAnimation(boolean);
     method public void setSelection(int);
+  }
+
+  @SuppressCompatibility @kotlin.RequiresOptIn(level=kotlin.RequiresOptIn.Level.WARNING) @kotlin.annotation.Retention(kotlin.annotation.AnnotationRetention.BINARY) @kotlin.annotation.Target(allowedTargets=kotlin.annotation.AnnotationTarget.FUNCTION) public @interface PredictiveBackControl {
   }
 
 }

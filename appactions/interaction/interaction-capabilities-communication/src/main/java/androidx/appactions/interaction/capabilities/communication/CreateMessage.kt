@@ -23,23 +23,21 @@ import androidx.appactions.builtintypes.experimental.types.SuccessStatus
 import androidx.appactions.interaction.capabilities.core.BaseExecutionSession
 import androidx.appactions.interaction.capabilities.core.Capability
 import androidx.appactions.interaction.capabilities.core.CapabilityFactory
-import androidx.appactions.interaction.capabilities.core.impl.BuilderOf
 import androidx.appactions.interaction.capabilities.core.impl.converters.EntityConverter
 import androidx.appactions.interaction.capabilities.core.impl.converters.ParamValueConverter
 import androidx.appactions.interaction.capabilities.core.impl.converters.TypeConverters
 import androidx.appactions.interaction.capabilities.core.impl.converters.TypeConverters.MESSAGE_TYPE_SPEC
 import androidx.appactions.interaction.capabilities.core.impl.converters.TypeConverters.RECIPIENT_TYPE_SPEC
 import androidx.appactions.interaction.capabilities.core.impl.spec.ActionSpecBuilder
+import androidx.appactions.interaction.capabilities.core.impl.spec.ActionSpecRegistry
 import androidx.appactions.interaction.capabilities.core.properties.Property
 import androidx.appactions.interaction.capabilities.core.properties.StringValue
 import androidx.appactions.interaction.proto.ParamValue
 import androidx.appactions.interaction.protobuf.Struct
 import androidx.appactions.interaction.protobuf.Value
 
-private const val CAPABILITY_NAME: String = "actions.intent.CREATE_MESSAGE"
-
 /** A capability corresponding to actions.intent.CREATE_MESSAGE */
-@CapabilityFactory(name = CAPABILITY_NAME)
+@CapabilityFactory(name = CreateMessage.CAPABILITY_NAME)
 class CreateMessage private constructor() {
     internal enum class SlotMetadata(val path: String) {
         TEXT("message.text"),
@@ -66,7 +64,7 @@ class CreateMessage private constructor() {
     }
 
     class Arguments
-    internal constructor(val recipientList: List<RecipientValue>, val messageText: String?) {
+    internal constructor(val recipientList: List<RecipientReference>, val messageText: String?) {
         override fun toString(): String {
             return "Arguments(recipient=$recipientList, messageTextList=$messageText)"
         }
@@ -89,19 +87,19 @@ class CreateMessage private constructor() {
             return result
         }
 
-        class Builder : BuilderOf<Arguments> {
-            private var recipientList: List<RecipientValue> = mutableListOf()
+        class Builder {
+            private var recipientList: List<RecipientReference> = mutableListOf()
             private var messageText: String? = null
 
-            fun setRecipientList(recipientList: List<RecipientValue>): Builder = apply {
+            fun setRecipientList(recipientList: List<RecipientReference>): Builder = apply {
                 this.recipientList = recipientList
             }
 
-            fun setMessageText(messageTextList: String): Builder = apply {
-                this.messageText = messageTextList
+            fun setMessageText(messageText: String): Builder = apply {
+                this.messageText = messageText
             }
 
-            override fun build(): Arguments = Arguments(recipientList, messageText)
+            fun build(): Arguments = Arguments(recipientList, messageText)
         }
     }
 
@@ -177,17 +175,21 @@ class CreateMessage private constructor() {
     sealed interface ExecutionSession : BaseExecutionSession<Arguments, Output>
 
     companion object {
+        /** Canonical name for [CreateMessage] capability. */
+        const val CAPABILITY_NAME: String = "actions.intent.CREATE_MESSAGE"
         private val ACTION_SPEC =
             ActionSpecBuilder.ofCapabilityNamed(CAPABILITY_NAME)
-                .setArguments(Arguments::class.java, Arguments::Builder)
+                .setArguments(Arguments::class.java, Arguments::Builder, Arguments.Builder::build)
                 .setOutput(Output::class.java)
                 .bindRepeatedParameter(
                     SlotMetadata.RECIPIENT.path,
+                    Arguments::recipientList,
                     Arguments.Builder::setRecipientList,
-                    RecipientValue.PARAM_VALUE_CONVERTER,
+                    RecipientReference.PARAM_VALUE_CONVERTER,
                 )
                 .bindParameter(
                     SlotMetadata.TEXT.path,
+                    Arguments::messageText,
                     Arguments.Builder::setMessageText,
                     TypeConverters.STRING_PARAM_VALUE_CONVERTER,
                 )
@@ -202,5 +204,8 @@ class CreateMessage private constructor() {
                     ExecutionStatus::toParamValue
                 )
                 .build()
+        init {
+            ActionSpecRegistry.registerActionSpec(Arguments::class, Output::class, ACTION_SPEC)
+        }
     }
 }

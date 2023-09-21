@@ -18,7 +18,6 @@ package androidx.compose.foundation.text.modifiers
 
 import androidx.compose.foundation.text.DefaultMinLines
 import androidx.compose.foundation.text.ceilToIntPx
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.MultiParagraph
 import androidx.compose.ui.text.MultiParagraphIntrinsics
@@ -53,26 +52,31 @@ internal class ParagraphLayoutCache(
     private var maxLines: Int = Int.MAX_VALUE,
     private var minLines: Int = DefaultMinLines,
 ) {
+
+    /**
+     * Density is an interface which makes it behave like a provider, rather than a final class.
+     * Whenever Density changes, the object itself may remain the same, making the below density
+     * variable mutate internally. This value holds the last seen density whenever Compose sends
+     * us a Density may have changed notification via layout or draw phase.
+     */
+    private var lastDensity: InlineDensity = InlineDensity.Unspecified
+
     /**
      * Density that text layout is performed in
      */
     internal var density: Density? = null
         set(value) {
             val localField = field
+            val newDensity = value?.let { InlineDensity(it) } ?: InlineDensity.Unspecified
             if (localField == null) {
                 field = value
+                lastDensity = newDensity
                 return
             }
 
-            if (value == null) {
+            if (value == null || lastDensity != newDensity) {
                 field = value
-                markDirty()
-                return
-            }
-
-            if (localField.density != value.density || localField.fontScale != value.fontScale) {
-                field = value
-                // none of our results are correct if density changed
+                lastDensity = newDensity
                 markDirty()
             }
         }
@@ -331,7 +335,7 @@ internal class ParagraphLayoutCache(
      *
      * Exposed for semantics GetTextLayoutResult
      */
-    fun slowCreateTextLayoutResultOrNull(color: Color = Color.Unspecified): TextLayoutResult? {
+    fun slowCreateTextLayoutResultOrNull(style: TextStyle): TextLayoutResult? {
         // make sure we're in a valid place
         val localLayoutDirection = intrinsicsLayoutDirection ?: return null
         val localDensity = density ?: return null
@@ -344,7 +348,7 @@ internal class ParagraphLayoutCache(
         return TextLayoutResult(
             TextLayoutInput(
                 annotatedString,
-                style.merge(color),
+                style,
                 emptyList(),
                 maxLines,
                 softWrap,

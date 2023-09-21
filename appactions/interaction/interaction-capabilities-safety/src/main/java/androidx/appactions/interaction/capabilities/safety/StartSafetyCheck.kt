@@ -24,11 +24,11 @@ import androidx.appactions.builtintypes.experimental.types.SuccessStatus
 import androidx.appactions.interaction.capabilities.core.BaseExecutionSession
 import androidx.appactions.interaction.capabilities.core.Capability
 import androidx.appactions.interaction.capabilities.core.CapabilityFactory
-import androidx.appactions.interaction.capabilities.core.impl.BuilderOf
 import androidx.appactions.interaction.capabilities.core.impl.converters.ParamValueConverter
 import androidx.appactions.interaction.capabilities.core.impl.converters.TypeConverters
 import androidx.appactions.interaction.capabilities.core.impl.converters.TypeConverters.SAFETY_CHECK_TYPE_SPEC
 import androidx.appactions.interaction.capabilities.core.impl.spec.ActionSpecBuilder
+import androidx.appactions.interaction.capabilities.core.impl.spec.ActionSpecRegistry
 import androidx.appactions.interaction.capabilities.core.properties.Property
 import androidx.appactions.interaction.capabilities.safety.executionstatus.EmergencySharingInProgress
 import androidx.appactions.interaction.capabilities.safety.executionstatus.SafetyAccountNotLoggedIn
@@ -39,10 +39,8 @@ import androidx.appactions.interaction.protobuf.Value
 import java.time.Duration
 import java.time.ZonedDateTime
 
-private const val CAPABILITY_NAME = "actions.intent.START_SAFETY_CHECK"
-
 /** A capability corresponding to actions.intent.START_SAFETY_CHECK */
-@CapabilityFactory(name = CAPABILITY_NAME)
+@CapabilityFactory(name = StartSafetyCheck.CAPABILITY_NAME)
 class StartSafetyCheck private constructor() {
     internal enum class SlotMetadata(val path: String) {
         DURATION("safetycheck.duration"),
@@ -64,7 +62,7 @@ class StartSafetyCheck private constructor() {
         ): CapabilityBuilder = setProperty(
             SlotMetadata.CHECK_IN_TIME.path,
             checkInTime,
-            TypeConverters.ZONED_DATETIME_ENTITY_CONVERTER
+            TypeConverters.ZONED_DATE_TIME_ENTITY_CONVERTER
         )
     }
 
@@ -94,7 +92,7 @@ class StartSafetyCheck private constructor() {
             return result
         }
 
-        class Builder : BuilderOf<Arguments> {
+        class Builder {
             private var duration: Duration? = null
 
             private var checkInTime: ZonedDateTime? = null
@@ -105,7 +103,7 @@ class StartSafetyCheck private constructor() {
             fun setCheckInTime(checkInTime: ZonedDateTime): Builder =
                 apply { this.checkInTime = checkInTime }
 
-            override fun build(): Arguments = Arguments(duration, checkInTime)
+            fun build(): Arguments = Arguments(duration, checkInTime)
         }
     }
 
@@ -226,19 +224,23 @@ class StartSafetyCheck private constructor() {
     sealed interface ExecutionSession : BaseExecutionSession<Arguments, Output>
 
     companion object {
+        /** Canonical name for [StartSafetyCheck] capability */
+        const val CAPABILITY_NAME = "actions.intent.START_SAFETY_CHECK"
         private val ACTION_SPEC =
             ActionSpecBuilder.ofCapabilityNamed(CAPABILITY_NAME)
-                .setArguments(Arguments::class.java, Arguments::Builder)
+                .setArguments(Arguments::class.java, Arguments::Builder, Arguments.Builder::build)
                 .setOutput(Output::class.java)
                 .bindParameter(
                     SlotMetadata.DURATION.path,
+                    Arguments::duration,
                     Arguments.Builder::setDuration,
                     TypeConverters.DURATION_PARAM_VALUE_CONVERTER
                 )
                 .bindParameter(
                     SlotMetadata.CHECK_IN_TIME.path,
+                    Arguments::checkInTime,
                     Arguments.Builder::setCheckInTime,
-                    TypeConverters.ZONED_DATETIME_PARAM_VALUE_CONVERTER
+                    TypeConverters.ZONED_DATE_TIME_PARAM_VALUE_CONVERTER
                 )
                 .bindOutput(
                     "safetyCheck",
@@ -251,5 +253,8 @@ class StartSafetyCheck private constructor() {
                     ExecutionStatus::toParamValue
                 )
                 .build()
+        init {
+            ActionSpecRegistry.registerActionSpec(Arguments::class, Output::class, ACTION_SPEC)
+        }
     }
 }

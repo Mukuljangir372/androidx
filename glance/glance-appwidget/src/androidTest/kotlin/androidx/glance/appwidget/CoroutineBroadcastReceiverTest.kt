@@ -18,16 +18,14 @@ package androidx.glance.appwidget
 
 import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Context.RECEIVER_NOT_EXPORTED
 import android.content.Intent
 import android.content.IntentFilter
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.filters.MediumTest
 import androidx.test.filters.SdkSuppress
-import androidx.test.platform.app.InstrumentationRegistry
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
-import java.io.FileInputStream
-import java.nio.charset.StandardCharsets
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.CountDownLatch
@@ -61,14 +59,24 @@ class CoroutineBroadcastReceiverTest {
     @Test
     fun onReceive() {
         val broadcastReceiver = TestBroadcast()
-        context.registerReceiver(
-            broadcastReceiver,
-            IntentFilter(BROADCAST_ACTION)
-        )
+
+        if (android.os.Build.VERSION.SDK_INT < 33) {
+            context.registerReceiver(
+                broadcastReceiver,
+                IntentFilter(BROADCAST_ACTION),
+            )
+        } else {
+            context.registerReceiver(
+                broadcastReceiver,
+                IntentFilter(BROADCAST_ACTION),
+                RECEIVER_NOT_EXPORTED,
+            )
+        }
 
         val value = "value"
         context.sendBroadcast(
             Intent(BROADCAST_ACTION)
+                .setPackage(context.packageName)
                 .putExtra(EXTRA_STRING, value)
                 .addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
         )
@@ -93,15 +101,6 @@ class CoroutineBroadcastReceiverTest {
             if (condition()) return
             Thread.sleep(sleepMs)
         }
-    }
-
-    private fun waitForBroadcastIdle() {
-        val uiAutomation = InstrumentationRegistry.getInstrumentation().uiAutomation
-        val outputFd = uiAutomation.executeShellCommand("am wait-for-broadcast-idle")
-        val output = FileInputStream(outputFd.fileDescriptor).use { it.readBytes() }
-
-        assertThat(String(output, StandardCharsets.US_ASCII))
-            .contains("All broadcast queues are idle!")
     }
 
     private companion object {

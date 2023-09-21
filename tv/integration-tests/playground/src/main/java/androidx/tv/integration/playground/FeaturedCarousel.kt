@@ -28,6 +28,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,7 +44,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -51,8 +54,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.CollectionItemInfo
@@ -62,40 +69,51 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Carousel
 import androidx.tv.material3.CarouselDefaults
-import androidx.tv.material3.CarouselState
 import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.tv.material3.rememberCarouselState
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun FeaturedCarouselContent() {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(20.dp)) {
         items(3) { SampleLazyRow() }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                Column(
+                    modifier = Modifier.focusRestorer().focusGroup(),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
                     repeat(3) {
-                        Box(
-                            modifier = Modifier
-                                .background(Color.Magenta.copy(alpha = 0.3f))
-                                .width(50.dp)
-                                .height(50.dp)
-                                .drawBorderOnFocus()
-                                .focusable()
-                        )
+                        key(it) {
+                            Box(
+                                modifier = Modifier
+                                    .background(Color.Magenta.copy(alpha = 0.3f))
+                                    .width(50.dp)
+                                    .height(50.dp)
+                                    .drawBorderOnFocus()
+                                    .focusable()
+                            )
+                        }
                     }
                 }
 
                 FeaturedCarousel(Modifier.weight(1f))
 
-                Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                Column(
+                    modifier = Modifier.focusRestorer().focusGroup(),
+                    verticalArrangement = Arrangement.spacedBy(20.dp)
+                ) {
                     repeat(3) {
-                        Box(
-                            modifier = Modifier
-                                .background(Color.Magenta.copy(alpha = 0.3f))
-                                .width(50.dp)
-                                .height(50.dp)
-                                .drawBorderOnFocus()
-                                .focusable()
-                        )
+                        key(it) {
+                            Box(
+                                modifier = Modifier
+                                    .background(Color.Magenta.copy(alpha = 0.3f))
+                                    .width(50.dp)
+                                    .height(50.dp)
+                                    .drawBorderOnFocus()
+                                    .focusable()
+                            )
+                        }
                     }
                 }
             }
@@ -118,13 +136,15 @@ internal fun FeaturedCarousel(modifier: Modifier = Modifier) {
         Color.LightGray.copy(alpha = 0.3f),
     )
 
-    val carouselState = remember { CarouselState() }
+    val carouselState = rememberCarouselState()
+    var carouselFocused by remember { mutableStateOf(false) }
     Carousel(
         itemCount = backgrounds.size,
         carouselState = carouselState,
         modifier = modifier
             .height(300.dp)
-            .fillMaxWidth(),
+            .fillMaxWidth()
+            .onFocusChanged { carouselFocused = it.isFocused },
         carouselIndicator = {
             CarouselDefaults.IndicatorRow(
                 itemCount = backgrounds.size,
@@ -135,9 +155,9 @@ internal fun FeaturedCarousel(modifier: Modifier = Modifier) {
             )
         },
         contentTransformStartToEnd =
-            fadeIn(tween(1000)).togetherWith(fadeOut(tween(1000))),
+        fadeIn(tween(1000)).togetherWith(fadeOut(tween(1000))),
         contentTransformEndToStart =
-            fadeIn(tween(1000)).togetherWith(fadeOut(tween(1000)))
+        fadeIn(tween(1000)).togetherWith(fadeOut(tween(1000)))
     ) { itemIndex ->
         Box(
             modifier = Modifier
@@ -155,8 +175,15 @@ internal fun FeaturedCarousel(modifier: Modifier = Modifier) {
             ) {
                 Text(text = "This is sample text content.", color = Color.Yellow)
                 Text(text = "Sample description of slide ${itemIndex + 1}.", color = Color.Yellow)
+                val playButtonModifier =
+                    if (carouselFocused) {
+                        Modifier.requestFocusOnFirstGainingVisibility()
+                    } else {
+                        Modifier
+                    }
+
                 Row {
-                    OverlayButton(text = "Play")
+                    OverlayButton(modifier = playButtonModifier, text = "Play")
                     OverlayButton(text = "Add to Watchlist")
                 }
             }
@@ -219,4 +246,21 @@ private fun OverlayButton(modifier: Modifier = Modifier, text: String = "Play") 
     ) {
         Text(text = text)
     }
+}
+
+@Composable
+fun Modifier.onFirstGainingVisibility(onGainingVisibility: () -> Unit): Modifier {
+    var isVisible by remember { mutableStateOf(false) }
+    LaunchedEffect(isVisible) {
+        if (isVisible) onGainingVisibility()
+    }
+
+    return onPlaced { isVisible = true }
+}
+
+@Composable
+fun Modifier.requestFocusOnFirstGainingVisibility(): Modifier {
+    val focusRequester = remember { FocusRequester() }
+    return focusRequester(focusRequester)
+        .onFirstGainingVisibility { focusRequester.requestFocus() }
 }

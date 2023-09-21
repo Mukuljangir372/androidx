@@ -16,7 +16,6 @@
 
 package androidx.appactions.interaction.capabilities.core.impl.spec
 
-import androidx.appactions.interaction.capabilities.core.impl.BuilderOf
 import androidx.appactions.interaction.capabilities.core.impl.converters.ParamValueConverter
 import androidx.appactions.interaction.capabilities.core.impl.converters.SlotTypeConverter
 import androidx.appactions.interaction.capabilities.core.impl.spec.ParamBinding.ArgumentSetter
@@ -29,45 +28,51 @@ import java.util.function.Supplier
 /**
  * A builder for the `ActionSpec`.
  */
-class ActionSpecBuilder<ArgumentsT, ArgumentsBuilderT : BuilderOf<ArgumentsT>, OutputT>
+class ActionSpecBuilder<ArgumentsT, ArgumentsBuilderT, OutputT>
 private constructor(
     private val capabilityName: String,
-    private val argumentBuilderSupplier: Supplier<ArgumentsBuilderT>
+    private val argumentBuilderSupplier: Supplier<ArgumentsBuilderT>,
+    private val builderFinalizer: Function<ArgumentsBuilderT, ArgumentsT>
 ) {
     private val paramBindingList: MutableList<ParamBinding<ArgumentsT, ArgumentsBuilderT>> =
         ArrayList()
     private val outputBindings: MutableMap<String, Function<OutputT, List<ParamValue>>> = HashMap()
 
-    /** Sets the property type and returns a new `ActionSpecBuilder`.  */
     /** Sets the argument type and its builder and returns a new `ActionSpecBuilder`.  */
     @Suppress("UNUSED_PARAMETER")
-    fun <NewArgumentsT, NewArgumentsBuilderT : BuilderOf<NewArgumentsT>> setArguments(
+    fun <NewArgumentsT, NewArgumentsBuilderT> setArguments(
         unused: Class<NewArgumentsT>,
-        argumentBuilderSupplier: Supplier<NewArgumentsBuilderT>
+        argumentBuilderSupplier: Supplier<NewArgumentsBuilderT>,
+        builderFinalizer: Function<NewArgumentsBuilderT, NewArgumentsT>
     ): ActionSpecBuilder<NewArgumentsT, NewArgumentsBuilderT, OutputT> {
-        return ActionSpecBuilder(this.capabilityName, argumentBuilderSupplier)
+        return ActionSpecBuilder(this.capabilityName, argumentBuilderSupplier, builderFinalizer)
     }
 
     @Suppress("UNUSED_PARAMETER")
     fun <NewOutputT> setOutput(
         unused: Class<NewOutputT>
     ): ActionSpecBuilder<ArgumentsT, ArgumentsBuilderT, NewOutputT> {
-        return ActionSpecBuilder(this.capabilityName, this.argumentBuilderSupplier)
+        return ActionSpecBuilder(this.capabilityName,
+            this.argumentBuilderSupplier,
+            this.builderFinalizer
+        )
     }
 
     /**
      * Binds the parameter name, getter and setter.
      *
-     * @param paramName      the name of this action' parameter.
-     * @param paramGetter    a getter of the param-specific info from the property.
-     * @param argumentSetter a setter to the argument with the input from `ParamValue`.
+     * @param paramName             the name of this action' parameter.
+     * @param paramGetter           a getter of the param-specific info from the property.
+     * @param argumentSetter        a setter to the argument with the input from `ParamValue`.
+     * @param argumentSerializer    a function that serializes this slot on an argument instance.
      * @return the builder itself.
      */
     private fun bindParameterInternal(
         paramName: String,
-        argumentSetter: ArgumentSetter<ArgumentsBuilderT>
+        argumentSetter: ArgumentSetter<ArgumentsBuilderT>,
+        argumentSerializer: (ArgumentsT) -> List<ParamValue>
     ): ActionSpecBuilder<ArgumentsT, ArgumentsBuilderT, OutputT> {
-        paramBindingList.add(ParamBinding(paramName, argumentSetter))
+        paramBindingList.add(ParamBinding(paramName, argumentSetter, argumentSerializer))
         return this
     }
 
@@ -78,12 +83,14 @@ private constructor(
      * definition of the capability.
      *
      * @param paramName the name of this action' parameter.
+     * @param paramGetter the function reference that returns the parameter given [Arguments].
      * @param paramConsumer a setter to set the string value in the argument builder.
      * @param paramValueConverter converter FROM assistant ParamValue proto
      * @return the builder itself.
      */
     fun <T> bindParameter(
         paramName: String,
+        paramGetter: (ArgumentsT) -> T?,
         paramConsumer: BiConsumer<in ArgumentsBuilderT, T>,
         paramValueConverter: ParamValueConverter<T>,
     ): ActionSpecBuilder<ArgumentsT, ArgumentsBuilderT, OutputT> {
@@ -96,6 +103,12 @@ private constructor(
                         SlotTypeConverter.ofSingular(paramValueConverter).convert(paramList)
                     )
                 }
+            },
+            {
+                arguments ->
+                listOf(
+                    paramGetter(arguments)?.let(paramValueConverter::toParamValue)
+                ).filterNotNull()
             }
         )
     }
@@ -109,6 +122,7 @@ private constructor(
      */
     fun <T> bindRepeatedParameter(
         paramName: String,
+        paramGetter: (ArgumentsT) -> List<T>,
         paramConsumer: BiConsumer<in ArgumentsBuilderT, List<T>>,
         paramValueConverter: ParamValueConverter<T>
     ): ActionSpecBuilder<ArgumentsT, ArgumentsBuilderT, OutputT> {
@@ -118,6 +132,11 @@ private constructor(
                 paramConsumer.accept(
                     argBuilder,
                     SlotTypeConverter.ofRepeated(paramValueConverter).convert(paramList!!)
+                )
+            },
+            {
+                arguments -> paramGetter(arguments).filterNotNull().map(
+                    paramValueConverter::toParamValue
                 )
             }
         )
@@ -130,6 +149,7 @@ private constructor(
      * @param outputFieldGetter a getter of the output from the `OutputT` instance.
      * @param converter    a converter from an output object to a ParamValue.
      */
+    // TODO(dennistwo) after all usages of this overload is removed, remove this method
     fun <T> bindOutput(
         name: String,
         outputFieldGetter: Function<OutputT, T?>,
@@ -146,6 +166,12 @@ private constructor(
         }
         return this
     }
+
+    fun <T> bindOutput(
+        name: String,
+        outputFieldGetter: Function<OutputT, T?>,
+        converter: ParamValueConverter<T>
+    ) = bindOutput(name, outputFieldGetter, converter::toParamValue)
 
     /**
      * Binds a repeated output.
@@ -167,13 +193,20 @@ private constructor(
         return this
     }
 
+    fun <T> bindRepeatedOutput(
+        name: String,
+        outputGetter: Function<OutputT, List<T>>,
+        converter: ParamValueConverter<T>
+    ) = bindRepeatedOutput(name, outputGetter, converter::toParamValue)
+
     /** Builds an `ActionSpec` from this builder.  */
     fun build(): ActionSpec<ArgumentsT, OutputT> {
         return ActionSpecImpl(
             capabilityName,
             argumentBuilderSupplier,
             paramBindingList.toList(),
-            outputBindings.toMap()
+            outputBindings.toMap(),
+            builderFinalizer
         )
     }
 
@@ -184,8 +217,10 @@ private constructor(
          */
         fun ofCapabilityNamed(
             capabilityName: String
-        ): ActionSpecBuilder<Any, BuilderOf<Any>, Any> {
-            return ActionSpecBuilder(capabilityName) { BuilderOf { Object() } }
+        ): ActionSpecBuilder<Any, Any, Any> {
+            return ActionSpecBuilder(capabilityName, { Supplier { Object() } }) {
+                Function<Any, Any> { Object() }
+            }
         }
     }
 }

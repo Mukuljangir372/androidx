@@ -220,60 +220,6 @@ public class WebSettingsCompat {
     }
 
     /**
-     * Sets whether the WebView’s internal error page should be suppressed or displayed
-     * for bad navigations. True means suppressed (not shown), false means it will be
-     * displayed.
-     * The default value is false.
-     *
-     * <p>
-     * This method should only be called if
-     * {@link WebViewFeature#isFeatureSupported(String)}
-     * returns true for {@link WebViewFeature#SUPPRESS_ERROR_PAGE}.
-     *
-     * @param suppressed whether the WebView should suppress its internal error page
-     * @deprecated unreleased API will be removed in 1.9.0
-     */
-    @Deprecated
-    @RestrictTo(RestrictTo.Scope.LIBRARY)
-    @RequiresFeature(name = WebViewFeature.SUPPRESS_ERROR_PAGE,
-            enforcement = "androidx.webkit.WebViewFeature#isFeatureSupported")
-    public static void setWillSuppressErrorPage(@NonNull WebSettings settings,
-            boolean suppressed) {
-        ApiFeature.NoFramework feature = WebViewFeatureInternal.SUPPRESS_ERROR_PAGE;
-        if (feature.isSupportedByWebView()) {
-            getAdapter(settings).setWillSuppressErrorPage(suppressed);
-        } else {
-            throw WebViewFeatureInternal.getUnsupportedOperationException();
-        }
-    }
-
-
-    /**
-     * Gets whether the WebView’s internal error page will be suppressed or displayed
-     *
-     * <p>
-     * This method should only be called if
-     * {@link WebViewFeature#isFeatureSupported(String)}
-     * returns true for {@link WebViewFeature#SUPPRESS_ERROR_PAGE}.
-     *
-     * @return true if the WebView will suppress its internal error page
-     * @see #setWillSuppressErrorPage
-     * @deprecated unreleased API will be removed in 1.9.0
-     */
-    @Deprecated
-    @RestrictTo(RestrictTo.Scope.LIBRARY)
-    @RequiresFeature(name = WebViewFeature.SUPPRESS_ERROR_PAGE,
-            enforcement = "androidx.webkit.WebViewFeature#isFeatureSupported")
-    public static boolean willSuppressErrorPage(@NonNull WebSettings settings) {
-        ApiFeature.NoFramework feature = WebViewFeatureInternal.SUPPRESS_ERROR_PAGE;
-        if (feature.isSupportedByWebView()) {
-            return getAdapter(settings).willSuppressErrorPage();
-        } else {
-            throw WebViewFeatureInternal.getUnsupportedOperationException();
-        }
-    }
-
-    /**
      * Disable force dark, irrespective of the force dark mode of the WebView parent. In this mode,
      * WebView content will always be rendered as-is, regardless of whether native views are being
      * automatically darkened.
@@ -746,6 +692,78 @@ public class WebSettingsCompat {
                 WebViewFeatureInternal.REQUESTED_WITH_HEADER_ALLOW_LIST;
         if (feature.isSupportedByWebView()) {
             getAdapter(settings).setRequestedWithHeaderOriginAllowList(allowList);
+        } else {
+            throw WebViewFeatureInternal.getUnsupportedOperationException();
+        }
+    }
+
+    /**
+     * Sets the WebView's user-agent metadata to generate user-agent client hints.
+     * <p>
+     * UserAgentMetadata in WebView is used to populate user-agent client hints, they can provide
+     * the client’s branding and version information, the underlying operating system’s branding
+     * and major version, as well as details about the underlying device.
+     * <p>
+     * The user-agent string can be set with {@link WebSettings#setUserAgentString(String)}, here
+     * are the details on how this API interacts it to generate user-agent client hints.
+     * <p>
+     * If the UserAgentMetadata is null and the overridden user-agent contains the system default
+     * user-agent, the system default value will be used.
+     * <p>
+     * If the UserAgentMetadata is null but the overridden user-agent doesn't contain the system
+     * default user-agent, only the
+     * <a href="https://wicg.github.io/client-hints-infrastructure/#low-entropy-hint-table">low-entry user-agent client hints</a> will be generated.
+     *
+     * <p> See <a href="https://wicg.github.io/ua-client-hints/">
+     * this</a> for more information about User-Agent Client Hints.
+     *
+     * <p>
+     * This method should only be called if
+     * {@link WebViewFeature#isFeatureSupported(String)}
+     * returns true for {@link WebViewFeature#USER_AGENT_METADATA}.
+     *
+     * @param metadata the WebView's user-agent metadata.
+     *
+     * TODO(b/294183509): unhide
+     * @hide
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    @RequiresFeature(name = WebViewFeature.USER_AGENT_METADATA,
+            enforcement = "androidx.webkit.WebViewFeature#isFeatureSupported")
+    public static void setUserAgentMetadata(@NonNull WebSettings settings,
+            @NonNull UserAgentMetadata metadata) {
+        final ApiFeature.NoFramework feature =
+                WebViewFeatureInternal.USER_AGENT_METADATA;
+        if (feature.isSupportedByWebView()) {
+            getAdapter(settings).setUserAgentMetadata(metadata);
+        } else {
+            throw WebViewFeatureInternal.getUnsupportedOperationException();
+        }
+    }
+
+    /**
+     * Get the WebView's user-agent metadata which used to generate user-agent client hints.
+     *
+     * <p> See <a href="https://wicg.github.io/ua-client-hints/"> this</a> for more information
+     * about User-Agent Client Hints.
+     *
+     * <p>
+     * This method should only be called if
+     * {@link WebViewFeature#isFeatureSupported(String)}
+     * returns true for {@link WebViewFeature#USER_AGENT_METADATA}.
+     *
+     * TODO(b/294183509): unhide
+     * @hide
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    @RequiresFeature(name = WebViewFeature.USER_AGENT_METADATA,
+            enforcement = "androidx.webkit.WebViewFeature#isFeatureSupported")
+    @NonNull
+    public static UserAgentMetadata getUserAgentMetadata(@NonNull WebSettings settings) {
+        final ApiFeature.NoFramework feature =
+                WebViewFeatureInternal.USER_AGENT_METADATA;
+        if (feature.isSupportedByWebView()) {
+            return getAdapter(settings).getUserAgentMetadata();
         } else {
             throw WebViewFeatureInternal.getUnsupportedOperationException();
         }

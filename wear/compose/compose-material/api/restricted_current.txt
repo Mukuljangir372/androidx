@@ -90,11 +90,17 @@ package androidx.wear.compose.material {
   public final class ChipDefaults {
     method @androidx.compose.runtime.Composable public androidx.wear.compose.material.ChipColors childChipColors(optional long contentColor, optional long secondaryContentColor, optional long iconColor);
     method @androidx.compose.runtime.Composable public androidx.wear.compose.material.ChipBorder chipBorder(optional androidx.compose.foundation.BorderStroke? borderStroke, optional androidx.compose.foundation.BorderStroke? disabledBorderStroke);
-    method @androidx.wear.compose.material.ExperimentalWearMaterialApi public androidx.wear.compose.material.ChipColors chipColors(androidx.compose.ui.graphics.painter.Painter backgroundPainter, long contentColor, long secondaryContentColor, long iconColor, androidx.compose.ui.graphics.painter.Painter disabledBackgroundPainter, long disabledContentColor, long disabledSecondaryContentColor, long disabledIconColor);
+    method @SuppressCompatibility @androidx.wear.compose.material.ExperimentalWearMaterialApi public androidx.wear.compose.material.ChipColors chipColors(androidx.compose.ui.graphics.painter.Painter backgroundPainter, long contentColor, long secondaryContentColor, long iconColor, androidx.compose.ui.graphics.painter.Painter disabledBackgroundPainter, long disabledContentColor, long disabledSecondaryContentColor, long disabledIconColor);
     method @androidx.compose.runtime.Composable public androidx.wear.compose.material.ChipColors chipColors(optional long backgroundColor, optional long contentColor, optional long secondaryContentColor, optional long iconColor, optional long disabledBackgroundColor, optional long disabledContentColor, optional long disabledSecondaryContentColor, optional long disabledIconColor);
+    method public float getChipHorizontalPadding();
+    method public float getChipVerticalPadding();
     method public androidx.compose.foundation.layout.PaddingValues getCompactChipContentPadding();
+    method public float getCompactChipHeight();
+    method public float getCompactChipHorizontalPadding();
     method public androidx.compose.foundation.layout.PaddingValues getCompactChipTapTargetPadding();
+    method public float getCompactChipVerticalPadding();
     method public androidx.compose.foundation.layout.PaddingValues getContentPadding();
+    method public float getHeight();
     method public float getIconSize();
     method public float getLargeIconSize();
     method public float getSmallIconSize();
@@ -104,9 +110,15 @@ package androidx.wear.compose.material {
     method @androidx.compose.runtime.Composable public androidx.wear.compose.material.ChipColors outlinedChipColors(optional long contentColor, optional long secondaryContentColor, optional long iconColor);
     method @androidx.compose.runtime.Composable public androidx.wear.compose.material.ChipColors primaryChipColors(optional long backgroundColor, optional long contentColor, optional long secondaryContentColor, optional long iconColor);
     method @androidx.compose.runtime.Composable public androidx.wear.compose.material.ChipColors secondaryChipColors(optional long backgroundColor, optional long contentColor, optional long secondaryContentColor, optional long iconColor);
+    property public final float ChipHorizontalPadding;
+    property public final float ChipVerticalPadding;
     property public final androidx.compose.foundation.layout.PaddingValues CompactChipContentPadding;
+    property public final float CompactChipHeight;
+    property public final float CompactChipHorizontalPadding;
     property public final androidx.compose.foundation.layout.PaddingValues CompactChipTapTargetPadding;
+    property public final float CompactChipVerticalPadding;
     property public final androidx.compose.foundation.layout.PaddingValues ContentPadding;
+    property public final float Height;
     property public final float IconSize;
     property public final float LargeIconSize;
     property public final float SmallIconSize;
@@ -185,19 +197,19 @@ package androidx.wear.compose.material {
     method @Deprecated public static void curvedText(androidx.wear.compose.foundation.CurvedScope, String text, optional androidx.wear.compose.foundation.CurvedModifier modifier, optional long background, optional long color, optional long fontSize, optional androidx.wear.compose.foundation.CurvedTextStyle? style, optional androidx.wear.compose.foundation.CurvedDirection.Angular? angularDirection, optional int overflow);
   }
 
-  @kotlin.RequiresOptIn(message="This Wear Material API is experimental and is likely to change or to be removed in" + " the future.") @kotlin.annotation.Retention(kotlin.annotation.AnnotationRetention.BINARY) public @interface ExperimentalWearMaterialApi {
+  @SuppressCompatibility @kotlin.RequiresOptIn(message="This Wear Material API is experimental and is likely to change or to be removed in" + " the future.") @kotlin.annotation.Retention(kotlin.annotation.AnnotationRetention.BINARY) public @interface ExperimentalWearMaterialApi {
   }
 
-  @androidx.compose.runtime.Immutable @androidx.wear.compose.material.ExperimentalWearMaterialApi public final class FixedThreshold implements androidx.wear.compose.material.ThresholdConfig {
+  @SuppressCompatibility @androidx.compose.runtime.Immutable @androidx.wear.compose.material.ExperimentalWearMaterialApi public final class FixedThreshold implements androidx.wear.compose.material.ThresholdConfig {
     ctor public FixedThreshold(float offset);
     method public float computeThreshold(androidx.compose.ui.unit.Density, float fromValue, float toValue);
     method public androidx.wear.compose.material.FixedThreshold copy-0680j_4(float offset);
   }
 
-  @androidx.compose.runtime.Immutable @androidx.wear.compose.material.ExperimentalWearMaterialApi public final class FractionalThreshold implements androidx.wear.compose.material.ThresholdConfig {
-    ctor public FractionalThreshold(float fraction);
+  @SuppressCompatibility @androidx.compose.runtime.Immutable @androidx.wear.compose.material.ExperimentalWearMaterialApi public final class FractionalThreshold implements androidx.wear.compose.material.ThresholdConfig {
+    ctor public FractionalThreshold(@FloatRange(from=0.0, to=1.0) float fraction);
     method public float computeThreshold(androidx.compose.ui.unit.Density, float fromValue, float toValue);
-    method public androidx.wear.compose.material.FractionalThreshold copy(float fraction);
+    method public androidx.wear.compose.material.FractionalThreshold copy(@FloatRange(from=0.0, to=1.0) float fraction);
   }
 
   public final class HorizontalPageIndicatorKt {
@@ -314,10 +326,10 @@ package androidx.wear.compose.material {
   }
 
   public final class PickerKt {
-    method @Deprecated @androidx.compose.runtime.Composable public static void Picker(androidx.wear.compose.material.PickerState state, optional androidx.compose.ui.Modifier modifier, optional boolean readOnly, optional kotlin.jvm.functions.Function1<? super androidx.compose.foundation.layout.BoxScope,kotlin.Unit>? readOnlyLabel, optional androidx.wear.compose.material.ScalingParams scalingParams, optional float separation, optional float gradientRatio, optional long gradientColor, optional androidx.compose.foundation.gestures.FlingBehavior flingBehavior, kotlin.jvm.functions.Function2<? super androidx.wear.compose.material.PickerScope,? super java.lang.Integer,kotlin.Unit> option);
-    method @androidx.compose.runtime.Composable public static void Picker(androidx.wear.compose.material.PickerState state, String? contentDescription, optional androidx.compose.ui.Modifier modifier, optional boolean readOnly, optional kotlin.jvm.functions.Function1<? super androidx.compose.foundation.layout.BoxScope,kotlin.Unit>? readOnlyLabel, optional kotlin.jvm.functions.Function0<kotlin.Unit> onSelected, optional androidx.wear.compose.foundation.lazy.ScalingParams scalingParams, optional float separation, optional float gradientRatio, optional long gradientColor, optional androidx.compose.foundation.gestures.FlingBehavior flingBehavior, optional boolean userScrollEnabled, kotlin.jvm.functions.Function2<? super androidx.wear.compose.material.PickerScope,? super java.lang.Integer,kotlin.Unit> option);
-    method @Deprecated @androidx.compose.runtime.Composable public static void Picker(androidx.wear.compose.material.PickerState state, String? contentDescription, optional androidx.compose.ui.Modifier modifier, optional boolean readOnly, optional kotlin.jvm.functions.Function1<? super androidx.compose.foundation.layout.BoxScope,kotlin.Unit>? readOnlyLabel, optional kotlin.jvm.functions.Function0<kotlin.Unit> onSelected, optional androidx.wear.compose.material.ScalingParams scalingParams, optional float separation, optional float gradientRatio, optional long gradientColor, optional androidx.compose.foundation.gestures.FlingBehavior flingBehavior, optional boolean userScrollEnabled, kotlin.jvm.functions.Function2<? super androidx.wear.compose.material.PickerScope,? super java.lang.Integer,kotlin.Unit> option);
-    method @Deprecated @androidx.compose.runtime.Composable public static void Picker(androidx.wear.compose.material.PickerState state, String? contentDescription, optional androidx.compose.ui.Modifier modifier, optional boolean readOnly, optional kotlin.jvm.functions.Function1<? super androidx.compose.foundation.layout.BoxScope,kotlin.Unit>? readOnlyLabel, optional kotlin.jvm.functions.Function0<kotlin.Unit> onSelected, optional androidx.wear.compose.material.ScalingParams scalingParams, optional float separation, optional float gradientRatio, optional long gradientColor, optional androidx.compose.foundation.gestures.FlingBehavior flingBehavior, kotlin.jvm.functions.Function2<? super androidx.wear.compose.material.PickerScope,? super java.lang.Integer,kotlin.Unit> option);
+    method @Deprecated @androidx.compose.runtime.Composable public static void Picker(androidx.wear.compose.material.PickerState state, optional androidx.compose.ui.Modifier modifier, optional boolean readOnly, optional kotlin.jvm.functions.Function1<? super androidx.compose.foundation.layout.BoxScope,kotlin.Unit>? readOnlyLabel, optional androidx.wear.compose.material.ScalingParams scalingParams, optional float separation, optional @FloatRange(from=0.0, to=0.5) float gradientRatio, optional long gradientColor, optional androidx.compose.foundation.gestures.FlingBehavior flingBehavior, kotlin.jvm.functions.Function2<? super androidx.wear.compose.material.PickerScope,? super java.lang.Integer,kotlin.Unit> option);
+    method @androidx.compose.runtime.Composable public static void Picker(androidx.wear.compose.material.PickerState state, String? contentDescription, optional androidx.compose.ui.Modifier modifier, optional boolean readOnly, optional kotlin.jvm.functions.Function1<? super androidx.compose.foundation.layout.BoxScope,kotlin.Unit>? readOnlyLabel, optional kotlin.jvm.functions.Function0<kotlin.Unit> onSelected, optional androidx.wear.compose.foundation.lazy.ScalingParams scalingParams, optional float separation, optional @FloatRange(from=0.0, to=0.5) float gradientRatio, optional long gradientColor, optional androidx.compose.foundation.gestures.FlingBehavior flingBehavior, optional boolean userScrollEnabled, kotlin.jvm.functions.Function2<? super androidx.wear.compose.material.PickerScope,? super java.lang.Integer,kotlin.Unit> option);
+    method @Deprecated @androidx.compose.runtime.Composable public static void Picker(androidx.wear.compose.material.PickerState state, String? contentDescription, optional androidx.compose.ui.Modifier modifier, optional boolean readOnly, optional kotlin.jvm.functions.Function1<? super androidx.compose.foundation.layout.BoxScope,kotlin.Unit>? readOnlyLabel, optional kotlin.jvm.functions.Function0<kotlin.Unit> onSelected, optional androidx.wear.compose.material.ScalingParams scalingParams, optional float separation, optional @FloatRange(from=0.0, to=0.5) float gradientRatio, optional long gradientColor, optional androidx.compose.foundation.gestures.FlingBehavior flingBehavior, optional boolean userScrollEnabled, kotlin.jvm.functions.Function2<? super androidx.wear.compose.material.PickerScope,? super java.lang.Integer,kotlin.Unit> option);
+    method @Deprecated @androidx.compose.runtime.Composable public static void Picker(androidx.wear.compose.material.PickerState state, String? contentDescription, optional androidx.compose.ui.Modifier modifier, optional boolean readOnly, optional kotlin.jvm.functions.Function1<? super androidx.compose.foundation.layout.BoxScope,kotlin.Unit>? readOnlyLabel, optional kotlin.jvm.functions.Function0<kotlin.Unit> onSelected, optional androidx.wear.compose.material.ScalingParams scalingParams, optional float separation, optional @FloatRange(from=0.0, to=0.5) float gradientRatio, optional long gradientColor, optional androidx.compose.foundation.gestures.FlingBehavior flingBehavior, kotlin.jvm.functions.Function2<? super androidx.wear.compose.material.PickerScope,? super java.lang.Integer,kotlin.Unit> option);
     method @androidx.compose.runtime.Composable public static androidx.wear.compose.material.PickerState rememberPickerState(int initialNumberOfOptions, optional int initiallySelectedOption, optional boolean repeatItems);
   }
 
@@ -351,7 +363,7 @@ package androidx.wear.compose.material {
     property public final androidx.compose.runtime.saveable.Saver<androidx.wear.compose.material.PickerState,java.lang.Object> Saver;
   }
 
-  @androidx.wear.compose.material.ExperimentalWearMaterialApi public final class PlaceholderDefaults {
+  @SuppressCompatibility @androidx.wear.compose.material.ExperimentalWearMaterialApi public final class PlaceholderDefaults {
     method @androidx.compose.runtime.Composable public androidx.compose.ui.graphics.painter.Painter painterWithPlaceholderOverlayBackgroundBrush(androidx.wear.compose.material.PlaceholderState placeholderState, androidx.compose.ui.graphics.painter.Painter painter, optional long color);
     method @androidx.compose.runtime.Composable public androidx.compose.ui.graphics.painter.Painter placeholderBackgroundBrush(androidx.wear.compose.material.PlaceholderState placeholderState, optional long color);
     method @androidx.compose.runtime.Composable public androidx.wear.compose.material.ChipColors placeholderChipColors(androidx.wear.compose.material.ChipColors originalChipColors, androidx.wear.compose.material.PlaceholderState placeholderState, optional long color);
@@ -360,12 +372,12 @@ package androidx.wear.compose.material {
   }
 
   public final class PlaceholderKt {
-    method @androidx.compose.runtime.Composable @androidx.wear.compose.material.ExperimentalWearMaterialApi public static androidx.compose.ui.Modifier placeholder(androidx.compose.ui.Modifier, androidx.wear.compose.material.PlaceholderState placeholderState, optional androidx.compose.ui.graphics.Shape shape, optional long color);
-    method @androidx.compose.runtime.Composable @androidx.wear.compose.material.ExperimentalWearMaterialApi public static androidx.compose.ui.Modifier placeholderShimmer(androidx.compose.ui.Modifier, androidx.wear.compose.material.PlaceholderState placeholderState, optional androidx.compose.ui.graphics.Shape shape, optional long color);
-    method @androidx.compose.runtime.Composable @androidx.wear.compose.material.ExperimentalWearMaterialApi public static androidx.wear.compose.material.PlaceholderState rememberPlaceholderState(kotlin.jvm.functions.Function0<java.lang.Boolean> isContentReady);
+    method @SuppressCompatibility @androidx.compose.runtime.Composable @androidx.wear.compose.material.ExperimentalWearMaterialApi public static androidx.compose.ui.Modifier placeholder(androidx.compose.ui.Modifier, androidx.wear.compose.material.PlaceholderState placeholderState, optional androidx.compose.ui.graphics.Shape shape, optional long color);
+    method @SuppressCompatibility @androidx.compose.runtime.Composable @androidx.wear.compose.material.ExperimentalWearMaterialApi public static androidx.compose.ui.Modifier placeholderShimmer(androidx.compose.ui.Modifier, androidx.wear.compose.material.PlaceholderState placeholderState, optional androidx.compose.ui.graphics.Shape shape, optional long color);
+    method @SuppressCompatibility @androidx.compose.runtime.Composable @androidx.wear.compose.material.ExperimentalWearMaterialApi public static androidx.wear.compose.material.PlaceholderState rememberPlaceholderState(kotlin.jvm.functions.Function0<java.lang.Boolean> isContentReady);
   }
 
-  @androidx.compose.runtime.Stable @androidx.wear.compose.material.ExperimentalWearMaterialApi public final class PlaceholderState {
+  @SuppressCompatibility @androidx.compose.runtime.Stable @androidx.wear.compose.material.ExperimentalWearMaterialApi public final class PlaceholderState {
     method public float getPlaceholderProgression();
     method public boolean isShowContent();
     method public boolean isWipeOff();
@@ -400,10 +412,10 @@ package androidx.wear.compose.material {
   }
 
   @androidx.compose.runtime.Stable public interface PositionIndicatorState {
-    method public float getPositionFraction();
-    method public float sizeFraction(float scrollableContainerSizePx);
-    method public int visibility(float scrollableContainerSizePx);
-    property public abstract float positionFraction;
+    method @FloatRange(from=0.0, to=1.0) public float getPositionFraction();
+    method @FloatRange(from=0.0, to=1.0) public float sizeFraction(@FloatRange(from=0.0) float scrollableContainerSizePx);
+    method public int visibility(@FloatRange(from=0.0) float scrollableContainerSizePx);
+    property @FloatRange(from=0.0, to=1.0) public abstract float positionFraction;
   }
 
   @kotlin.jvm.JvmInline public final value class PositionIndicatorVisibility {
@@ -429,7 +441,7 @@ package androidx.wear.compose.material {
 
   public final class ProgressIndicatorKt {
     method @androidx.compose.runtime.Composable public static void CircularProgressIndicator(optional androidx.compose.ui.Modifier modifier, optional float startAngle, optional long indicatorColor, optional long trackColor, optional float strokeWidth);
-    method @androidx.compose.runtime.Composable public static void CircularProgressIndicator(float progress, optional androidx.compose.ui.Modifier modifier, optional float startAngle, optional float endAngle, optional long indicatorColor, optional long trackColor, optional float strokeWidth);
+    method @androidx.compose.runtime.Composable public static void CircularProgressIndicator(@FloatRange(from=0.0, to=1.0) float progress, optional androidx.compose.ui.Modifier modifier, optional float startAngle, optional float endAngle, optional long indicatorColor, optional long trackColor, optional float strokeWidth);
   }
 
   @androidx.compose.runtime.Stable public interface RadioButtonColors {
@@ -442,8 +454,8 @@ package androidx.wear.compose.material {
     field public static final androidx.wear.compose.material.RadioButtonDefaults INSTANCE;
   }
 
-  @androidx.compose.runtime.Immutable @androidx.wear.compose.material.ExperimentalWearMaterialApi public final class ResistanceConfig {
-    ctor public ResistanceConfig(float basis, optional float factorAtMin, optional float factorAtMax);
+  @SuppressCompatibility @androidx.compose.runtime.Immutable @androidx.wear.compose.material.ExperimentalWearMaterialApi public final class ResistanceConfig {
+    ctor public ResistanceConfig(@FloatRange(from=0.0, fromInclusive=false) float basis, optional @FloatRange(from=0.0) float factorAtMin, optional @FloatRange(from=0.0) float factorAtMax);
     method public float computeResistance(float overflow);
     method public float getBasis();
     method public float getFactorAtMax();
@@ -502,9 +514,9 @@ package androidx.wear.compose.material {
   }
 
   @Deprecated @androidx.compose.runtime.Stable @androidx.wear.compose.material.ScalingLazyScopeMarker public sealed interface ScalingLazyListItemScope {
-    method @Deprecated public androidx.compose.ui.Modifier fillParentMaxHeight(androidx.compose.ui.Modifier, optional float fraction);
-    method @Deprecated public androidx.compose.ui.Modifier fillParentMaxSize(androidx.compose.ui.Modifier, optional float fraction);
-    method @Deprecated public androidx.compose.ui.Modifier fillParentMaxWidth(androidx.compose.ui.Modifier, optional float fraction);
+    method @Deprecated public androidx.compose.ui.Modifier fillParentMaxHeight(androidx.compose.ui.Modifier, optional @FloatRange(from=0.0, to=1.0) float fraction);
+    method @Deprecated public androidx.compose.ui.Modifier fillParentMaxSize(androidx.compose.ui.Modifier, optional @FloatRange(from=0.0, to=1.0) float fraction);
+    method @Deprecated public androidx.compose.ui.Modifier fillParentMaxWidth(androidx.compose.ui.Modifier, optional @FloatRange(from=0.0, to=1.0) float fraction);
   }
 
   @Deprecated public sealed interface ScalingLazyListLayoutInfo {
@@ -569,20 +581,20 @@ package androidx.wear.compose.material {
   }
 
   @Deprecated @androidx.compose.runtime.Stable public interface ScalingParams {
-    method @Deprecated public float getEdgeAlpha();
-    method @Deprecated public float getEdgeScale();
-    method @Deprecated public float getMaxElementHeight();
-    method @Deprecated public float getMaxTransitionArea();
-    method @Deprecated public float getMinElementHeight();
-    method @Deprecated public float getMinTransitionArea();
+    method @Deprecated @FloatRange(from=0.0, to=1.0) public float getEdgeAlpha();
+    method @Deprecated @FloatRange(from=0.0, to=1.0) public float getEdgeScale();
+    method @Deprecated @FloatRange(from=0.0, to=1.0) public float getMaxElementHeight();
+    method @Deprecated @FloatRange(from=0.0, to=1.0) public float getMaxTransitionArea();
+    method @Deprecated @FloatRange(from=0.0, to=1.0) public float getMinElementHeight();
+    method @Deprecated @FloatRange(from=0.0, to=1.0) public float getMinTransitionArea();
     method @Deprecated public androidx.compose.animation.core.Easing getScaleInterpolator();
     method @Deprecated public int resolveViewportVerticalOffset(long viewportConstraints);
-    property @Deprecated public abstract float edgeAlpha;
-    property @Deprecated public abstract float edgeScale;
-    property @Deprecated public abstract float maxElementHeight;
-    property @Deprecated public abstract float maxTransitionArea;
-    property @Deprecated public abstract float minElementHeight;
-    property @Deprecated public abstract float minTransitionArea;
+    property @Deprecated @FloatRange(from=0.0, to=1.0) public abstract float edgeAlpha;
+    property @Deprecated @FloatRange(from=0.0, to=1.0) public abstract float edgeScale;
+    property @Deprecated @FloatRange(from=0.0, to=1.0) public abstract float maxElementHeight;
+    property @Deprecated @FloatRange(from=0.0, to=1.0) public abstract float maxTransitionArea;
+    property @Deprecated @FloatRange(from=0.0, to=1.0) public abstract float minElementHeight;
+    property @Deprecated @FloatRange(from=0.0, to=1.0) public abstract float minTransitionArea;
     property @Deprecated public abstract androidx.compose.animation.core.Easing scaleInterpolator;
   }
 
@@ -632,8 +644,8 @@ package androidx.wear.compose.material {
     method @Deprecated @androidx.compose.runtime.Composable public static void Stepper(int value, kotlin.jvm.functions.Function1<? super java.lang.Integer,kotlin.Unit> onValueChange, kotlin.ranges.IntProgression valueProgression, kotlin.jvm.functions.Function0<kotlin.Unit> decreaseIcon, kotlin.jvm.functions.Function0<kotlin.Unit> increaseIcon, optional androidx.compose.ui.Modifier modifier, optional long backgroundColor, optional long contentColor, optional long iconColor, kotlin.jvm.functions.Function1<? super androidx.compose.foundation.layout.BoxScope,kotlin.Unit> content);
   }
 
-  @androidx.compose.runtime.Immutable @androidx.wear.compose.material.ExperimentalWearMaterialApi public final class SwipeProgress<T> {
-    ctor public SwipeProgress(T from, T to, float fraction);
+  @SuppressCompatibility @androidx.compose.runtime.Immutable @androidx.wear.compose.material.ExperimentalWearMaterialApi public final class SwipeProgress<T> {
+    ctor public SwipeProgress(T from, T to, @FloatRange(from=0.0, to=1.0) float fraction);
     method public float getFraction();
     method public T getFrom();
     method public T getTo();
@@ -682,7 +694,58 @@ package androidx.wear.compose.material {
     enum_constant public static final androidx.wear.compose.material.SwipeToDismissValue Dismissed;
   }
 
-  @androidx.wear.compose.material.ExperimentalWearMaterialApi public final class SwipeableDefaults {
+  @SuppressCompatibility @androidx.wear.compose.material.ExperimentalWearMaterialApi public final class SwipeToRevealAction {
+    ctor public SwipeToRevealAction(kotlin.jvm.functions.Function0<kotlin.Unit>? icon, kotlin.jvm.functions.Function0<kotlin.Unit>? label, androidx.compose.ui.Modifier modifier, int actionType, androidx.compose.foundation.interaction.MutableInteractionSource interactionSource, kotlin.jvm.functions.Function0<kotlin.Unit> onClick);
+    method public int getActionType();
+    method public kotlin.jvm.functions.Function0<kotlin.Unit>? getIcon();
+    method public androidx.compose.foundation.interaction.MutableInteractionSource getInteractionSource();
+    method public kotlin.jvm.functions.Function0<kotlin.Unit>? getLabel();
+    method public androidx.compose.ui.Modifier getModifier();
+    method public kotlin.jvm.functions.Function0<kotlin.Unit> getOnClick();
+    property public final int actionType;
+    property public final kotlin.jvm.functions.Function0<kotlin.Unit>? icon;
+    property public final androidx.compose.foundation.interaction.MutableInteractionSource interactionSource;
+    property public final kotlin.jvm.functions.Function0<kotlin.Unit>? label;
+    property public final androidx.compose.ui.Modifier modifier;
+    property public final kotlin.jvm.functions.Function0<kotlin.Unit> onClick;
+  }
+
+  @SuppressCompatibility @androidx.wear.compose.material.ExperimentalWearMaterialApi public final class SwipeToRevealActionColors {
+    ctor public SwipeToRevealActionColors(long primaryActionBackgroundColor, long primaryActionContentColor, long secondaryActionBackgroundColor, long secondaryActionContentColor, long undoActionBackgroundColor, long undoActionContentColor);
+    method public long getPrimaryActionBackgroundColor();
+    method public long getPrimaryActionContentColor();
+    method public long getSecondaryActionBackgroundColor();
+    method public long getSecondaryActionContentColor();
+    method public long getUndoActionBackgroundColor();
+    method public long getUndoActionContentColor();
+    property public final long primaryActionBackgroundColor;
+    property public final long primaryActionContentColor;
+    property public final long secondaryActionBackgroundColor;
+    property public final long secondaryActionContentColor;
+    property public final long undoActionBackgroundColor;
+    property public final long undoActionContentColor;
+  }
+
+  @SuppressCompatibility @androidx.wear.compose.material.ExperimentalWearMaterialApi public final class SwipeToRevealDefaults {
+    method @androidx.compose.runtime.Composable public androidx.wear.compose.material.SwipeToRevealActionColors actionColors(optional long primaryActionBackgroundColor, optional long primaryActionContentColor, optional long secondaryActionBackgroundColor, optional long secondaryActionContentColor, optional long undoActionBackgroundColor, optional long undoActionContentColor);
+    method public androidx.compose.foundation.shape.RoundedCornerShape getCardActionShape();
+    method public androidx.compose.ui.graphics.vector.ImageVector getDelete();
+    method public androidx.compose.ui.graphics.vector.ImageVector getMoreOptions();
+    method @androidx.compose.runtime.Composable public androidx.wear.compose.material.SwipeToRevealAction primaryAction(kotlin.jvm.functions.Function0<kotlin.Unit> icon, kotlin.jvm.functions.Function0<kotlin.Unit> label, optional androidx.compose.ui.Modifier modifier, optional int actionType, optional androidx.compose.foundation.interaction.MutableInteractionSource interactionSource, optional kotlin.jvm.functions.Function0<kotlin.Unit> onClick);
+    method @androidx.compose.runtime.Composable public androidx.wear.compose.material.SwipeToRevealAction secondaryAction(kotlin.jvm.functions.Function0<kotlin.Unit> icon, optional androidx.compose.ui.Modifier modifier, optional int actionType, optional androidx.compose.foundation.interaction.MutableInteractionSource interactionSource, optional kotlin.jvm.functions.Function0<kotlin.Unit> onClick);
+    method @androidx.compose.runtime.Composable public androidx.wear.compose.material.SwipeToRevealAction undoAction(kotlin.jvm.functions.Function0<kotlin.Unit> label, optional androidx.compose.ui.Modifier modifier, optional int actionType, optional androidx.compose.foundation.interaction.MutableInteractionSource interactionSource, optional kotlin.jvm.functions.Function0<kotlin.Unit> onClick);
+    property public final androidx.compose.foundation.shape.RoundedCornerShape CardActionShape;
+    property public final androidx.compose.ui.graphics.vector.ImageVector Delete;
+    property public final androidx.compose.ui.graphics.vector.ImageVector MoreOptions;
+    field public static final androidx.wear.compose.material.SwipeToRevealDefaults INSTANCE;
+  }
+
+  public final class SwipeToRevealKt {
+    method @SuppressCompatibility @androidx.compose.runtime.Composable @androidx.wear.compose.material.ExperimentalWearMaterialApi public static void SwipeToRevealCard(androidx.wear.compose.material.SwipeToRevealAction primaryAction, androidx.wear.compose.foundation.RevealState revealState, optional androidx.compose.ui.Modifier modifier, optional androidx.wear.compose.material.SwipeToRevealAction? secondaryAction, optional androidx.wear.compose.material.SwipeToRevealAction? undoPrimaryAction, optional androidx.wear.compose.material.SwipeToRevealAction? undoSecondaryAction, optional androidx.wear.compose.material.SwipeToRevealActionColors colors, optional androidx.compose.ui.graphics.Shape shape, kotlin.jvm.functions.Function0<kotlin.Unit> content);
+    method @SuppressCompatibility @androidx.compose.runtime.Composable @androidx.wear.compose.material.ExperimentalWearMaterialApi public static void SwipeToRevealChip(androidx.wear.compose.material.SwipeToRevealAction primaryAction, androidx.wear.compose.foundation.RevealState revealState, optional androidx.compose.ui.Modifier modifier, optional androidx.wear.compose.material.SwipeToRevealAction? secondaryAction, optional androidx.wear.compose.material.SwipeToRevealAction? undoPrimaryAction, optional androidx.wear.compose.material.SwipeToRevealAction? undoSecondaryAction, optional androidx.wear.compose.material.SwipeToRevealActionColors colors, optional androidx.compose.ui.graphics.Shape shape, kotlin.jvm.functions.Function0<kotlin.Unit> content);
+  }
+
+  @SuppressCompatibility @androidx.wear.compose.material.ExperimentalWearMaterialApi public final class SwipeableDefaults {
     method public androidx.compose.animation.core.SpringSpec<java.lang.Float> getAnimationSpec();
     method public float getVelocityThreshold();
     method public androidx.wear.compose.material.ResistanceConfig? resistanceConfig(java.util.Set<java.lang.Float> anchors, optional float factorAtMin, optional float factorAtMax);
@@ -694,13 +757,13 @@ package androidx.wear.compose.material {
   }
 
   public final class SwipeableKt {
-    method @androidx.compose.runtime.Composable @androidx.wear.compose.material.ExperimentalWearMaterialApi public static <T> androidx.wear.compose.material.SwipeableState<T> rememberSwipeableState(T initialValue, optional androidx.compose.animation.core.AnimationSpec<java.lang.Float> animationSpec, optional kotlin.jvm.functions.Function1<? super T,java.lang.Boolean> confirmStateChange);
-    method @androidx.wear.compose.material.ExperimentalWearMaterialApi public static <T> androidx.compose.ui.Modifier swipeable(androidx.compose.ui.Modifier, androidx.wear.compose.material.SwipeableState<T> state, java.util.Map<java.lang.Float,? extends T> anchors, androidx.compose.foundation.gestures.Orientation orientation, optional boolean enabled, optional boolean reverseDirection, optional androidx.compose.foundation.interaction.MutableInteractionSource? interactionSource, optional kotlin.jvm.functions.Function2<? super T,? super T,? extends androidx.wear.compose.material.ThresholdConfig> thresholds, optional androidx.wear.compose.material.ResistanceConfig? resistance, optional float velocityThreshold);
+    method @SuppressCompatibility @androidx.compose.runtime.Composable @androidx.wear.compose.material.ExperimentalWearMaterialApi public static <T> androidx.wear.compose.material.SwipeableState<T> rememberSwipeableState(T initialValue, optional androidx.compose.animation.core.AnimationSpec<java.lang.Float> animationSpec, optional kotlin.jvm.functions.Function1<? super T,java.lang.Boolean> confirmStateChange);
+    method @SuppressCompatibility @androidx.wear.compose.material.ExperimentalWearMaterialApi public static <T> androidx.compose.ui.Modifier swipeable(androidx.compose.ui.Modifier, androidx.wear.compose.material.SwipeableState<T> state, java.util.Map<java.lang.Float,? extends T> anchors, androidx.compose.foundation.gestures.Orientation orientation, optional boolean enabled, optional boolean reverseDirection, optional androidx.compose.foundation.interaction.MutableInteractionSource? interactionSource, optional kotlin.jvm.functions.Function2<? super T,? super T,? extends androidx.wear.compose.material.ThresholdConfig> thresholds, optional androidx.wear.compose.material.ResistanceConfig? resistance, optional float velocityThreshold);
   }
 
-  @androidx.compose.runtime.Stable @androidx.wear.compose.material.ExperimentalWearMaterialApi public class SwipeableState<T> {
+  @SuppressCompatibility @androidx.compose.runtime.Stable @androidx.wear.compose.material.ExperimentalWearMaterialApi public class SwipeableState<T> {
     ctor public SwipeableState(T initialValue, optional androidx.compose.animation.core.AnimationSpec<java.lang.Float> animationSpec, optional kotlin.jvm.functions.Function1<? super T,java.lang.Boolean> confirmStateChange);
-    method @androidx.wear.compose.material.ExperimentalWearMaterialApi public final suspend Object? animateTo(T targetValue, optional androidx.compose.animation.core.AnimationSpec<java.lang.Float> anim, optional kotlin.coroutines.Continuation<? super kotlin.Unit>);
+    method @SuppressCompatibility @androidx.wear.compose.material.ExperimentalWearMaterialApi public final suspend Object? animateTo(T targetValue, optional androidx.compose.animation.core.AnimationSpec<java.lang.Float> anim, optional kotlin.coroutines.Continuation<? super kotlin.Unit>);
     method public final T getCurrentValue();
     method public final float getDirection();
     method public final androidx.compose.runtime.State<java.lang.Float> getOffset();
@@ -708,15 +771,15 @@ package androidx.wear.compose.material {
     method public final androidx.wear.compose.material.SwipeProgress<T> getProgress();
     method public final T getTargetValue();
     method public final boolean isAnimationRunning();
-    method @androidx.wear.compose.material.ExperimentalWearMaterialApi public final suspend Object? performFling(float velocity, kotlin.coroutines.Continuation<? super kotlin.Unit>);
-    method @androidx.wear.compose.material.ExperimentalWearMaterialApi public final suspend Object? snapTo(T targetValue, kotlin.coroutines.Continuation<? super kotlin.Unit>);
+    method @SuppressCompatibility @androidx.wear.compose.material.ExperimentalWearMaterialApi public final suspend Object? performFling(float velocity, kotlin.coroutines.Continuation<? super kotlin.Unit>);
+    method @SuppressCompatibility @androidx.wear.compose.material.ExperimentalWearMaterialApi public final suspend Object? snapTo(T targetValue, kotlin.coroutines.Continuation<? super kotlin.Unit>);
     property public final T currentValue;
-    property @androidx.wear.compose.material.ExperimentalWearMaterialApi public final float direction;
+    property @SuppressCompatibility @androidx.wear.compose.material.ExperimentalWearMaterialApi public final float direction;
     property public final boolean isAnimationRunning;
-    property @androidx.wear.compose.material.ExperimentalWearMaterialApi public final androidx.compose.runtime.State<java.lang.Float> offset;
-    property @androidx.wear.compose.material.ExperimentalWearMaterialApi public final androidx.compose.runtime.State<java.lang.Float> overflow;
-    property @androidx.wear.compose.material.ExperimentalWearMaterialApi public final androidx.wear.compose.material.SwipeProgress<T> progress;
-    property @androidx.wear.compose.material.ExperimentalWearMaterialApi public final T targetValue;
+    property @SuppressCompatibility @androidx.wear.compose.material.ExperimentalWearMaterialApi public final androidx.compose.runtime.State<java.lang.Float> offset;
+    property @SuppressCompatibility @androidx.wear.compose.material.ExperimentalWearMaterialApi public final androidx.compose.runtime.State<java.lang.Float> overflow;
+    property @SuppressCompatibility @androidx.wear.compose.material.ExperimentalWearMaterialApi public final androidx.wear.compose.material.SwipeProgress<T> progress;
+    property @SuppressCompatibility @androidx.wear.compose.material.ExperimentalWearMaterialApi public final T targetValue;
     field public static final androidx.wear.compose.material.SwipeableState.Companion Companion;
   }
 
@@ -744,7 +807,7 @@ package androidx.wear.compose.material {
     property public static final androidx.compose.runtime.ProvidableCompositionLocal<androidx.compose.ui.text.TextStyle> LocalTextStyle;
   }
 
-  @androidx.compose.runtime.Stable @androidx.wear.compose.material.ExperimentalWearMaterialApi public interface ThresholdConfig {
+  @SuppressCompatibility @androidx.compose.runtime.Stable @androidx.wear.compose.material.ExperimentalWearMaterialApi public interface ThresholdConfig {
     method public float computeThreshold(androidx.compose.ui.unit.Density, float fromValue, float toValue);
   }
 
@@ -807,6 +870,7 @@ package androidx.wear.compose.material {
     method public androidx.compose.ui.graphics.vector.ImageVector checkboxIcon(boolean checked);
     method public androidx.compose.ui.graphics.vector.ImageVector getCheckboxOn();
     method public androidx.compose.foundation.layout.PaddingValues getContentPadding();
+    method public float getHeight();
     method public float getIconSize();
     method public androidx.compose.ui.graphics.vector.ImageVector getRadioOff();
     method public androidx.compose.ui.graphics.vector.ImageVector getRadioOn();
@@ -817,6 +881,7 @@ package androidx.wear.compose.material {
     method @androidx.compose.runtime.Composable public androidx.wear.compose.material.ToggleChipColors toggleChipColors(optional long checkedStartBackgroundColor, optional long checkedEndBackgroundColor, optional long checkedContentColor, optional long checkedSecondaryContentColor, optional long checkedToggleControlColor, optional long uncheckedStartBackgroundColor, optional long uncheckedEndBackgroundColor, optional long uncheckedContentColor, optional long uncheckedSecondaryContentColor, optional long uncheckedToggleControlColor, optional androidx.compose.ui.unit.LayoutDirection gradientDirection);
     property public final androidx.compose.ui.graphics.vector.ImageVector CheckboxOn;
     property public final androidx.compose.foundation.layout.PaddingValues ContentPadding;
+    property public final float Height;
     property public final float IconSize;
     property public final androidx.compose.ui.graphics.vector.ImageVector RadioOff;
     property public final androidx.compose.ui.graphics.vector.ImageVector RadioOn;

@@ -62,7 +62,7 @@ class StrictModeTest {
         previousPolicy = StrictMode.getVmPolicy()
         StrictMode.setVmPolicy(
             StrictMode.VmPolicy.Builder()
-                .detectAll()
+                .detectUnsafeIntentLaunch()
                 .penaltyListener(executor) {
                     Log.e("StrictModeTest", "Logging violation:")
                     Log.e("StrictModeTest", "$it")
@@ -122,6 +122,10 @@ class StrictModeTest {
     }
 
     @Test
+    @SdkSuppress(
+        minSdkVersion = Build.VERSION_CODES.S,
+        maxSdkVersion = Build.VERSION_CODES.TIRAMISU
+    )
     fun lazyColumn_actionRunCallback() {
         TestGlanceAppWidget.uiDefinition = {
             LazyColumn {

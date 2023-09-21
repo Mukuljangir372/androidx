@@ -20,6 +20,7 @@ import android.annotation.SuppressLint
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RestrictTo
+import androidx.benchmark.FileMover.moveTo
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.File
 import java.text.SimpleDateFormat
@@ -30,6 +31,8 @@ import java.util.TimeZone
 object Outputs {
 
     private val formatter: SimpleDateFormat = SimpleDateFormat("yyyy-MM-dd-HH-mm-ss")
+
+    private val sanitizerRegex = Regex("(\\W+)")
 
     /**
      * The intended output directory that respects the `additionalTestOutputDir`.
@@ -92,10 +95,16 @@ object Outputs {
             ?: dirUsableByAppAndShell
 
         Log.d(BenchmarkState.TAG, "Output Directory: $outputDirectory")
-        outputDirectory.mkdirs()
 
         // Clear all the existing files in the output directories
-        deleteFiles { true }
+        listOf(outputDirectory, dirUsableByAppAndShell).forEach {
+            it.listFiles()?.forEach { file ->
+                if (file.isFile) file.delete()
+            }
+        }
+
+        // Ensure output dir is created
+        outputDirectory.mkdirs()
     }
 
     /**
@@ -108,7 +117,6 @@ object Outputs {
      */
     fun writeFile(
         fileName: String,
-        reportKey: String,
         reportOnRunEndOnly: Boolean = false,
         block: (file: File) -> Unit,
     ): String {
@@ -124,12 +132,17 @@ object Outputs {
         if (dirUsableByAppAndShell != outputDirectory) {
             // We need to copy files over anytime `dirUsableByAppAndShell` is different from
             // `outputDirectory`.
-            Log.d(BenchmarkState.TAG, "Copying $file to $destination")
-            file.copyTo(destination, overwrite = true)
+            Log.d(BenchmarkState.TAG, "Moving $file to $destination")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+                file.moveTo(destination, overwrite = true)
+            } else {
+                file.copyTo(destination, overwrite = true)
+                file.delete()
+            }
         }
 
         InstrumentationResults.reportAdditionalFileToCopy(
-            key = reportKey,
+            key = sanitizedName,
             absoluteFilePath = destination.absolutePath,
             reportOnRunEndOnly = reportOnRunEndOnly
         )
@@ -137,10 +150,15 @@ object Outputs {
     }
 
     fun sanitizeFilename(filename: String): String {
-        return filename
-            .replace(" ", "")
-            .replace("(", "[")
-            .replace(")", "]")
+        val index = filename.lastIndexOf('.')
+        return if (index <= 0) {
+            filename.replace(sanitizerRegex, "_")
+        } else {
+            val name = filename.substring(0 until index)
+            val extension = filename.substring(index)
+            val sanitized = name.replace(sanitizerRegex, "_")
+            "$sanitized$extension"
+        }
     }
 
     fun testOutputFile(filename: String): File {
@@ -161,11 +179,5 @@ object Outputs {
             "$relativePath == $path"
         }
         return relativePath
-    }
-
-    fun deleteFiles(filterBlock: (File) -> (Boolean)) {
-        listOf(outputDirectory, dirUsableByAppAndShell)
-            .flatMap { it.listFiles(filterBlock)?.asList() ?: emptyList() }
-            .forEach { it.delete() }
     }
 }

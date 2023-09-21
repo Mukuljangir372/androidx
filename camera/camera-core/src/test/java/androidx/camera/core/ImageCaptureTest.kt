@@ -40,6 +40,7 @@ import androidx.camera.core.impl.MutableOptionsBundle
 import androidx.camera.core.impl.OptionsBundle
 import androidx.camera.core.impl.SessionConfig
 import androidx.camera.core.impl.SessionProcessor
+import androidx.camera.core.impl.StreamSpec
 import androidx.camera.core.impl.TagBundle
 import androidx.camera.core.impl.UseCaseConfig
 import androidx.camera.core.impl.utils.executor.CameraXExecutors
@@ -47,14 +48,14 @@ import androidx.camera.core.impl.utils.executor.CameraXExecutors.mainThreadExecu
 import androidx.camera.core.internal.CameraUseCaseAdapter
 import androidx.camera.core.internal.utils.SizeUtil
 import androidx.camera.core.resolutionselector.ResolutionSelector
-import androidx.camera.testing.CameraUtil
-import androidx.camera.testing.CameraXUtil
 import androidx.camera.testing.fakes.FakeAppConfig
 import androidx.camera.testing.fakes.FakeCamera
 import androidx.camera.testing.fakes.FakeCameraControl
-import androidx.camera.testing.fakes.FakeCameraFactory
 import androidx.camera.testing.fakes.FakeCameraInfoInternal
-import androidx.camera.testing.fakes.FakeImageReaderProxy
+import androidx.camera.testing.impl.CameraUtil
+import androidx.camera.testing.impl.CameraXUtil
+import androidx.camera.testing.impl.fakes.FakeCameraFactory
+import androidx.camera.testing.impl.fakes.FakeImageReaderProxy
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import java.io.File
@@ -118,7 +119,7 @@ class ImageCaptureTest {
         camera = FakeCamera(null, cameraInfo)
 
         val cameraFactoryProvider =
-            CameraFactory.Provider { _, _, _ ->
+            CameraFactory.Provider { _, _, _, _ ->
                 val cameraFactory = FakeCameraFactory()
                 cameraFactory.insertDefaultBackCamera(camera.cameraInfoInternal.cameraId) {
                     camera
@@ -145,6 +146,17 @@ class ImageCaptureTest {
         CameraXUtil.shutdown().get()
         fakeImageReaderProxy = null
         callbackThread.quitSafely()
+    }
+
+    @Test
+    fun virtualCamera_canRecreatePipeline() {
+        // Arrange
+        camera.hasTransform = false
+        val imageCapture = bindImageCapture(
+            bufferFormat = ImageFormat.JPEG,
+        )
+        // Act: pipeline can be recreated without crashing.
+        imageCapture.updateSuggestedStreamSpec(StreamSpec.builder(resolution).build())
     }
 
     @Test

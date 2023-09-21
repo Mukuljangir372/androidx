@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.ResolvedTextDirection
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.util.fastFlatMap
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastMap
 import kotlin.math.max
@@ -470,7 +471,7 @@ class MultiParagraph(
         }
         return with(paragraphInfoList[paragraphIndex]) {
             if (length == 0) {
-                max(0, startIndex - 1)
+                startLineIndex
             } else {
                 paragraph.getLineForVerticalPosition(
                     vertical.toLocalYPosition()
@@ -488,7 +489,7 @@ class MultiParagraph(
         }
         return with(paragraphInfoList[paragraphIndex]) {
             if (length == 0) {
-                max(0, startIndex - 1)
+                startIndex
             } else {
                 paragraph.getOffsetForPosition(position.toLocal()).toGlobalIndex()
             }
@@ -553,10 +554,12 @@ class MultiParagraph(
                 )
                 paragraph.fillBoundingBoxes(finalRange, array, currentArrayStart)
                 val currentArrayEnd = currentArrayStart + finalRange.length * 4
-                for (arrayIndex in currentArrayStart until currentArrayEnd step 4) {
+                var arrayIndex = currentArrayStart
+                while (arrayIndex < currentArrayEnd) {
                     // update top and bottom
                     array[arrayIndex + 1] += currentHeight
                     array[arrayIndex + 3] += currentHeight
+                    arrayIndex += 4
                 }
                 currentArrayStart = currentArrayEnd
                 currentHeight += paragraphInfo.paragraph.height

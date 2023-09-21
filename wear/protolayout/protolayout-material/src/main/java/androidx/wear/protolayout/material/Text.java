@@ -19,11 +19,11 @@ package androidx.wear.protolayout.material;
 import static androidx.wear.protolayout.ColorBuilders.argb;
 import static androidx.wear.protolayout.LayoutElementBuilders.TEXT_ALIGN_CENTER;
 import static androidx.wear.protolayout.LayoutElementBuilders.TEXT_OVERFLOW_ELLIPSIZE_END;
-import static androidx.wear.protolayout.material.Helper.checkNotNull;
-import static androidx.wear.protolayout.material.Helper.staticString;
 import static androidx.wear.protolayout.material.Typography.TYPOGRAPHY_DISPLAY1;
 import static androidx.wear.protolayout.material.Typography.getFontStyleBuilder;
 import static androidx.wear.protolayout.material.Typography.getLineHeightForTypography;
+import static androidx.wear.protolayout.materialcore.Helper.checkNotNull;
+import static androidx.wear.protolayout.materialcore.Helper.staticString;
 
 import android.content.Context;
 
@@ -116,8 +116,8 @@ public class Text implements LayoutElement {
          *
          * @param context The application's context.
          * @param text The text content for this component.
-         * @param stringLayoutConstraint Layout constraints used to correctly measure Text view
-         *                               size and align text when {@code text} has dynamic value.
+         * @param stringLayoutConstraint Layout constraints used to correctly measure Text view size
+         *     and align text when {@code text} has dynamic value.
          */
         public Builder(
                 @NonNull Context context,

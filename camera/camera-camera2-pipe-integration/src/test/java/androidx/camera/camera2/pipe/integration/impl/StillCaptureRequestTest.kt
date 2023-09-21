@@ -27,7 +27,6 @@ import androidx.camera.camera2.pipe.integration.compat.workaround.NotUseTorchAsF
 import androidx.camera.camera2.pipe.integration.config.UseCaseGraphConfig
 import androidx.camera.camera2.pipe.integration.testing.FakeCameraGraph
 import androidx.camera.camera2.pipe.integration.testing.FakeCameraGraphSession
-import androidx.camera.camera2.pipe.integration.testing.FakeCameraInfoAdapterCreator.useCaseThreads
 import androidx.camera.camera2.pipe.integration.testing.FakeCameraProperties
 import androidx.camera.camera2.pipe.integration.testing.FakeState3AControlCreator
 import androidx.camera.camera2.pipe.integration.testing.FakeSurface
@@ -50,6 +49,7 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Assert.assertThrows
 import org.junit.Assume.assumeTrue
 import org.junit.Before
@@ -108,6 +108,11 @@ class StillCaptureRequestTest {
     @Before
     fun setUp() {
         stillCaptureRequestControl.setNewUseCaseCamera()
+    }
+
+    @After
+    fun tearDown() {
+        fakeSurface.close()
     }
 
     @Test
@@ -196,16 +201,25 @@ class StillCaptureRequestTest {
     @Test
     fun captureRequestsFailWithCaptureFailedError_onFailed(): Unit = runTest(testDispatcher) {
         val requestFuture = stillCaptureRequestControl.issueCaptureRequests()
+        val fakeRequestMetadata = FakeRequestMetadata()
+        val frameNumber = FrameNumber(0)
 
         advanceUntilIdle()
         assumeTrue(fakeCameraGraphSession.submittedRequests.size == captureConfigList.size)
 
         fakeCameraGraphSession.submittedRequests.first().let { request ->
             request.listeners.forEach { listener ->
+                @Suppress("DEPRECATION")
                 listener.onFailed(
-                    FakeRequestMetadata(),
-                    FrameNumber(0),
-                    createCaptureFailure()
+                    fakeRequestMetadata,
+                    frameNumber,
+                    FakeCaptureFailure(
+                        fakeRequestMetadata,
+                        false,
+                        frameNumber,
+                        CaptureFailure.REASON_ERROR,
+                        null
+                    )
                 )
             }
         }
@@ -408,13 +422,6 @@ class StillCaptureRequestTest {
         }
     }
 
-    private fun createCaptureFailure(): CaptureFailure {
-        val c = Class.forName("android.hardware.camera2.CaptureFailure")
-        val constructor = c.getDeclaredConstructor()
-        constructor.isAccessible = true
-        return constructor.newInstance() as CaptureFailure
-    }
-
     private fun initUseCaseCameraScopeObjects() {
         fakeCameraGraphSession = FakeCameraGraphSession()
         fakeCameraGraph = FakeCameraGraph(
@@ -450,7 +457,6 @@ class StillCaptureRequestTest {
             ),
             configAdapter = fakeConfigAdapter,
             state = fakeUseCaseCameraState,
-            threads = useCaseThreads,
             useCaseGraphConfig = fakeUseCaseGraphConfig,
         )
         fakeUseCaseCamera = FakeUseCaseCamera(

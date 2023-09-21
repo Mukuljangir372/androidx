@@ -14,16 +14,18 @@
  * limitations under the License.
  */
 
-
 import androidx.build.KmpPlatformsKt
 import androidx.build.LibraryType
+import androidx.build.PlatformIdentifier
 import org.jetbrains.kotlin.gradle.plugin.KotlinPlatformType
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
+import com.google.protobuf.gradle.ProtobufExtract
 
 plugins {
     id("AndroidXPlugin")
     id("com.android.library")
     id("com.google.protobuf")
+    id ("kotlin-parcelize")
 }
 
 def enableNative = KmpPlatformsKt.enableNative(project)
@@ -56,12 +58,19 @@ protobuf {
     }
 }
 
+def protoDir = project.layout.projectDirectory.dir("src/androidInstrumentedTest/proto")
+tasks.named("extractAndroidTestProto").configure {
+    it.inputFiles.from(project.files(protoDir))
+}
+
 androidXMultiplatform {
     jvm()
     mac()
     linux()
     ios()
     android()
+
+    defaultPlatform(PlatformIdentifier.ANDROID)
 
     sourceSets {
         all {
@@ -90,7 +99,7 @@ androidXMultiplatform {
                 implementation(libs.kotlinCoroutinesTest)
                 implementation(libs.okio)
                 api(project(":datastore:datastore-core-okio"))
-                implementation(project(":internal-testutils-kmp"))
+                implementation(project(":kruth:kruth"))
                 implementation(project(":internal-testutils-datastore"))
             }
         }
@@ -99,7 +108,7 @@ androidXMultiplatform {
             dependencies {
                 implementation(libs.junit)
                 implementation(libs.kotlinTest)
-                implementation(project(":internal-testutils-kmp"))
+                implementation(project(":kruth:kruth"))
                 implementation(project(":internal-testutils-datastore"))
 
                 // Workaround bug in 1.8.0, was supposed be fixed in RC2/final, but apparently not.
@@ -107,7 +116,14 @@ androidXMultiplatform {
             }
         }
 
-        androidTest {
+        androidUnitTest {
+            dependsOn(jvmTest)
+            dependencies {
+                implementation(libs.protobufLite)
+            }
+        }
+
+        androidInstrumentedTest {
             dependsOn(jvmTest)
             dependencies {
                 implementation(libs.protobufLite)
@@ -115,14 +131,15 @@ androidXMultiplatform {
                 implementation(project(":internal-testutils-truth"))
                 implementation(libs.testRunner)
                 implementation(libs.testCore)
+                implementation("androidx.lifecycle:lifecycle-service:2.6.1")
 
                 // Workaround bug in 1.8.0, was supposed be fixed in RC2/final, but apparently not.
                 implementation(libs.kotlinTestJunit)
             }
         }
 
-        androidAndroidTest {
-            dependsOn(androidTest)
+        androidInstrumentedTest {
+            dependsOn(androidUnitTest)
         }
 
         if (enableNative) {
@@ -137,11 +154,6 @@ androidXMultiplatform {
             }
         }
 
-        targets.withType(KotlinNativeTarget).configureEach {
-            binaries.all {
-                binaryOptions["memoryModel"] = "experimental"
-            }
-        }
         targets.all { target ->
             if (target.platformType == KotlinPlatformType.native) {
                 target.compilations["main"].defaultSourceSet {

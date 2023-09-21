@@ -16,6 +16,7 @@
 
 import androidx.build.KmpPlatformsKt
 import androidx.build.LibraryType
+import androidx.build.PlatformIdentifier
 
 plugins {
     id("AndroidXPlugin")
@@ -28,6 +29,8 @@ def desktopEnabled = KmpPlatformsKt.enableDesktop(project)
 androidXMultiplatform {
     android()
     if (desktopEnabled) desktop()
+
+    defaultPlatform(PlatformIdentifier.ANDROID)
 
     sourceSets {
         commonMain {
@@ -93,7 +96,7 @@ androidXMultiplatform {
             }
         }
 
-        androidAndroidTest {
+        androidInstrumentedTest {
             dependsOn(jvmTest)
             dependsOn(androidCommonTest)
             dependencies {
@@ -107,14 +110,11 @@ androidXMultiplatform {
             }
         }
 
-        // TODO(b/214407011): These dependencies leak into instrumented tests as well. If you
-        //  need to add Robolectric (which must be kept out of androidAndroidTest), use a top
-        //  level dependencies block instead:
-        //  `dependencies { testImplementation(libs.robolectric) }`
-        androidTest {
+        androidUnitTest {
             dependsOn(jvmTest)
             dependsOn(androidCommonTest)
             dependencies {
+                implementation(libs.robolectric)
                 implementation(libs.mockitoCore4)
                 implementation(libs.mockitoKotlin4)
             }
@@ -138,12 +138,6 @@ android {
         disable("InvalidPackage")
     }
     namespace "androidx.compose.ui.test"
-}
-
-dependencies {
-    // Can't declare this in kotlin { sourceSets { androidTest.dependencies { .. } } } as that
-    // leaks into instrumented tests (b/214407011)
-    testImplementation(libs.robolectric)
 }
 
 androidx {

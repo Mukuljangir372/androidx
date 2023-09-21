@@ -1,6 +1,6 @@
 // see ../playground-common/README.md for details on how this works
 pluginManagement {
-    includeBuild "../playground-common/playground-plugin"
+    apply from: "../playground-common/configure-plugin-management.gradle", to: it
 }
 plugins {
     id "playground"
@@ -11,6 +11,7 @@ rootProject.name = "core-playground"
 playground {
     setupPlayground("..")
     selectProjectsFromAndroidX({ name ->
+        if (name.contains("haptics")) return false // b/285039694
         if (name.startsWith(":core")) return true
         if (name == ":internal-testutils-mockito") return true
         if (name == ":internal-testutils-fonts") return true

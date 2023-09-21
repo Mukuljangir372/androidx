@@ -49,10 +49,10 @@ import androidx.camera.core.impl.ImmediateSurface
 import androidx.camera.core.impl.SessionConfig
 import androidx.camera.core.impl.TagBundle
 import androidx.camera.core.impl.utils.executor.CameraXExecutors
-import androidx.camera.testing.CameraUtil
-import androidx.camera.testing.CameraUtil.CameraDeviceHolder
-import androidx.camera.testing.CameraUtil.PreTestCameraIdList
-import androidx.camera.testing.fakes.FakeSessionProcessor
+import androidx.camera.testing.impl.CameraUtil
+import androidx.camera.testing.impl.CameraUtil.CameraDeviceHolder
+import androidx.camera.testing.impl.CameraUtil.PreTestCameraIdList
+import androidx.camera.testing.impl.fakes.FakeSessionProcessor
 import androidx.concurrent.futures.await
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.filters.LargeTest
@@ -133,7 +133,7 @@ class ProcessingCaptureSessionTest(
 
     private lateinit var cameraDeviceHolder: CameraDeviceHolder
     private lateinit var captureSessionRepository: CaptureSessionRepository
-    private lateinit var captureSessionOpenerBuilder: SynchronizedCaptureSessionOpener.Builder
+    private lateinit var captureSessionOpenerBuilder: SynchronizedCaptureSession.OpenerBuilder
     private lateinit var sessionProcessor: FakeSessionProcessor
     private lateinit var executor: Executor
     private lateinit var handler: Handler
@@ -160,7 +160,7 @@ class ProcessingCaptureSessionTest(
         val cameraId = CameraUtil.getCameraIdWithLensFacing(lensFacing)!!
         camera2CameraInfo = Camera2CameraInfoImpl(cameraId, cameraManagerCompat)
         captureSessionRepository = CaptureSessionRepository(executor)
-        captureSessionOpenerBuilder = SynchronizedCaptureSessionOpener.Builder(
+        captureSessionOpenerBuilder = SynchronizedCaptureSession.OpenerBuilder(
             executor,
             executor as ScheduledExecutorService,
             handler,

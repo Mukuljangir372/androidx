@@ -25,6 +25,7 @@ import androidx.annotation.IntRange;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RestrictTo;
+import androidx.appsearch.annotation.CanIgnoreReturnValue;
 import androidx.appsearch.annotation.Document;
 import androidx.appsearch.app.PropertyPath.PathSegment;
 import androidx.appsearch.exceptions.AppSearchException;
@@ -76,6 +77,10 @@ public class GenericDocument {
     private static final String TTL_MILLIS_FIELD = "ttlMillis";
     private static final String CREATION_TIMESTAMP_MILLIS_FIELD = "creationTimestampMillis";
     private static final String NAMESPACE_FIELD = "namespace";
+    private static final String PARENT_TYPES_FIELD = "parentTypes";
+
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    public static final String PARENT_TYPES_SYNTHETIC_PROPERTY = "$$__AppSearch__parentTypes";
 
     /**
      * The maximum number of indexed properties a document can have.
@@ -136,7 +141,7 @@ public class GenericDocument {
      *
      * @param bundle Packaged {@link GenericDocument} data, such as the result of
      *               {@link #getBundle}.
-     * @hide
+     * @exportToFramework:hide
      */
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     @SuppressWarnings("deprecation")
@@ -162,7 +167,7 @@ public class GenericDocument {
     /**
      * Returns the {@link Bundle} populated by this builder.
      *
-     * @hide
+     * @exportToFramework:hide
      */
     @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
     @NonNull
@@ -186,6 +191,22 @@ public class GenericDocument {
     @NonNull
     public String getSchemaType() {
         return mSchemaType;
+    }
+
+    /**
+     * Returns the list of parent types of the {@link GenericDocument}'s type.
+     *
+     * <p>It is guaranteed that child types appear before parent types in the list.
+     * <!--@exportToFramework:hide-->
+     */
+    @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+    @Nullable
+    public List<String> getParentTypes() {
+        List<String> result = mBundle.getStringArrayList(PARENT_TYPES_FIELD);
+        if (result == null) {
+            return null;
+        }
+        return Collections.unmodifiableList(result);
     }
 
     /**
@@ -426,7 +447,7 @@ public class GenericDocument {
                     // paths we return the bare document Bundle in this particular case.
                     Parcelable[] bundles = (Parcelable[]) currentElementValue;
                     if (index < bundles.length) {
-                        extractedValue = (Bundle) bundles[index];
+                        extractedValue = bundles[index];
                     }
                 } else {
                     throw new IllegalStateException("Unsupported value type: "
@@ -978,6 +999,10 @@ public class GenericDocument {
         builder.append("id: \"").append(getId()).append("\",\n");
         builder.append("score: ").append(getScore()).append(",\n");
         builder.append("schemaType: \"").append(getSchemaType()).append("\",\n");
+        List<String> parentTypes = getParentTypes();
+        if (parentTypes != null) {
+            builder.append("parentTypes: ").append(parentTypes).append("\n");
+        }
         builder
                 .append("creationTimestampMillis: ")
                 .append(getCreationTimestampMillis())
@@ -1127,6 +1152,7 @@ public class GenericDocument {
          * <p>The number of namespaces per app should be kept small for efficiency reasons.
          * <!--@exportToFramework:hide-->
          */
+        @CanIgnoreReturnValue
         @NonNull
         public BuilderType setNamespace(@NonNull String namespace) {
             Preconditions.checkNotNull(namespace);
@@ -1142,6 +1168,7 @@ public class GenericDocument {
          * <p>Document IDs are unique within a namespace.
          * <!--@exportToFramework:hide-->
          */
+        @CanIgnoreReturnValue
         @NonNull
         public BuilderType setId(@NonNull String id) {
             Preconditions.checkNotNull(id);
@@ -1157,11 +1184,29 @@ public class GenericDocument {
          * {@link AppSearchSchema} object previously provided to {@link AppSearchSession#setSchemaAsync}.
          * <!--@exportToFramework:hide-->
          */
+        @CanIgnoreReturnValue
         @NonNull
         public BuilderType setSchemaType(@NonNull String schemaType) {
             Preconditions.checkNotNull(schemaType);
             resetIfBuilt();
             mBundle.putString(GenericDocument.SCHEMA_TYPE_FIELD, schemaType);
+            return mBuilderTypeInstance;
+        }
+
+        /**
+         * Sets the list of parent types of the {@link GenericDocument}'s type.
+         *
+         * <p>Child types must appear before parent types in the list.
+         * <!--@exportToFramework:hide-->
+         */
+        @CanIgnoreReturnValue
+        @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP)
+        @NonNull
+        public BuilderType setParentTypes(@NonNull List<String> parentTypes) {
+            Preconditions.checkNotNull(parentTypes);
+            resetIfBuilt();
+            mBundle.putStringArrayList(GenericDocument.PARENT_TYPES_FIELD,
+                    new ArrayList<>(parentTypes));
             return mBuilderTypeInstance;
         }
 
@@ -1177,7 +1222,9 @@ public class GenericDocument {
          * <p>Any non-negative integer can be used a score. By default, scores are set to 0.
          *
          * @param score any non-negative {@code int} representing the document's score.
+         * @throws IllegalArgumentException if the score is negative.
          */
+        @CanIgnoreReturnValue
         @NonNull
         public BuilderType setScore(@IntRange(from = 0, to = Integer.MAX_VALUE) int score) {
             if (score < 0) {
@@ -1198,6 +1245,7 @@ public class GenericDocument {
          *
          * @param creationTimestampMillis a creation timestamp in milliseconds.
          */
+        @CanIgnoreReturnValue
         @NonNull
         public BuilderType setCreationTimestampMillis(
                 /*@exportToFramework:CurrentTimeMillisLong*/ long creationTimestampMillis) {
@@ -1219,7 +1267,9 @@ public class GenericDocument {
          * called.
          *
          * @param ttlMillis a non-negative duration in milliseconds.
+         * @throws IllegalArgumentException if ttlMillis is negative.
          */
+        @CanIgnoreReturnValue
         @NonNull
         public BuilderType setTtlMillis(long ttlMillis) {
             if (ttlMillis < 0) {
@@ -1241,6 +1291,7 @@ public class GenericDocument {
          * @throws IllegalArgumentException if no values are provided, or if a passed in
          *                                  {@code String} is {@code null} or "".
          */
+        @CanIgnoreReturnValue
         @NonNull
         public BuilderType setPropertyString(@NonNull String name, @NonNull String... values) {
             Preconditions.checkNotNull(name);
@@ -1260,6 +1311,7 @@ public class GenericDocument {
          * @param values the {@code boolean} values of the property.
          * @throws IllegalArgumentException if the name is empty or {@code null}.
          */
+        @CanIgnoreReturnValue
         @NonNull
         public BuilderType setPropertyBoolean(@NonNull String name, @NonNull boolean... values) {
             Preconditions.checkNotNull(name);
@@ -1279,6 +1331,7 @@ public class GenericDocument {
          * @param values the {@code long} values of the property.
          * @throws IllegalArgumentException if the name is empty or {@code null}.
          */
+        @CanIgnoreReturnValue
         @NonNull
         public BuilderType setPropertyLong(@NonNull String name, @NonNull long... values) {
             Preconditions.checkNotNull(name);
@@ -1298,6 +1351,7 @@ public class GenericDocument {
          * @param values the {@code double} values of the property.
          * @throws IllegalArgumentException if the name is empty or {@code null}.
          */
+        @CanIgnoreReturnValue
         @NonNull
         public BuilderType setPropertyDouble(@NonNull String name, @NonNull double... values) {
             Preconditions.checkNotNull(name);
@@ -1317,6 +1371,7 @@ public class GenericDocument {
          * @throws IllegalArgumentException if no values are provided, or if a passed in
          *                                  {@code byte[]} is {@code null}, or if name is empty.
          */
+        @CanIgnoreReturnValue
         @NonNull
         public BuilderType setPropertyBytes(@NonNull String name, @NonNull byte[]... values) {
             Preconditions.checkNotNull(name);
@@ -1338,6 +1393,7 @@ public class GenericDocument {
          *                                  {@link GenericDocument} is {@code null}, or if name
          *                                  is empty.
          */
+        @CanIgnoreReturnValue
         @NonNull
         public BuilderType setPropertyDocument(
                 @NonNull String name, @NonNull GenericDocument... values) {
@@ -1356,6 +1412,7 @@ public class GenericDocument {
          * @param name The name of the property to clear.
          * <!--@exportToFramework:hide-->
          */
+        @CanIgnoreReturnValue
         @NonNull
         public BuilderType clearProperty(@NonNull String name) {
             Preconditions.checkNotNull(name);

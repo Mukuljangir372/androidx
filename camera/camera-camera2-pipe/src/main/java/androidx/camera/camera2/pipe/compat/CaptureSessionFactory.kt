@@ -106,13 +106,13 @@ internal class AndroidLSessionFactory @Inject constructor(private val threads: T
         captureSessionState: CaptureSessionState
     ): Map<StreamId, OutputConfigurationWrapper> {
         if (!cameraDevice.createCaptureSession(
-                surfaces.map { it.value }, captureSessionState, threads.camera2Handler
+                surfaces.map { it.value }, captureSessionState
             )
         ) {
             Log.warn {
                 "Failed to create capture session from $cameraDevice for $captureSessionState!"
             }
-            captureSessionState.disconnect()
+            captureSessionState.onSessionFinalized()
         }
         return emptyMap()
     }
@@ -137,8 +137,7 @@ constructor(private val threads: Threads, private val graphConfig: CameraGraph.C
                         outputConfig.format.value
                     ),
                     surfaces.map { it.value },
-                    captureSessionState,
-                    threads.camera2Handler
+                    captureSessionState
                 )
             ) {
                 Log.warn {
@@ -149,13 +148,13 @@ constructor(private val threads: Threads, private val graphConfig: CameraGraph.C
             }
         } else {
             if (!cameraDevice.createCaptureSession(
-                    surfaces.map { it.value }, captureSessionState, threads.camera2Handler
+                    surfaces.map { it.value }, captureSessionState
                 )
             ) {
                 Log.warn {
                     "Failed to create captures session from $cameraDevice for $captureSessionState!"
                 }
-                captureSessionState.disconnect()
+                captureSessionState.onSessionFinalized()
             }
         }
         return emptyMap()
@@ -171,7 +170,7 @@ internal class AndroidMHighSpeedSessionFactory @Inject constructor(private val t
         captureSessionState: CaptureSessionState
     ): Map<StreamId, OutputConfigurationWrapper> {
         if (!cameraDevice.createConstrainedHighSpeedCaptureSession(
-                surfaces.map { it.value }, captureSessionState, threads.camera2Handler
+                surfaces.map { it.value }, captureSessionState
             )
         ) {
             Log.warn {
@@ -207,12 +206,13 @@ constructor(
         )
         if (outputs.all.isEmpty()) {
             Log.warn { "Failed to create OutputConfigurations for $graphConfig" }
+            captureSessionState.onSessionFinalized()
             return emptyMap()
         }
 
         val result = if (graphConfig.input == null) {
             cameraDevice.createCaptureSessionByOutputConfigurations(
-                outputs.all, captureSessionState, threads.camera2Handler
+                outputs.all, captureSessionState
             )
         } else {
             val outputConfig = graphConfig.input.stream.outputs.single()
@@ -223,15 +223,14 @@ constructor(
                     outputConfig.format.value
                 ),
                 outputs.all,
-                captureSessionState,
-                threads.camera2Handler
+                captureSessionState
             )
         }
         if (!result) {
             Log.warn {
                 "Failed to create capture session from $cameraDevice for $captureSessionState!"
             }
-            captureSessionState.disconnect()
+            captureSessionState.onSessionFinalized()
         }
         return emptyMap()
     }
@@ -270,6 +269,7 @@ constructor(
         )
         if (outputs.all.isEmpty()) {
             Log.warn { "Failed to create OutputConfigurations for $graphConfig" }
+            captureSessionState.onSessionFinalized()
             return emptyMap()
         }
 
@@ -296,7 +296,7 @@ constructor(
             Log.warn {
                 "Failed to create capture session from $cameraDevice for $captureSessionState!"
             }
-            captureSessionState.disconnect()
+            captureSessionState.onSessionFinalized()
         }
         return outputs.deferred
     }
@@ -422,6 +422,23 @@ constructor(
                 )
             }
 
+        val extensionMode = checkNotNull(
+            graphConfig.sessionParameters
+                [CameraPipeKeys.camera2ExtensionMode] as? Int
+        ) {
+            "The CameraPipeKeys.camera2ExtensionMode must be set in the sessionParameters of the " +
+                "CameraGraph.Config when creating an Extension CameraGraph."
+        }
+
+        val cameraMetadata = camera2MetadataProvider.awaitCameraMetadata(cameraDevice.cameraId)
+
+        val supportedExtensions = cameraMetadata.supportedExtensions
+
+        check(extensionMode in supportedExtensions) {
+            "$cameraDevice does not support extension mode $extensionMode. Supported " +
+                "extensions are ${supportedExtensions.stream()}"
+        }
+
         val outputs = buildOutputConfigurations(
             graphConfig,
             streamGraph,
@@ -431,20 +448,11 @@ constructor(
         )
         if (outputs.all.isEmpty()) {
             Log.warn { "Failed to create OutputConfigurations for $graphConfig" }
+            captureSessionState.onSessionFinalized()
             return emptyMap()
         }
 
         check(graphConfig.input == null) { "Reprocessing is not supported for Extensions" }
-
-        val extensionMode = checkNotNull(
-            graphConfig.sessionParameters
-                [CameraPipeKeys.camera2ExtensionMode] as? Int
-        ) {
-            "The CameraPipeKeys.camera2ExtensionMode must be set in the sessionParameters of the " +
-                "CameraGraph.Config when creating an Extension CameraGraph."
-        }
-
-        // TODO: b/275575818 - check camera supports extension mode from metadata
 
         val extensionSessionState = ExtensionSessionState(captureSessionState)
 

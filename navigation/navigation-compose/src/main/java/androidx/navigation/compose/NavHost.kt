@@ -17,7 +17,7 @@
 package androidx.navigation.compose
 
 import android.annotation.SuppressLint
-import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.ContentTransform
@@ -30,6 +30,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -199,23 +200,26 @@ public fun NavHost(
     val viewModelStoreOwner = checkNotNull(LocalViewModelStoreOwner.current) {
         "NavHost requires a ViewModelStoreOwner to be provided via LocalViewModelStoreOwner"
     }
-    val onBackPressedDispatcherOwner = LocalOnBackPressedDispatcherOwner.current
-    val onBackPressedDispatcher = onBackPressedDispatcherOwner?.onBackPressedDispatcher
+
+    // Intercept back only when there's a destination to pop
+    val currentBackStack by remember(navController.currentBackStack) {
+        navController.currentBackStack.map {
+            it.filter { entry ->
+                entry.destination.navigatorName == ComposeNavigator.NAME
+            }
+        }
+    }.collectAsState(emptyList())
+    BackHandler(currentBackStack.size > 1) {
+        navController.popBackStack()
+    }
 
     // Setup the navController with proper owners
-    navController.setLifecycleOwner(lifecycleOwner)
+    DisposableEffect(lifecycleOwner) {
+        // Setup the navController with proper owners
+        navController.setLifecycleOwner(lifecycleOwner)
+        onDispose { }
+    }
     navController.setViewModelStore(viewModelStoreOwner.viewModelStore)
-    if (onBackPressedDispatcher != null) {
-        navController.setOnBackPressedDispatcher(onBackPressedDispatcher)
-    }
-    // Ensure that the NavController only receives back events while
-    // the NavHost is in composition
-    DisposableEffect(navController) {
-        navController.enableOnBackPressed(true)
-        onDispose {
-            navController.enableOnBackPressed(false)
-        }
-    }
 
     // Then set the graph
     navController.graph = graph
@@ -241,17 +245,19 @@ public fun NavHost(
         visibleEntries.lastOrNull()
     }
 
+    val zIndices = remember { mutableMapOf<String, Float>() }
+
     if (backStackEntry != null) {
         val finalEnter: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
             val targetDestination = targetState.destination as ComposeNavigator.Destination
 
             if (composeNavigator.isPop.value) {
                 targetDestination.hierarchy.firstNotNullOfOrNull { destination ->
-                    popEnterTransitions[destination.route]?.invoke(this)
+                    destination.createPopEnterTransition(this)
                 } ?: popEnterTransition.invoke(this)
             } else {
                 targetDestination.hierarchy.firstNotNullOfOrNull { destination ->
-                    enterTransitions[destination.route]?.invoke(this)
+                    destination.createEnterTransition(this)
                 } ?: enterTransition.invoke(this)
             }
         }
@@ -261,11 +267,11 @@ public fun NavHost(
 
             if (composeNavigator.isPop.value) {
                 initialDestination.hierarchy.firstNotNullOfOrNull { destination ->
-                    popExitTransitions[destination.route]?.invoke(this)
+                    destination.createPopExitTransition(this)
                 } ?: popExitTransition.invoke(this)
             } else {
                 initialDestination.hierarchy.firstNotNullOfOrNull { destination ->
-                    exitTransitions[destination.route]?.invoke(this)
+                    destination.createExitTransition(this)
                 } ?: exitTransition.invoke(this)
             }
         }
@@ -274,12 +280,19 @@ public fun NavHost(
         transition.AnimatedContent(
             modifier,
             transitionSpec = {
-                val zIndex = composeNavigator.backStack.value.size.toFloat()
                 // If the initialState of the AnimatedContent is not in visibleEntries, we are in
                 // a case where visible has cleared the old state for some reason, so instead of
                 // attempting to animate away from the initialState, we skip the animation.
                 if (initialState in visibleEntries) {
-                    ContentTransform(finalEnter(this), finalExit(this), zIndex)
+                    val initialZIndex = zIndices[initialState.id]
+                        ?: 0f.also { zIndices[initialState.id] = 0f }
+                    val targetZIndex = when {
+                        targetState.id == initialState.id -> initialZIndex
+                        composeNavigator.isPop.value -> initialZIndex - 1f
+                        else -> initialZIndex + 1f
+                    }.also { zIndices[targetState.id] = it }
+
+                    ContentTransform(finalEnter(this), finalExit(this), targetZIndex)
                 } else {
                     EnterTransition.None togetherWith ExitTransition.None
                 }
@@ -307,9 +320,14 @@ public fun NavHost(
                     .content(this, currentEntry)
             }
         }
-        if (transition.currentState == transition.targetState) {
-            visibleEntries.forEach { entry ->
-                composeNavigator.onTransitionComplete(entry)
+        LaunchedEffect(transition.currentState, transition.targetState) {
+            if (transition.currentState == transition.targetState) {
+                visibleEntries.forEach { entry ->
+                    composeNavigator.onTransitionComplete(entry)
+                }
+                zIndices
+                    .filter { it.key != transition.targetState.id }
+                    .forEach { zIndices.remove(it.key) }
             }
         }
     }
@@ -322,18 +340,33 @@ public fun NavHost(
     DialogHost(dialogNavigator)
 }
 
-internal val enterTransitions =
-    mutableMapOf<String?,
-        (AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition?)?>()
+private fun NavDestination.createEnterTransition(
+    scope: AnimatedContentTransitionScope<NavBackStackEntry>
+): EnterTransition? = when (this) {
+    is ComposeNavigator.Destination -> this.enterTransition?.invoke(scope)
+    is ComposeNavGraphNavigator.ComposeNavGraph -> this.enterTransition?.invoke(scope)
+    else -> null
+}
 
-internal val exitTransitions =
-    mutableMapOf<String?,
-        (AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition?)?>()
+private fun NavDestination.createExitTransition(
+    scope: AnimatedContentTransitionScope<NavBackStackEntry>
+): ExitTransition? = when (this) {
+    is ComposeNavigator.Destination -> this.exitTransition?.invoke(scope)
+    is ComposeNavGraphNavigator.ComposeNavGraph -> this.exitTransition?.invoke(scope)
+    else -> null
+}
 
-internal val popEnterTransitions =
-    mutableMapOf<String?,
-        (AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition?)?>()
-
-internal val popExitTransitions =
-    mutableMapOf<String?,
-        (AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition?)?>()
+private fun NavDestination.createPopEnterTransition(
+    scope: AnimatedContentTransitionScope<NavBackStackEntry>
+): EnterTransition? = when (this) {
+    is ComposeNavigator.Destination -> this.popEnterTransition?.invoke(scope)
+    is ComposeNavGraphNavigator.ComposeNavGraph -> this.popEnterTransition?.invoke(scope)
+    else -> null
+}
+private fun NavDestination.createPopExitTransition(
+    scope: AnimatedContentTransitionScope<NavBackStackEntry>
+): ExitTransition? = when (this) {
+    is ComposeNavigator.Destination -> this.popExitTransition?.invoke(scope)
+    is ComposeNavGraphNavigator.ComposeNavGraph -> this.popExitTransition?.invoke(scope)
+    else -> null
+}

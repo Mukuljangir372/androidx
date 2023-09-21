@@ -49,12 +49,13 @@ androidx {
     type = LibraryType.PUBLISHED_LIBRARY
     inceptionYear = "2022"
     description = "Public API surface for apps to use UWB (ultra-wideband) on supported devices."
+    metalavaK2UastEnabled = true
 }
 
 android {
     namespace "androidx.core.uwb"
     defaultConfig {
-        minSdkVersion 31
+        minSdkVersion 23
         multiDexEnabled = true
     }
 }

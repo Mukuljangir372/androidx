@@ -189,7 +189,9 @@ object Errors {
                     |    be avoided, due to measurement inaccuracy.
                 """.trimMarginWrapNewlines()
             } else if (
-                Build.VERSION.SDK_INT >= 29 && !context.isProfileableByShell()
+                DeviceInfo.profileableEnforced &&
+                Build.VERSION.SDK_INT >= 29 &&
+                !context.isProfileableByShell()
             ) {
                 warningPrefix += "SIMPLEPERF_"
                 warningString += """
@@ -222,14 +224,6 @@ object Errors {
             """.trimMarginWrapNewlines()
         }
 
-        Arguments.profiler?.run {
-            val profilerName = javaClass.simpleName
-            warningPrefix += "PROFILED_"
-            warningString += """
-                |WARNING: Using profiler=$profilerName, results will be affected.
-            """.trimMarginWrapNewlines()
-        }
-
         PREFIX = warningPrefix
         if (warningString.isNotEmpty()) {
             this.warningString = warningString
@@ -241,9 +235,8 @@ object Errors {
             .filter { it.isNotEmpty() }
             .toSet()
 
-        val alwaysSuppressed = setOf("PROFILED")
         val neverSuppressed = setOf("SIMPLEPERF")
-        val suppressedWarnings = Arguments.suppressedErrors + alwaysSuppressed - neverSuppressed
+        val suppressedWarnings = Arguments.suppressedErrors - neverSuppressed
         val unsuppressedWarningSet = warningSet - suppressedWarnings
         UNSUPPRESSED_WARNING_MESSAGE = if (unsuppressedWarningSet.isNotEmpty()) {
             """

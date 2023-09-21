@@ -17,16 +17,14 @@
 package androidx.compose.foundation.pager
 
 import androidx.compose.animation.core.AnimationSpec
-import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.MutatePriority
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.ScrollScope
 import androidx.compose.foundation.gestures.ScrollableState
-import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.snapping.SnapPositionInLayout
-import androidx.compose.foundation.gestures.snapping.calculateDistanceToDesiredSnapPosition
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.lazy.layout.AwaitFirstLayoutModifier
@@ -44,6 +42,7 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.structuralEqualityPolicy
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.Remeasurement
@@ -84,42 +83,6 @@ fun rememberPagerState(
         )
     }.apply {
         pageCountState.value = pageCount
-    }
-}
-
-/**
- * Creates and remember a [PagerState] to be used with a [Pager]
- *
- * Please refer to the sample to learn how to use this API.
- * @sample androidx.compose.foundation.samples.PagerWithStateSample
- *
- * @param initialPage The pager that should be shown first.
- * @param initialPageOffsetFraction The offset of the initial page as a fraction of the page size.
- * This should vary between -0.5 and 0.5 and indicates how to offset the initial page from the
- * snapped position.
- */
-@Deprecated(
-    "Please use the overload where you can provide a source of truth for the pageCount.",
-    ReplaceWith(
-        """rememberPagerState(
-                initialPage = initialPage,
-                initialPageOffsetFraction = initialPageOffsetFraction
-            ){
-                // provide pageCount
-            }"""
-    ), level = DeprecationLevel.ERROR
-)
-@ExperimentalFoundationApi
-@Composable
-fun rememberPagerState(
-    initialPage: Int = 0,
-    initialPageOffsetFraction: Float = 0f
-): PagerState {
-    return rememberSaveable(saver = PagerStateImpl.Saver) {
-        PagerStateImpl(
-            initialPage = initialPage,
-            initialPageOffsetFraction = initialPageOffsetFraction
-        ) { 0 }
     }
 }
 
@@ -170,7 +133,8 @@ abstract class PagerState(
 ) : ScrollableState {
 
     /**
-     * The total amount of pages present in this pager
+     * The total amount of pages present in this pager. The source of this data should be
+     * observable.
      */
     abstract val pageCount: Int
 
@@ -187,7 +151,11 @@ abstract class PagerState(
     internal var upDownDifference: Offset by mutableStateOf(Offset.Zero)
     internal var snapRemainingScrollOffset by mutableFloatStateOf(0f)
 
-    private val scrollPosition = PagerScrollPosition(initialPage, 0)
+    private val animatedScrollScope = PagerLazyAnimateScrollScope(this)
+
+    private var isScrollingForward: Boolean by mutableStateOf(false)
+
+    private val scrollPosition = PagerScrollPosition(initialPage, 0, this)
 
     internal val firstVisiblePage: Int get() = scrollPosition.firstVisiblePage
 
@@ -227,12 +195,25 @@ abstract class PagerState(
      * Keeps the scrolling direction during the previous calculation in order to be able to
      * detect the scrolling direction change.
      */
-    private var wasScrollingForward = false
+    private var wasPrefetchingForward = false
 
-    /** Backing state for PagerLayoutInfo **/
-    private var pagerLayoutInfoState = mutableStateOf(EmptyLayoutInfo)
+    /** Backing state for PagerLayoutInfo */
+    private var pagerLayoutInfoState = mutableStateOf<PagerLayoutInfo>(EmptyLayoutInfo)
 
-    internal val layoutInfo: PagerLayoutInfo get() = pagerLayoutInfoState.value
+    /**
+     * A [PagerLayoutInfo] that contains useful information about the Pager's last layout pass.
+     * For instance, you can query which pages are currently visible in the layout.
+     *
+     * This property is observable and is updated after every scroll or remeasure.
+     * If you use it in the composable function it will be recomposed on every change causing
+     * potential performance issues including infinity recomposition loop.
+     * Therefore, avoid using it in the composition.
+     *
+     * If you want to run some side effects like sending an analytics event or updating a state
+     * based on this value consider using "snapshotFlow":
+     * @sample androidx.compose.foundation.samples.UsingPagerLayoutInfoForSideEffectSample
+     */
+    val layoutInfo: PagerLayoutInfo get() = pagerLayoutInfoState.value
 
     internal val pageSpacing: Int
         get() = pagerLayoutInfoState.value.pageSpacing
@@ -240,7 +221,7 @@ abstract class PagerState(
     internal val pageSize: Int
         get() = pagerLayoutInfoState.value.pageSize
 
-    internal var density: Density by mutableStateOf(UnitDensity)
+    internal var density: Density = UnitDensity
 
     private val visiblePages: List<PageInfo>
         get() = pagerLayoutInfoState.value.visiblePagesInfo
@@ -252,24 +233,11 @@ abstract class PagerState(
      * How far the current page needs to scroll so the target page is considered to be the next
      * page.
      */
-    private val positionThresholdFraction: Float
+    internal val positionThresholdFraction: Float
         get() = with(density) {
             val minThreshold = minOf(DefaultPositionThreshold.toPx(), pageSize / 2f)
             minThreshold / pageSize.toFloat()
         }
-
-    private val distanceToSnapPosition: Float
-        get() = layoutInfo.closestPageToSnapPosition?.let {
-            density.calculateDistanceToDesiredSnapPosition(
-                mainAxisViewPortSize = layoutInfo.mainAxisViewportSize,
-                beforeContentPadding = layoutInfo.beforeContentPadding,
-                afterContentPadding = layoutInfo.afterContentPadding,
-                itemSize = layoutInfo.pageSize,
-                itemOffset = it.offset,
-                itemIndex = it.index,
-                snapPositionInLayout = SnapAlignmentStartToStart
-            )
-        } ?: 0f
 
     internal val internalInteractionSource: MutableInteractionSource = MutableInteractionSource()
 
@@ -291,7 +259,7 @@ abstract class PagerState(
      */
     val currentPage: Int get() = scrollPosition.currentPage
 
-    private var animationTargetPage by mutableIntStateOf(-1)
+    private var programmaticScrollTargetPage by mutableIntStateOf(-1)
 
     private var settledPageState by mutableIntStateOf(initialPage)
 
@@ -323,12 +291,16 @@ abstract class PagerState(
     val targetPage: Int by derivedStateOf(structuralEqualityPolicy()) {
         val finalPage = if (!isScrollInProgress) {
             currentPage
-        } else if (animationTargetPage != -1) {
-            animationTargetPage
+        } else if (programmaticScrollTargetPage != -1) {
+            programmaticScrollTargetPage
         } else if (snapRemainingScrollOffset == 0.0f) {
             // act on scroll only
             if (abs(currentPageOffsetFraction) >= abs(positionThresholdFraction)) {
-                currentPage + currentPageOffsetFraction.sign.toInt()
+                if (isScrollingForward) {
+                    firstVisiblePage + 1
+                } else {
+                    firstVisiblePage
+                }
             } else {
                 currentPage
             }
@@ -397,12 +369,14 @@ abstract class PagerState(
     /**
      * Constraints passed to the prefetcher for premeasuring the prefetched items.
      */
-    internal var premeasureConstraints by mutableStateOf(Constraints())
+    internal var premeasureConstraints = Constraints()
 
     /**
      * Stores currently pinned pages which are always composed, used by for beyond bound pages.
      */
     internal val pinnedPages = LazyLayoutPinnedItemList()
+
+    internal val nearestRange: IntRange by scrollPosition.nearestRangeState
 
     /**
      * Scroll (jump immediately) to a given [page].
@@ -421,10 +395,47 @@ abstract class PagerState(
             "pageOffsetFraction $pageOffsetFraction is not within the range -0.5 to 0.5"
         }
         val targetPage = page.coerceInPageRange()
-        scrollPosition.requestPosition(
-            targetPage,
-            (pageAvailableSpace * pageOffsetFraction).roundToInt()
-        )
+        val offset = (pageAvailableSpace * pageOffsetFraction).roundToInt()
+        snapToItem(targetPage, offset)
+    }
+
+    /**
+     * Jump immediately to a given [page] with a given [pageOffsetFraction] inside
+     * a [ScrollScope]. Use this method to create custom animated scrolling experiences. This will
+     * update the value of [currentPage] and [currentPageOffsetFraction] immediately, but can only
+     * be used inside a [ScrollScope], use [scroll] to gain access to a [ScrollScope].
+     *
+     * Please refer to the sample to learn how to use this API.
+     * @sample androidx.compose.foundation.samples.PagerCustomAnimateScrollToPage
+     *
+     * @param page The destination page to scroll to
+     * @param pageOffsetFraction A fraction of the page size that indicates the offset the
+     * destination page will be offset from its snapped position.
+     */
+    fun ScrollScope.updateCurrentPage(page: Int, pageOffsetFraction: Float = 0.0f) {
+        val targetPageOffsetToSnappedPosition = (pageOffsetFraction * pageAvailableSpace).toInt()
+        with(animatedScrollScope) {
+            snapToItem(page, targetPageOffsetToSnappedPosition)
+        }
+    }
+
+    /**
+     * Used to update [targetPage] during a programmatic scroll operation. This can only be called
+     * inside a [ScrollScope] and should be called anytime a custom scroll (through [scroll]) is
+     * executed in order to correctly update [targetPage]. This will not move the pages and it's
+     * still the responsibility of the caller to call [ScrollScope.scrollBy] in order to actually
+     * get to [targetPage]. By the end of the [scroll] block, when the [Pager] is no longer
+     * scrolling [targetPage] will assume the value of [currentPage].
+     *
+     * Please refer to the sample to learn how to use this API.
+     * @sample androidx.compose.foundation.samples.PagerCustomAnimateScrollToPage
+     */
+    fun ScrollScope.updateTargetPage(targetPage: Int) {
+        programmaticScrollTargetPage = targetPage.coerceInPageRange()
+    }
+
+    internal fun snapToItem(page: Int, offset: Int) {
+        scrollPosition.requestPosition(page, offset)
         remeasurement?.forceRemeasure()
     }
 
@@ -445,7 +456,7 @@ abstract class PagerState(
     suspend fun animateScrollToPage(
         page: Int,
         pageOffsetFraction: Float = 0f,
-        animationSpec: AnimationSpec<Float> = spring(stiffness = Spring.StiffnessMediumLow)
+        animationSpec: AnimationSpec<Float> = spring()
     ) {
         if (page == currentPage && currentPageOffsetFraction == pageOffsetFraction ||
             pageCount == 0
@@ -454,41 +465,49 @@ abstract class PagerState(
         require(pageOffsetFraction in -0.5..0.5) {
             "pageOffsetFraction $pageOffsetFraction is not within the range -0.5 to 0.5"
         }
-        var currentPosition = currentPage
         val targetPage = page.coerceInPageRange()
-        animationTargetPage = targetPage
-        // If our future page is too far off, that is, outside of the current viewport
-        val firstVisiblePageIndex = visiblePages.first().index
-        val lastVisiblePageIndex = visiblePages.last().index
-        if (((page > currentPage && page > lastVisiblePageIndex) ||
-                (page < currentPage && page < firstVisiblePageIndex)) &&
-            abs(page - currentPage) >= MaxPagesForAnimateScroll
-        ) {
-            val preJumpPosition = if (page > currentPage) {
-                (page - visiblePages.size).coerceAtLeast(currentPosition)
-            } else {
-                page + visiblePages.size.coerceAtMost(currentPosition)
-            }
+        val targetPageOffsetToSnappedPosition = (pageOffsetFraction * pageAvailableSpace).toInt()
 
-            debugLog {
-                "animateScrollToPage with pre-jump to position=$preJumpPosition"
-            }
+        with(animatedScrollScope) {
+            scroll {
+                updateTargetPage(targetPage)
+                val forward = targetPage > firstVisibleItemIndex
+                val visiblePages = lastVisibleItemIndex - firstVisibleItemIndex + 1
+                if (((forward && targetPage > lastVisibleItemIndex) ||
+                        (!forward && targetPage < firstVisibleItemIndex)) &&
+                    abs(targetPage - firstVisibleItemIndex) >= MaxPagesForAnimateScroll
+                ) {
+                    val preJumpPosition = if (forward) {
+                        (targetPage - visiblePages).coerceAtLeast(firstVisibleItemIndex)
+                    } else {
+                        (targetPage + visiblePages).coerceAtMost(firstVisibleItemIndex)
+                    }
 
-            // Pre-jump to 1 viewport away from destination page, if possible
-            scrollToPage(preJumpPosition)
-            currentPosition = preJumpPosition
+                    debugLog {
+                        "animateScrollToPage with pre-jump to position=$preJumpPosition"
+                    }
+
+                    // Pre-jump to 1 viewport away from destination page, if possible
+                    snapToItem(preJumpPosition, 0)
+                }
+                val pageAvailableSpace = visibleItemsAverageSize
+                val currentPosition = firstVisibleItemIndex
+                val targetOffset = targetPage * pageAvailableSpace
+                val currentOffset = currentPosition * pageAvailableSpace
+
+                // The final delta displacement will be the difference between the pages offsets
+                // discounting whatever offset the original page had scrolled plus the offset
+                // fraction requested by the user.
+                val displacement = (targetOffset - currentOffset -
+                    firstVisibleItemScrollOffset + targetPageOffsetToSnappedPosition).toFloat()
+
+                debugLog { "animateScrollToPage $displacement pixels" }
+                var previousValue = 0f
+                animate(0f, displacement, animationSpec = animationSpec) { currentValue, _ ->
+                    previousValue += scrollBy(currentValue - previousValue)
+                }
+            }
         }
-
-        val targetOffset = targetPage * pageAvailableSpace
-        val currentOffset = currentPosition * pageAvailableSpace
-        val pageOffsetToSnappedPosition =
-            distanceToSnapPosition + pageOffsetFraction * pageAvailableSpace
-
-        val displacement = targetOffset - currentOffset + pageOffsetToSnappedPosition
-
-        debugLog { "animateScrollToPage $displacement pixels" }
-        animateScrollBy(displacement, animationSpec)
-        animationTargetPage = -1
     }
 
     private suspend fun awaitScrollDependencies() {
@@ -500,7 +519,12 @@ abstract class PagerState(
         block: suspend ScrollScope.() -> Unit
     ) {
         awaitScrollDependencies()
+        // will scroll and it's not scrolling already update settled page
+        if (!isScrollInProgress) {
+            settledPageState = currentPage
+        }
         scrollableState.scroll(scrollPriority, block)
+        programmaticScrollTargetPage = -1 // reset animated scroll target page indicator
     }
 
     override fun dispatchRawDelta(delta: Float): Float {
@@ -521,15 +545,15 @@ abstract class PagerState(
     internal fun applyMeasureResult(result: PagerMeasureResult) {
         scrollPosition.updateFromMeasureResult(result)
         scrollToBeConsumed -= result.consumedScroll
+        if (result.consumedScroll != 0.0f) {
+            isScrollingForward = result.consumedScroll < 0
+        }
         pagerLayoutInfoState.value = result
         canScrollForward = result.canScrollForward
         canScrollBackward = (result.firstVisiblePage?.index ?: 0) != 0 ||
             result.firstVisiblePageOffset != 0
         numMeasurePasses++
         cancelPrefetchIfVisibleItemsChanged(result)
-        if (!isScrollInProgress) {
-            settledPageState = currentPage
-        }
     }
 
     private fun Int.coerceInPageRange() = if (pageCount > 0) {
@@ -537,6 +561,19 @@ abstract class PagerState(
     } else {
         0
     }
+
+    // check if the scrolling will be a result of a fling operation. That is, if the scrolling
+    // direction is in the opposite direction of the gesture movement. Also, return true if there
+    // is no applied gesture that causes the scrolling
+    private fun isGestureActionMatchesScroll(delta: Float): Boolean =
+        if (layoutInfo.orientation == Orientation.Vertical) {
+            sign(delta) == sign(upDownDifference.y)
+        } else {
+            sign(delta) == sign(upDownDifference.x)
+        } || isNotGestureAction()
+
+    private fun isNotGestureAction(): Boolean =
+        upDownDifference.x.toInt() == 0 && upDownDifference.y.toInt() == 0
 
     private fun performScroll(distance: Float): Float {
         if (distance < 0 && !canScrollForward || distance > 0 && !canScrollBackward) {
@@ -553,8 +590,9 @@ abstract class PagerState(
         if (abs(scrollToBeConsumed) > 0.5f) {
             val preScrollToBeConsumed = scrollToBeConsumed
             remeasurement?.forceRemeasure()
-            if (prefetchingEnabled) {
-                notifyPrefetch(preScrollToBeConsumed - scrollToBeConsumed)
+            val delta = preScrollToBeConsumed - scrollToBeConsumed
+            if (prefetchingEnabled && isGestureActionMatchesScroll(delta)) {
+                notifyPrefetch(delta)
             }
         }
 
@@ -578,23 +616,23 @@ abstract class PagerState(
         }
         val info = layoutInfo
         if (info.visiblePagesInfo.isNotEmpty()) {
-            val scrollingForward = delta < 0
-            val indexToPrefetch = if (scrollingForward) {
-                info.visiblePagesInfo.last().index + 1
+            val isPrefetchingForward = delta < 0
+            val indexToPrefetch = if (isPrefetchingForward) {
+                info.visiblePagesInfo.last().index + info.beyondBoundsPageCount + PagesToPrefetch
             } else {
-                info.visiblePagesInfo.first().index - 1
+                info.visiblePagesInfo.first().index - info.beyondBoundsPageCount - PagesToPrefetch
             }
             if (indexToPrefetch != this.indexToPrefetch &&
-                indexToPrefetch in 0 until info.pagesCount
+                indexToPrefetch in 0 until pageCount
             ) {
-                if (wasScrollingForward != scrollingForward) {
+                if (wasPrefetchingForward != isPrefetchingForward) {
                     // the scrolling direction has been changed which means the last prefetched
                     // is not going to be reached anytime soon so it is safer to dispose it.
                     // if this item is already visible it is safe to call the method anyway
                     // as it will be no-op
                     currentPrefetchHandle?.cancel()
                 }
-                this.wasScrollingForward = scrollingForward
+                this.wasPrefetchingForward = isPrefetchingForward
                 this.indexToPrefetch = indexToPrefetch
                 currentPrefetchHandle = prefetchState.schedulePrefetch(
                     indexToPrefetch, premeasureConstraints
@@ -605,10 +643,10 @@ abstract class PagerState(
 
     private fun cancelPrefetchIfVisibleItemsChanged(info: PagerLayoutInfo) {
         if (indexToPrefetch != -1 && info.visiblePagesInfo.isNotEmpty()) {
-            val expectedPrefetchIndex = if (wasScrollingForward) {
-                info.visiblePagesInfo.last().index + 1
+            val expectedPrefetchIndex = if (wasPrefetchingForward) {
+                info.visiblePagesInfo.last().index + info.beyondBoundsPageCount + PagesToPrefetch
             } else {
-                info.visiblePagesInfo.first().index - 1
+                info.visiblePagesInfo.first().index - info.beyondBoundsPageCount - PagesToPrefetch
             }
             if (indexToPrefetch != expectedPrefetchIndex) {
                 indexToPrefetch = -1
@@ -635,6 +673,16 @@ abstract class PagerState(
         }
         return (currentPage - page) + currentPageOffsetFraction
     }
+
+    /**
+     * When the user provided custom keys for the pages we can try to detect when there were
+     * pages added or removed before our current page and keep this page as the current one
+     * given that its index has been changed.
+     */
+    internal fun matchScrollPositionWithKey(
+        itemProvider: PagerLazyLayoutItemProvider,
+        firstPageIndex: Int = Snapshot.withoutReadObservation { scrollPosition.firstVisiblePage }
+    ): Int = scrollPosition.matchPageWithKey(itemProvider, firstPageIndex)
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -651,12 +699,11 @@ private const val MinPageOffset = -0.5f
 private const val MaxPageOffset = 0.5f
 internal val DefaultPositionThreshold = 56.dp
 private const val MaxPagesForAnimateScroll = 3
+internal const val PagesToPrefetch = 1
 
 @OptIn(ExperimentalFoundationApi::class)
-internal val EmptyLayoutInfo = object : PagerLayoutInfo {
+internal object EmptyLayoutInfo : PagerLayoutInfo {
     override val visiblePagesInfo: List<PageInfo> = emptyList()
-    override val closestPageToSnapPosition: PageInfo? = null
-    override val pagesCount: Int = 0
     override val pageSize: Int = 0
     override val pageSpacing: Int = 0
     override val beforeContentPadding: Int = 0
@@ -666,6 +713,7 @@ internal val EmptyLayoutInfo = object : PagerLayoutInfo {
     override val viewportStartOffset: Int = 0
     override val viewportEndOffset: Int = 0
     override val reverseLayout: Boolean = false
+    override val beyondBoundsPageCount: Int = 0
 }
 
 private val UnitDensity = object : Density {
@@ -674,7 +722,8 @@ private val UnitDensity = object : Density {
 }
 
 @OptIn(ExperimentalFoundationApi::class)
-internal val SnapAlignmentStartToStart = SnapPositionInLayout { _, _, _ -> 0 }
+internal val SnapAlignmentStartToStart =
+    SnapPositionInLayout { _, _, _, _, _ -> 0 }
 
 private const val DEBUG = false
 private inline fun debugLog(generateMsg: () -> String) {

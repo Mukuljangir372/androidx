@@ -18,8 +18,8 @@ package androidx.appactions.interaction.service.testing.internal
 
 import androidx.appactions.interaction.capabilities.core.BaseExecutionSession
 import androidx.appactions.interaction.capabilities.core.Capability
+import androidx.appactions.interaction.capabilities.core.HostProperties
 import androidx.appactions.interaction.capabilities.core.ValueListener
-import androidx.appactions.interaction.capabilities.core.impl.BuilderOf
 import androidx.appactions.interaction.capabilities.core.impl.converters.TypeConverters
 import androidx.appactions.interaction.capabilities.core.impl.spec.ActionSpecBuilder
 import androidx.appactions.interaction.capabilities.core.impl.task.SessionBridge
@@ -33,12 +33,12 @@ class FakeCapability private constructor() {
     class Arguments internal constructor(
         val fieldOne: String?,
     ) {
-        class Builder : BuilderOf<Arguments> {
+        class Builder {
             private var fieldOne: String? = null
             fun setFieldOne(value: String) = apply {
                 fieldOne = value
             }
-            override fun build() = Arguments(fieldOne)
+            fun build() = Arguments(fieldOne)
         }
     }
 
@@ -71,6 +71,10 @@ class FakeCapability private constructor() {
             builder.build()
         }
 
+        public override fun setExecutionSessionFactory(
+            sessionFactory: (hostProperties: HostProperties?) -> ExecutionSession
+        ) = super.setExecutionSessionFactory(sessionFactory)
+
         fun setFieldOne(fieldOne: Property<StringValue>) = setProperty(
             "fieldOne",
             fieldOne,
@@ -80,10 +84,11 @@ class FakeCapability private constructor() {
 
     companion object {
         private val ACTION_SPEC = ActionSpecBuilder.ofCapabilityNamed(CAPABILITY_NAME)
-            .setArguments(Arguments::class.java, Arguments::Builder)
+            .setArguments(Arguments::class.java, Arguments::Builder, Arguments.Builder::build)
             .setOutput(Output::class.java)
             .bindParameter(
                 "fieldOne",
+                Arguments::fieldOne,
                 Arguments.Builder::setFieldOne,
                 TypeConverters.STRING_PARAM_VALUE_CONVERTER
             )

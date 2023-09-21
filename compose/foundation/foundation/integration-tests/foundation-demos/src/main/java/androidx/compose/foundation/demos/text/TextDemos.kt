@@ -16,6 +16,17 @@
 
 package androidx.compose.foundation.demos.text
 
+import androidx.compose.foundation.demos.text2.BasicSecureTextFieldDemos
+import androidx.compose.foundation.demos.text2.BasicTextField2CustomPinFieldDemo
+import androidx.compose.foundation.demos.text2.BasicTextField2Demos
+import androidx.compose.foundation.demos.text2.BasicTextField2FilterDemos
+import androidx.compose.foundation.demos.text2.BasicTextField2ValueCallbackDemo
+import androidx.compose.foundation.demos.text2.DecorationBoxDemos
+import androidx.compose.foundation.demos.text2.KeyboardOptionsDemos
+import androidx.compose.foundation.demos.text2.ScrollableDemos
+import androidx.compose.foundation.demos.text2.SwapFieldSameStateDemo
+import androidx.compose.foundation.demos.text2.TextFieldLineLimitsDemos
+import androidx.compose.foundation.samples.BasicTextField2UndoSample
 import androidx.compose.integration.demos.common.ComposableDemo
 import androidx.compose.integration.demos.common.DemoCategory
 
@@ -118,6 +129,23 @@ val TextDemos = DemoCategory(
                 ComposableDemo("Focus immediately") { FocusTextFieldImmediatelyDemo() },
                 ComposableDemo("Secondary input system") { PlatformTextInputAdapterDemo() },
                 ComposableDemo("TextField focus") { TextFieldFocusDemo() },
+                ComposableDemo("Read-only field") { ReadOnlyTextFieldDemo() },
+            )
+        ),
+        DemoCategory(
+            "BasicTextField2",
+            listOf(
+                ComposableDemo("Basic text input") { BasicTextField2Demos() },
+                ComposableDemo("Value/callback overload") { BasicTextField2ValueCallbackDemo() },
+                ComposableDemo("Keyboard Options") { KeyboardOptionsDemos() },
+                ComposableDemo("Decoration Box") { DecorationBoxDemos() },
+                ComposableDemo("Line limits") { TextFieldLineLimitsDemos() },
+                ComposableDemo("Scroll") { ScrollableDemos() },
+                ComposableDemo("Filters") { BasicTextField2FilterDemos() },
+                ComposableDemo("Secure Field") { BasicSecureTextFieldDemos() },
+                ComposableDemo("Swap the field but reuse the state") { SwapFieldSameStateDemo() },
+                ComposableDemo("Custom PIN field") { BasicTextField2CustomPinFieldDemo() },
+                ComposableDemo("Undo/Redo") { BasicTextField2UndoSample() },
             )
         ),
         DemoCategory(
@@ -126,6 +154,12 @@ val TextDemos = DemoCategory(
                 ComposableDemo("Text selection") { TextSelectionDemo() },
                 ComposableDemo("Text selection sample") { TextSelectionSample() },
                 ComposableDemo("Overflowed Selection") { TextOverflowedSelectionDemo() },
+                ComposableDemo("Scrollable Column Text Selection") {
+                    TextScrollableColumnSelectionDemo()
+                },
+                ComposableDemo("Selection Minimum Touch Target") {
+                    MinTouchTargetTextSelection()
+                },
             )
         ),
         DemoCategory(

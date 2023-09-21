@@ -18,6 +18,7 @@ package androidx.glance.session
 
 import android.content.Context
 import android.util.Log
+import androidx.annotation.VisibleForTesting
 import androidx.compose.runtime.Composition
 import androidx.compose.runtime.Recomposer
 import androidx.glance.Applier
@@ -27,10 +28,14 @@ import androidx.work.Data
 import androidx.work.WorkerParameters
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -83,6 +88,9 @@ internal class SessionWorker(
     private val key = inputData.getString(sessionManager.keyParam)
         ?: error("SessionWorker must be started with a key")
 
+    @VisibleForTesting
+    internal var effectJob: Job? = null
+
     override suspend fun doWork() =
         withTimerOrNull(timeouts.timeSource) {
             observeIdleEvents(
@@ -112,18 +120,44 @@ internal class SessionWorker(
         val frameClock = InteractiveFrameClock(this)
         val snapshotMonitor = launch { globalSnapshotMonitor() }
         val root = session.createRootEmittable()
-        val recomposer = Recomposer(coroutineContext)
-        val composition = Composition(Applier(root), recomposer).apply {
-            setContent(session.provideGlance(applicationContext))
-        }
         val uiReady = MutableStateFlow(false)
+        // For effects, use an independent Job with a CoroutineExceptionHandler so that we can catch
+        // errors from LaunchedEffects in the composition and they won't propagate up to TimerScope.
+        // If we set Job.parent, then we cannot use our own CoroutineExceptionHandler. However, this
+        // also means that cancellation of TimerScope does not propagate automatically to this Job,
+        // so we must set that up manually here to avoid leaking the effect Job after this scope
+        // ends.
+        val effectExceptionHandler = CoroutineExceptionHandler { _, throwable ->
+            launch {
+                session.onCompositionError(applicationContext, throwable)
+                session.close()
+                uiReady.emit(true)
+            }
+        }
+        val effectCoroutineContext = Job().let { job ->
+            effectJob = job
+            coroutineContext[Job]?.invokeOnCompletion { job.cancel() }
+            coroutineContext + job + effectExceptionHandler
+        }
+        val recomposer = Recomposer(effectCoroutineContext)
+        val composition = Composition(Applier(root), recomposer)
 
         launch(frameClock) {
-            recomposer.runRecomposeAndApplyChanges()
+            try {
+                composition.setContent(session.provideGlance(applicationContext))
+                recomposer.runRecomposeAndApplyChanges()
+            } catch (e: CancellationException) {
+                // do nothing if we are cancelled.
+            } catch (throwable: Throwable) {
+                session.onCompositionError(applicationContext, throwable)
+                session.close()
+                // Set uiReady to true to resume coroutine waiting on it.
+                uiReady.emit(true)
+            }
         }
         launch {
             var lastRecomposeCount = recomposer.changeCount
-            recomposer.currentState.collect { state ->
+            recomposer.currentState.collectLatest { state ->
                 if (DEBUG) Log.d(TAG, "Recomposer(${session.key}): currentState=$state")
                 when (state) {
                     Recomposer.State.Idle -> {

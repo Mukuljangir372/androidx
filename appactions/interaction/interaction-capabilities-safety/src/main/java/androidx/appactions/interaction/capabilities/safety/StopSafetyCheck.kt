@@ -23,19 +23,17 @@ import androidx.appactions.builtintypes.experimental.types.SuccessStatus
 import androidx.appactions.interaction.capabilities.core.BaseExecutionSession
 import androidx.appactions.interaction.capabilities.core.Capability
 import androidx.appactions.interaction.capabilities.core.CapabilityFactory
-import androidx.appactions.interaction.capabilities.core.impl.BuilderOf
 import androidx.appactions.interaction.capabilities.core.impl.converters.TypeConverters
 import androidx.appactions.interaction.capabilities.core.impl.spec.ActionSpecBuilder
+import androidx.appactions.interaction.capabilities.core.impl.spec.ActionSpecRegistry
 import androidx.appactions.interaction.capabilities.safety.executionstatus.SafetyAccountNotLoggedIn
 import androidx.appactions.interaction.capabilities.safety.executionstatus.SafetyFeatureNotOnboarded
 import androidx.appactions.interaction.proto.ParamValue
 import androidx.appactions.interaction.protobuf.Struct
 import androidx.appactions.interaction.protobuf.Value
 
-private const val CAPABILITY_NAME = "actions.intent.STOP_SAFETY_CHECK"
-
 /** A capability corresponding to actions.intent.STOP_SAFETY_CHECK */
-@CapabilityFactory(name = CAPABILITY_NAME)
+@CapabilityFactory(name = StopSafetyCheck.CAPABILITY_NAME)
 class StopSafetyCheck private constructor() {
     class CapabilityBuilder :
         Capability.Builder<
@@ -43,8 +41,8 @@ class StopSafetyCheck private constructor() {
             >(ACTION_SPEC)
 
     class Arguments internal constructor() {
-        class Builder : BuilderOf<Arguments> {
-            override fun build(): Arguments = Arguments()
+        class Builder {
+            fun build(): Arguments = Arguments()
         }
     }
 
@@ -146,9 +144,11 @@ class StopSafetyCheck private constructor() {
     sealed interface ExecutionSession : BaseExecutionSession<Arguments, Output>
 
     companion object {
+        /** Canonical name for [StopSafetyCheck] capability */
+        const val CAPABILITY_NAME = "actions.intent.STOP_SAFETY_CHECK"
         private val ACTION_SPEC =
             ActionSpecBuilder.ofCapabilityNamed(CAPABILITY_NAME)
-                .setArguments(Arguments::class.java, Arguments::Builder)
+                .setArguments(Arguments::class.java, Arguments::Builder, Arguments.Builder::build)
                 .setOutput(Output::class.java)
                 .bindOutput(
                     "executionStatus",
@@ -156,5 +156,8 @@ class StopSafetyCheck private constructor() {
                     ExecutionStatus::toParamValue
                 )
                 .build()
+        init {
+            ActionSpecRegistry.registerActionSpec(Arguments::class, Output::class, ACTION_SPEC)
+        }
     }
 }
